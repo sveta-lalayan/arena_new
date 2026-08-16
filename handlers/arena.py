@@ -7,7 +7,7 @@ import ai
 import database as db
 import gamification
 from config import CHECKPOINT_TURNS
-from game_data import LANGUAGES, LEVELS, PERSONALITIES, BADGES
+from game_data import LANGUAGES, LEVELS, PERSONALITIES, BADGES, PERSONALITY_COMMENTS
 
 STATE_KEYS = [
     "language", "level", "topic", "personality", "mission_words",
@@ -113,16 +113,20 @@ async def select_personality(update: Update, context: ContextTypes.DEFAULT_TYPE)
     mission_words = await asyncio.to_thread(ai.generate_mission_words, topic, level, language)
     context.user_data["mission_words"] = mission_words
 
-    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("⚔️ НАЧАТЬ", callback_data="debate_start")]])
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("⚔️ НАЧАТЬ ДЕБАТЫ", callback_data="debate_start")]])
     await query.edit_message_text(
         f"🎭 <b>ТВОЙ ПРОТИВНИК</b>\n\n"
-        f"<b>{person['name']}</b>\n<i>{person['desc']}</i>\n\n"
+        f"<b>{person['name']}</b>\n"
+        f"<i>{person['desc']}</i>\n\n"
+        f"📝 <b>Стиль:</b> {person['style']}\n"
         f"💬 <b>Фирменная фраза:</b> \"{person['phrase']}\"\n\n"
-        f"📚 <b>Тема:</b> {topic}\n📊 <b>Уровень:</b> {level}\n\n"
+        f"📚 <b>Тема:</b> {topic}\n"
+        f"📊 <b>Уровень:</b> {level}\n\n"
         f"💡 <b>Твоя задача:</b>\n"
-        f"• Вырази свою точку зрения\n"
-        f"• Используй слова: <b>{mission_words}</b>\n\n"
-        f"⚔️ <i>Нажми «Начать», когда будешь готов!</i>",
+        f"• Вырази свою точку зрения на утверждение\n"
+        f"• Используй 3 слова по теме: <b>{mission_words}</b>\n"
+        f"• Каждый раунд — твой ответ и реакция противника\n"
+        f"⚔️ <i>Нажми «Начать дебаты», когда будешь готов!</i>",
         reply_markup=keyboard,
         parse_mode="HTML",
     )
@@ -243,6 +247,7 @@ async def finish_arena(update: Update, context: ContextTypes.DEFAULT_TYPE, via_c
     level = context.user_data.get("level", "B1")
     topic = context.user_data.get("topic", "")
     personality = context.user_data.get("personality", "devil_advocate")
+    mission_words = context.user_data.get("mission_words", "")
 
     send = update.callback_query.message.reply_text if via_callback else update.message.reply_text
 
@@ -252,38 +257,89 @@ async def finish_arena(update: Update, context: ContextTypes.DEFAULT_TYPE, via_c
         _reset_state(context)
         return
 
-    analysis = await asyncio.to_thread(ai.analyze_debate, user_responses, topic, level, language)
+    person = PERSONALITIES.get(personality, PERSONALITIES["devil_advocate"])
+
+    await send(
+        f"🥊 ДЕБАТЫ ЗАВЕРШЕНЫ!\n\n"
+        f"📊 Язык: {LANGUAGES.get(language, {}).get('name', language)}\n"
+        f"📚 Тема: {topic}\n"
+        f"🎭 Противник: {person['full_name']}\n"
+        f"💬 Ответов: {len(user_responses)}\n\n"
+        f"📝 Анализирую...",
+        parse_mode="HTML",
+    )
+
+    analysis = await asyncio.to_thread(
+        ai.analyze_debate, user_responses, dialogue, topic, level, language, personality, mission_words
+    )
     scores = analysis["scores"]
     rounds_completed = len(user_responses)
 
+    # --- Геймификация Arena 2.0 (баллы/уровни/достижения) ---
     points_earned = gamification.calculate_points(rounds_completed, scores)
     db.save_game_session(user.id, personality, language, level, topic, rounds_completed, scores, points_earned)
     db.add_points(user.id, points_earned)
-
     new_badges = gamification.check_and_unlock_achievements(user.id, personality, rounds_completed, scores)
 
-    person = PERSONALITIES.get(personality, {})
-    text = (
-        f"🥊 <b>ИГРА ЗАВЕРШЕНА!</b>\n\n"
-        f"🎭 Противник: {person.get('full_name', personality)}\n"
-        f"📚 Тема: {topic}\n"
-        f"💬 Раундов пройдено: {rounds_completed}\n\n"
-        f"📊 <b>Результаты:</b>\n"
-        f"• Аргументация: {scores['argumentation']}/100\n"
-        f"• Словарный запас: {scores['vocabulary']}/100 — {analysis['vocab_text']}\n"
-        f"• Грамматика: {scores['grammar']}/100 — {analysis['grammar_text']}\n"
-        f"• Беглость: {scores['fluency']}/100\n\n"
-        f"⭐ <b>+{points_earned} баллов</b>\n"
-    )
+    # --- Уровень (реальный vs заявленный) ---
+    level_text = f"\n{analysis['level_emoji']} УРОВЕНЬ {level}"
+    detected_level = analysis["detected_level"]
+    if detected_level != level:
+        level_text += f"\n📊 Реальный уровень: {detected_level}"
+    if detected_level == level:
+        level_text += "\n🔥 Твой уровень полностью соответствует заявленному!"
+    elif level in ("A1", "A2"):
+        level_text += "\n🌱 Ты на старте! Главное — не бояться говорить!"
+    elif level in ("B1", "B2"):
+        level_text += "\n💪 Ты молодец! Добавляй больше объяснений: because, for example."
+    else:
+        level_text += "\n🧠 Сосредоточься на сложных конструкциях и идиомах."
+
+    personality_comment = PERSONALITY_COMMENTS.get(personality, "Отличный бой! Жду тебя снова!")
+
+    # --- Полный фидбэк — формат перенесён 1:1 из старого бота ---
+    feedback_text = f"""
+🏟️ ВЫВОД АРЕНЫ
+
+📊 ТВОИ ПОКАЗАТЕЛИ
+🧠 АРГУМЕНТАЦИЯ — {int(scores['argumentation'])}% — {analysis['arg_desc']}
+📚 СЛОВАРНЫЙ ЗАПАС — {int(scores['vocabulary'])}% — {analysis['vocab_text']}
+📝 ГРАММАТИКА — {int(scores['grammar'])}% — {analysis['grammar_text']}
+🎤 БЕГЛОСТЬ — {int(scores['fluency'])}% — речь {'плавная' if scores['fluency'] > 60 else 'уверенная'}
+❓ ВОВЛЕЧЕННОСТЬ — {analysis['questions']} вопросов
+📝 ВСЕГО СЛОВ — {analysis['total_words']}
+{analysis['mission_display']}
+
+{level_text}
+
+📝 ДЕТАЛИ ПО ГРАММАТИКЕ
+{analysis['grammar_report']}
+
+{analysis['psychology_text']}
+
+{analysis['moment_text']}
+
+🔗 СВЯЗКИ ДЛЯ ТВОЕГО УРОВНЯ
+{analysis['linking_phrases_display']}
+
+💎 УКРАДИ ЭТУ ФРАЗУ
+
+{analysis['unique_phrase']}
+
+👑 СЛОВО {person['name'].upper()}
+{personality_comment}
+
+⭐ <b>+{points_earned} баллов Arena 2.0</b>
+"""
     if new_badges:
         names = ", ".join(BADGES[b]["name"] for b in new_badges if b in BADGES)
-        text += f"\n🎉 Новые достижения: {names}"
+        feedback_text += f"\n🎉 Новые достижения: {names}"
 
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("🎮 Играть снова", callback_data="menu_play")],
         [InlineKeyboardButton("👤 Профиль", callback_data="menu_profile")],
     ])
-    await send(text, reply_markup=keyboard, parse_mode="HTML")
+    await send(feedback_text, reply_markup=keyboard, parse_mode="HTML")
     _reset_state(context)
 
 
