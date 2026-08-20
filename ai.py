@@ -15,7 +15,11 @@ from config import YANDEX_API_KEY, YANDEX_FOLDER_ID
 from game_data import (
     LEVEL_DESCRIPTIONS, PERSONALITIES, LANGUAGES, ROLE_STYLE,
     COMMON_GRAMMAR_ERRORS, FALLBACK_LINKING_PHRASES,
+    PERSONALITY_COMMENTS,  # ← добавьте эту строку
+    INTRO_LEVEL_TASKS,
 )
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -392,4 +396,162 @@ def analyze_debate(user_responses: list[str], dialogue: list[dict], topic: str,
         "psychology_text": person.get("psychology", ""),
         "arg_desc": criteria.get("argumentation", "аргументы есть"),
         "vocab_desc": vocab_text,
+    }
+
+# ---------- Вступительный диалог с гидом (скрытая диагностика + wow-момент) ----------
+#
+# Гид ведёт 6 коротких раундов живого разговора на выбранном языке, не
+# называя это тестом/диагностикой/оценкой. Сложность вопросов зависит от
+# уровня (INTRO_LEVEL_TASKS) — это про сложность мысли, а не про упрощение
+# слов. В конце — "wow-момент": первое впечатление, наблюдения, зона роста
+# (без слова "слабость") и рекомендация ОДНОГО из существующих персонажей.
+
+FORBIDDEN_WORDS_NOTE = (
+    "ВАЖНО: никогда не используй слова «тест», «диагностика», «оценка», "
+    "«ошибки», «слабые стороны» — ни в вопросах, ни в финальном разборе."
+)
+
+
+def generate_guide_opening(language: str, level: str) -> str:
+    lang_name = LANGUAGES.get(language, {}).get("name", language)
+    task_desc = INTRO_LEVEL_TASKS.get(level, INTRO_LEVEL_TASKS["B1"])
+
+    prompt = f"""
+    Ты — Alex, дружелюбный проводник в приложении Arena 2.0. Ты не учитель и
+    не интервьюер — ты просто интересный собеседник.
+
+    Начни лёгкий, живой разговор с пользователем на языке {lang_name}.
+
+    Сложность вопроса подбирай так: {task_desc}
+    {FORBIDDEN_WORDS_NOTE}
+
+    Задай ОДИН короткий, тёплый, открытый вопрос о том, чем человек занимается
+    или что его сейчас увлекает — как в начале интересного разговора с новым
+    знакомым. Никаких вступлений и объяснений — сразу вопрос.
+
+    Ответь 1 предложением на языке {lang_name}, без кавычек и лишних слов.
+    """
+    return ask_gpt(prompt, temperature=0.85) or "Hey! What's something you've been really into lately?"
+
+
+def generate_guide_response(dialogue_history: str, last_user_response: str,
+                             language: str, level: str, round_number: int) -> str:
+    lang_name = LANGUAGES.get(language, {}).get("name", language)
+    task_desc = INTRO_LEVEL_TASKS.get(level, INTRO_LEVEL_TASKS["B1"])
+    word_count = len(last_user_response.split())
+
+    if word_count <= 4:
+        length_hint = ("Собеседник ответил ОЧЕНЬ КОРОТКО. Мягко, без давления, попроси его "
+                        "раскрыть мысль чуть подробнее — не в лоб, а через живой интерес.")
+    else:
+        length_hint = ("Собеседник ответил развёрнуто. НЕ проси повторять или уточнять "
+                        "очевидное — используй что-то конкретное из его ответа и двигай "
+                        "разговор дальше.")
+
+    prompt = f"""
+    Ты — Alex, дружелюбный проводник в приложении Arena 2.0. Это раунд {round_number} из 6.
+
+    Сложность вопроса подбирай так: {task_desc}
+    {FORBIDDEN_WORDS_NOTE}
+
+    История разговора:
+    {dialogue_history}
+
+    Последний ответ собеседника (на языке {lang_name}):
+    {last_user_response}
+
+    {length_hint}
+
+    Если в ответе есть юмор — можешь поддержать в тон. Если ответ неожиданный —
+    используй именно его как материал для следующего вопроса, а не игнорируй.
+    НЕ повторяй формулировки вопросов из предыдущих раундов — каждый вопрос
+    должен звучать по-новому и опираться именно на то, что человек только что сказал.
+
+    Ответь 1-2 короткими предложениями на языке {lang_name}. Без кавычек, без
+    вступлений вроде "Interesting question:" — сразу естественная реплика.
+    """
+    return ask_gpt(prompt, temperature=0.9) or "Got it — and what's the trickiest part about that?"
+
+
+def analyze_intro_conversation(user_responses: list[str], language: str, level: str) -> dict:
+    """Скрытая диагностика → "wow-момент": первое впечатление, 2-3 наблюдения,
+    одна зона роста (без слова "слабость") и рекомендация ОДНОГО существующего
+    персонажа. НЕ создаёт новых персонажей — выбирает только из PERSONALITIES."""
+    lang_name = LANGUAGES.get(language, {}).get("name", language)
+    user_text_full = " ".join(user_responses)[:1500]
+
+    options_list = "\n".join(
+        f"- {key}: {p['full_name']} — {p['desc']}" for key, p in PERSONALITIES.items()
+    )
+
+    prompt = f"""
+    Ты — Alex, проводник Arena 2.0. Ты только что непринуждённо поговорил с
+    пользователем на языке {lang_name} (уровень {level}). Вот что он говорил:
+    {user_text_full}
+
+    Незаметно для пользователя ты следил за: ясностью мысли, точностью,
+    словарным запасом, грамматикой, беглостью, умением объяснять, силой
+    аргументации, реакцией на несогласие, структурой мысли, профессиональным
+    стилем общения. Эти параметры НЕ называй пользователю напрямую.
+
+    {FORBIDDEN_WORDS_NOTE}
+
+    Существующие персонажи (выбери РОВНО ОДНОГО, ничего не придумывай):
+    {options_list}
+
+    Напиши разбор в следующем формате (строго соблюдай маркеры, каждый — на
+    новой строке, текст — на РУССКОМ языке):
+
+    ВПЕЧАТЛЕНИЕ: короткая фраза-догадка о сфере/профессии, в стиле "Я бы
+    предположил, что ты работаешь в..." — живо, не как результат теста.
+
+    НАБЛЮДЕНИЕ1: одно конкретное наблюдение из разговора (например, про то,
+    как человек строит мысль, объясняет, реагирует на возражения).
+
+    НАБЛЮДЕНИЕ2: второе конкретное наблюдение, отличное от первого.
+
+    РОСТ: одна зона роста, сформулированная мягко и позитивно, БЕЗ слова
+    "слабость" — как дружеский совет, а не диагноз.
+
+    ПЕРСОНАЖ: ключ персонажа из списка выше (например ceo), только ключ.
+
+    ПОЧЕМУ: одна короткая персонализированная причина, почему именно этот
+    персонаж поможет с зоной роста — связанная с реальным наблюдением из
+    разговора, не общими словами.
+    """
+    raw = ask_gpt(prompt, temperature=0.7, max_tokens=500)
+
+    impression = "Я бы предположил, что ты часто имеешь дело с людьми и убеждением — в работе или в жизни."
+    observations = [
+        "Ты быстро переходишь от идеи к сути, не тратя время на лишние слова.",
+        "Когда тема интересная, ты сразу приводишь конкретный пример.",
+    ]
+    growth = "Иногда твоя главная мысль появляется только в конце длинного объяснения — её стоит выносить вперёд."
+    recommended = "hr_manager"
+    reasoning = "Он помогает превращать общие фразы в конкретные примеры — то, что усилит именно твою сторону."
+
+    if raw and len(raw) > 30:
+        for line in raw.split("\n"):
+            line = line.strip()
+            if line.startswith("ВПЕЧАТЛЕНИЕ:"):
+                impression = line.replace("ВПЕЧАТЛЕНИЕ:", "").strip()
+            elif line.startswith("НАБЛЮДЕНИЕ1:"):
+                observations[0] = line.replace("НАБЛЮДЕНИЕ1:", "").strip()
+            elif line.startswith("НАБЛЮДЕНИЕ2:"):
+                observations[1] = line.replace("НАБЛЮДЕНИЕ2:", "").strip()
+            elif line.startswith("РОСТ:"):
+                growth = line.replace("РОСТ:", "").strip()
+            elif line.startswith("ПЕРСОНАЖ:"):
+                key = line.replace("ПЕРСОНАЖ:", "").strip().lower()
+                if key in PERSONALITIES:
+                    recommended = key
+            elif line.startswith("ПОЧЕМУ:"):
+                reasoning = line.replace("ПОЧЕМУ:", "").strip()
+
+    return {
+        "impression": impression,
+        "observations": observations,
+        "growth": growth,
+        "recommended_personality": recommended,
+        "reasoning": reasoning,
     }

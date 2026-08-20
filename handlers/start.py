@@ -14,29 +14,48 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработка команды /start — точка входа в бота."""
     user = update.effective_user
-    db.get_or_create_user(user.id, user.username, user.first_name)
-    context.user_data.clear()
 
-    profile_text = gamification.format_profile(user.id, user.first_name or "Игрок")
+
+    text = (
+        f"👋 Привет, {user.first_name}!\n\n"
+        "Добро пожаловать в <b>Arena 2.0</b> — твою языковую тренировочную площадку!\n\n"
+        "🧭 <b>Сначала давай познакомимся</b>\n"
+        "Я — Alex, твой проводник. Зададим пару вопросов, чтобы я понял,\n"
+        "с каким персонажем тебе лучше всего общаться.\n\n"
+        "Это не тест и не оценка. Просто живой разговор.\n"
+        "Готов? 👇"
+    )
+
+    keyboard = [
+        [InlineKeyboardButton("🧭 Начать знакомство", callback_data="menu_intro")],
+        [InlineKeyboardButton("🎮 Сразу в игру", callback_data="menu_play")],
+    ]
+
     await update.message.reply_text(
-        f"👋 Привет! Это <b>Arena 2.0</b> — тренируй язык в диалогах с яркими персонажами "
-        f"и зарабатывай баллы.\n\n{profile_text}",
-        reply_markup=main_menu_keyboard(),
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML",
     )
 
 
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Возврат в главное меню по нажатию кнопки."""
+    """Главное меню с кнопками."""
     query = update.callback_query
     await query.answer()
-    user = update.effective_user
-    context.user_data.clear()
 
-    profile_text = gamification.format_profile(user.id, user.first_name or "Игрок")
+    keyboard = [
+        [InlineKeyboardButton("🎮 Играть", callback_data="menu_play")],
+        [InlineKeyboardButton("🧭 Гид (пройти заново)", callback_data="menu_intro")],
+        [InlineKeyboardButton("👤 Профиль", callback_data="menu_profile")],
+        [InlineKeyboardButton("🏆 Достижения", callback_data="menu_achievements")],
+    ]
+
     await query.edit_message_text(
-        f"🏠 <b>Главное меню</b>\n\n{profile_text}",
-        reply_markup=main_menu_keyboard(),
+        "🏠 <b>Главное меню</b>\n\n"
+        "Выбери, что хочешь сделать:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML",
     )
+

@@ -5,6 +5,7 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Mess
 from config import BOT_TOKEN
 import database as db
 from handlers import start, profile, arena
+from handlers import intro
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -38,6 +39,16 @@ def main():
     app.add_handler(CallbackQueryHandler(arena.start_arena, pattern="^debate_start$"))
     app.add_handler(CallbackQueryHandler(arena.continue_yes, pattern="^continue_yes$"))
     app.add_handler(CallbackQueryHandler(arena.continue_no, pattern="^continue_no$"))
+
+    # Вступительный диалог с гидом (новая механика)
+    app.add_handler(CommandHandler("guide", intro.intro_entry))
+    app.add_handler(CallbackQueryHandler(intro.intro_entry, pattern="^menu_intro$"))
+    app.add_handler(CallbackQueryHandler(intro.select_language, pattern="^intro_lang_"))
+    app.add_handler(CallbackQueryHandler(intro.select_level, pattern="^intro_level_"))
+    app.add_handler(CallbackQueryHandler(intro.meet_character, pattern="^intro_meet_character$"))
+
+    # 🔥 НОВЫЙ ОБРАБОТЧИК: Текст для вступительного диалога с гидом (ДО арены)
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, intro.handle_intro_response))
 
     # Обычный текст (тема игры / ответ в диалоге) — один диспетчер по состоянию
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, arena.handle_text))
