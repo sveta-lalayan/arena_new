@@ -31,6 +31,10 @@ ADMIN_IDS = [
 
 # Через сколько раундов диалога спрашивать пользователя "продолжаем?"
 CHECKPOINT_TURNS = int(os.getenv("CHECKPOINT_TURNS", "8"))
+
+# Сколько ходов пользователя в First Encounter (знакомство с ARENA), прежде
+# чем показать Communication Profile и рекомендовать персонажа
+FIRST_ENCOUNTER_MOVES = int(os.getenv("FIRST_ENCOUNTER_MOVES", "8"))
 # Сколько реплик пользователя собирает вступительный диалог с гидом,
 # прежде чем показать "первое впечатление" и рекомендовать персонажа
 INTRO_ROUNDS = int(os.getenv("INTRO_ROUNDS", "6"))

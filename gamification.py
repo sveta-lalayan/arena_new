@@ -115,3 +115,42 @@ def format_achievements(telegram_id: int) -> str:
         mark = "✅" if key in unlocked else "🔒"
         lines.append(f"{mark} <b>{badge['name']}</b> — {badge['description']}")
     return "\n".join(lines)
+
+def format_arena_profile(telegram_id: int) -> str:
+    """
+    Формирует расширенный профиль с данными ARENA.
+    """
+    # Здесь нужно получать данные из БД
+    # Пока заглушка
+    return """
+🧠 <b>ARENA PROFILE</b>
+
+📊 <b>Текущий уровень</b>
+B1 → B2 (в процессе)
+
+📈 <b>Прогресс</b>
+Language Skills
+  📝 Грамматика ████████░░ 82%
+  📚 Словарный запас ██████░░░ 68%
+  🎤 Беглость █████████░ 90%
+  🧩 Сложность речи ██████░░░ 65%
+
+Communication Skills
+  💡 Ясность ████████░░ 78%
+  📐 Точность формулировок ██████░░░ 62% 🎯
+  ⚔️ Аргументация ███████░░░ 71%
+  🔥 Убедительность ██████░░░ 60%
+  🧠 Критическое мышление ███████░░░ 74%
+  💪 Уверенность ████████░░ 80%
+
+🎯 <b>Current Focus</b>
+Точность формулировок
+
+⚔️ <b>Last Battle</b>
+HR Manager — Convince the HR Manager
+Result: 3/4 arguments
++120 XP
+
+🏆 <b>Battles Won</b>
+6 из 12
+"""
