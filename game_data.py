@@ -1,6 +1,10 @@
 """
 Игровые данные: языки, уровни CEFR, персонажи, психология персонажей,
 финальные комментарии и бейджи.
+
+Персонажи и вся сопутствующая логика (психология, комментарии в конце,
+критерии оценки) — перенесены "один в один" из старого bot.py, чтобы
+сохранить оригинальную механику и голос персонажей.
 """
 
 LANGUAGES = {
@@ -14,7 +18,8 @@ LANGUAGES = {
 
 LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"]
 
-# Используется в промптах для генерации реплик персонажа
+# Используется в промптах для генерации реплик персонажа (открывающее
+# утверждение и продолжение диалога)
 LEVEL_DESCRIPTIONS = {
     "A1": "используй ТОЛЬКО простые предложения (Subject + Verb + Object), "
           "базовую лексику (до 500 слов), настоящие времена (Present Simple), "
@@ -32,17 +37,9 @@ LEVEL_DESCRIPTIONS = {
           "нюансированные аргументы, продвинутые идиомы, стилистические приёмы",
 }
 
-# Адаптация длины ответа под уровень
-RESPONSE_LENGTH = {
-    "A1": "1 короткое предложение (4-8 слов)",
-    "A2": "1 предложение (6-10 слов)",
-    "B1": "1-2 предложения (8-14 слов)",
-    "B2": "1-2 предложения (10-16 слов)",
-    "C1": "2-3 предложения (14-22 слов)",
-    "C2": "2-3 предложения (16-25 слов)",
-}
-
-# Сложность МЫСЛИТЕЛЬНОЙ ЗАДАЧИ вступительного диалога по уровням
+# Сложность МЫСЛИТЕЛЬНОЙ ЗАДАЧИ вступительного диалога по уровням — это НЕ
+# про упрощение лексики (для этого есть LEVEL_DESCRIPTIONS), а про то, какого
+# типа вопросы задаёт гид: от простых фактов к неоднозначным сценариям.
 INTRO_LEVEL_TASKS = {
     "A1": "простые вопросы о фактах: что, где, когда — без необходимости объяснять «почему»",
     "A2": "причины, примеры, сравнения — простое обоснование своей мысли",
@@ -52,11 +49,15 @@ INTRO_LEVEL_TASKS = {
     "C2": "интеллектуально сложные, неоднозначные вопросы, подтекст, нюансы, sophisticated reasoning",
 }
 
+# Персонаж-гид для вступительного диалога — НЕ входит в PERSONALITIES,
+# используется только для представления в начале
 GUIDE_PERSONALITY = {
     "name": "Alex",
     "desc": "Твой дружелюбный проводник в мире Arena 2.0. Помогу освоиться и подобрать идеального собеседника!",
 }
 
+# Стиль ответа персонажа, используется в промпте generate_ai_response
+# (оригинальное имя в старом коде — role_style)
 ROLE_STYLE = {
     "ceo": "спрашивай про стратегию, риски, деньги, лидерство",
     "journalist": "задавай провокационные вопросы, ищи противоречия, проси доказательства",
@@ -66,53 +67,8 @@ ROLE_STYLE = {
     "devil_advocate": "всегда спорь, находи слабые места в аргументах",
 }
 
-# Голос персонажа — примеры фраз для разных ситуаций
-PERSONALITY_VOICE = {
-    "ceo": {
-        "opening": ["Convince me.", "I'm listening. But I need facts.", "What's your bottom line?"],
-        "agree": ["That's a solid point.", "You're making sense.", "I like the way you think."],
-        "disagree": ["That's not how it works.", "Show me the numbers.", "You're missing the ROI."],
-        "challenge": ["And the risk?", "What about the cost?", "What's your backup plan?"],
-        "closing": ["You've got potential. But next time, come with data."]
-    },
-    "journalist": {
-        "opening": ["Are you sure?", "That's a bold claim.", "What's the real story here?"],
-        "agree": ["Now that's interesting.", "I didn't expect that.", "That's a fresh angle."],
-        "disagree": ["That's too obvious.", "You're not telling me everything.", "Where's the evidence?"],
-        "challenge": ["What would your opponent say?", "And the other side?", "Can you prove that?"],
-        "closing": ["You almost had me. But I wanted a scoop, not a statement."]
-    },
-    "professor": {
-        "opening": ["Can you elaborate?", "What's your thesis?", "I'd like to hear your argument."],
-        "agree": ["That's well-argued.", "You've made a solid case.", "I see your logic."],
-        "disagree": ["That's not a valid conclusion.", "You're missing a step.", "Your evidence doesn't support that."],
-        "challenge": ["What about counter-evidence?", "How do you defend that?", "What's your methodology?"],
-        "closing": ["You have a good mind. But structure matters — thesis, argument, conclusion."]
-    },
-    "hr_manager": {
-        "opening": ["Tell me about a time when...", "Can you give me a specific example?", "What's your approach to...?"],
-        "agree": ["That's exactly the kind of thing we value.", "Great example.", "I like how you handled that."],
-        "disagree": ["That's too vague. Give me specifics.", "How did that actually work?", "What was the outcome?"],
-        "challenge": ["What would you do differently?", "How did others react?", "What did you learn?"],
-        "closing": ["I hear good things. But next time, show me the result, not just the action."]
-    },
-    "philosopher": {
-        "opening": ["What makes a good life?", "Why does that matter?", "What if you looked at it differently?"],
-        "agree": ["You're touching on something deep.", "That's a profound thought.", "I like how you think."],
-        "disagree": ["But is that really true?", "What about the other perspective?", "Are you being honest with yourself?"],
-        "challenge": ["And what does that say about you?", "What's the alternative?", "How does that connect to everything?"],
-        "closing": ["You gave me an answer. But I wanted a question."]
-    },
-    "devil_advocate": {
-        "opening": ["What if you're wrong?", "I'm not convinced.", "Let me play devil's advocate."],
-        "agree": ["You're holding up well.", "I like the way you fight.", "You're tougher than I thought."],
-        "disagree": ["That's weak.", "You can do better.", "Try again."],
-        "challenge": ["And what if I'm right?", "Prove it.", "Defend that."],
-        "closing": ["You didn't break. I respect that. But next time, come harder."]
-    }
-}
-
-# Персонажи
+# Персонажи — характеристики и критерии оценки ответов пользователя,
+# перенесены из старого bot.py без изменений
 PERSONALITIES = {
     "ceo": {
         "name": "👑 Richard the CEO",
@@ -121,6 +77,7 @@ PERSONALITIES = {
                 "вступления и отсутствие цифр. Любит факты, уверенность и структуру.",
         "style": "Любит короткие ответы. Не любит эмоции. Лучше работает логика.",
         "phrase": "Convince me.",
+        "photo": "assets/characters/ceo_richard.jpg",
         "psychology": """👑 КАК ДУМАЕТ РИЧАРД?
 
 Ричард не слушает эмоции.
@@ -150,6 +107,7 @@ PERSONALITIES = {
                 "принимает ответ сразу.",
         "style": "Любит неожиданные ответы. Не любит общие слова.",
         "phrase": "Are you sure?",
+        "photo": "assets/characters/journalist_kate.jpg",
         "psychology": """📰 КАК ДУМАЕТ КЕЙТ?
 
 Кейт ищет историю.
@@ -179,6 +137,7 @@ PERSONALITIES = {
         "desc": "Академик. Требует точности и доказательств. Исправляет ошибки.",
         "style": "Любит структуру и аргументы. Не любит неточности.",
         "phrase": "Can you elaborate?",
+        "photo": "assets/characters/professor_adams.jpg",
         "psychology": """🎓 КАК ДУМАЕТ ПРОФЕССОР АДАМС?
 
 Профессор живёт в мире доказательств.
@@ -208,6 +167,7 @@ PERSONALITIES = {
                 "опыте, навыках.",
         "style": "Любит реальные примеры. Истории. STAR-метод.",
         "phrase": "Tell me about a time when...",
+        "photo": "assets/characters/hr_sarah.jpg",
         "psychology": """💼 КАК ДУМАЕТ САРА?
 
 Сара проводит сотни собеседований.
@@ -236,6 +196,7 @@ PERSONALITIES = {
         "desc": "Почти никогда не говорит прямо. Отвечает вопросом. Заставляет думать.",
         "style": "Любит философию. Не любит ответы да/нет.",
         "phrase": "What makes a good life?",
+        "photo": "assets/characters/philosopher_leo.jpg",
         "psychology": """🧙 КАК ДУМАЕТ ЛЕО?
 
 Лео не ищет правильные ответы.
@@ -264,6 +225,7 @@ PERSONALITIES = {
         "desc": "Всегда спорит. Даже если согласен. Учит защищать свою позицию.",
         "style": "Любит провокации и споры. Не любит уступчивость.",
         "phrase": "What if you're wrong?",
+        "photo": "assets/characters/devil_victor.jpg",
         "psychology": """😈 КАК ДУМАЕТ ВИКТОР?
 
 Виктор проверяет на прочность.
@@ -289,6 +251,8 @@ PERSONALITIES = {
     },
 }
 
+# Утрированные комментарии персонажа в конце игры (личное обращение,
+# сохранено дословно из старого bot.py)
 PERSONALITY_COMMENTS = {
     "ceo": """Слушай. Ты смелая. Это плюс.
 
@@ -360,183 +324,258 @@ PERSONALITY_COMMENTS = {
 Докажи, что ты можешь защитить свою позицию.""",
 }
 
-COMMON_GRAMMAR_ERRORS = {
-    "have go": "have gone / go",
-    "she don't": "she doesn't",
-    "he don't": "he doesn't",
-    "it don't": "it doesn't",
-    "there is many": "there are many",
-    "there are much": "there is much",
-    "i is": "I am",
-    "we is": "we are",
-    "they is": "they are",
-    "she have": "she has",
-    "he have": "he has",
-    "it have": "it has",
+# Реплика персонажа при ПОБЕДЕ пользователя (usage_percentage >= 80)
+PERSONALITY_COMMENTS_WIN = {
+    "ceo": """Хорошо. Ты пришла с фактами, а не с эмоциями.
+
+Цифры сошлись. Стратегия понятна.
+
+Я бы это профинансировал.
+
+Приходи ещё — с такими же расчётами.""",
+    "journalist": """Вот это интервью!
+
+Ты дала мне то, за чем я пришла — поворот, которого я не ждала.
+
+Я ставлю это в номер. Без купюр.
+
+Такой уровень — держи планку.""",
+    "professor": """Тезис. Аргумент. Вывод.
+
+Всё на месте. Ты доказала свою позицию, а не просто высказала мнение.
+
+Это была настоящая академическая работа.
+
+Продолжай мыслить так же строго.""",
+    "hr_manager": """Вот это я и хотела услышать.
+
+Конкретика. Результат. Ответственность.
+
+Я бы взяла тебя в команду прямо сейчас.
+
+Ты нанята.""",
+    "philosopher": """Ты дала мне не ответ. Ты дала мне вопрос.
+
+Это редкость.
+
+Ты копнула глубже, чем большинство.
+
+Продолжай спрашивать «почему».""",
+    "devil_advocate": """Ты не сдалась. Ни разу.
+
+Я давил — ты держала позицию.
+
+Это то, что я называю силой воли.
+
+Уважение заслужено.""",
 }
 
-FALLBACK_LINKING_PHRASES = {
-    "A1": ["and — и — соединение", "but — но — контраст", "because — потому что — причина"],
-    "A2": ["and — и — соединение", "but — но — контраст", "because — потому что — причина", "so — поэтому — результат"],
-    "B1": ["however — однако — контраст", "although — хотя — уступка", "therefore — следовательно — вывод", "for example — например — пример"],
-    "B2": ["however — однако — контраст", "although — хотя — уступка", "therefore — следовательно — вывод", "furthermore — более того — добавление"],
-    "C1": ["nonetheless — тем не менее — контраст", "consequently — вследствие этого — результат", "in addition — кроме того — добавление", "on the contrary — напротив — противопоставление"],
-    "C2": ["nevertheless — тем не менее — контраст", "consequently — вследствие этого — результат", "in light of — в свете — учёт", "on the contrary — напротив — противопоставление"],
+# Реплика персонажа при ПОРАЖЕНИИ пользователя (usage_percentage < 50)
+PERSONALITY_COMMENTS_LOSE = {
+    "ceo": """Слушай. Ты смелая. Это плюс.
+
+Но я — Ричард. Мне нужны ФАКТЫ.
+Где цифры? Где выгода? Где стратегия?
+
+В следующий раз приходи с расчётами.
+Иначе — не приходи.
+
+Я не нанимаю людей по эмоциям.""",
+    "journalist": """Я ждала сенсации.
+
+А получила интервью, которое даже стыдно где-то опубликовать.
+
+Может, в следующий раз ты рискнёшь и скажешь то, что никто не говорит.
+
+Я запомню эту попытку. Но не эту историю.""",
+    "professor": """Хм. Я понял твою мысль.
+
+Но между МНЕНИЕМ и АРГУМЕНТОМ — огромная разница.
+Ты принесла мнение.
+
+Где структура? Где доказательства?
+
+В следующий раз — строй цепочку:
+ТЕЗИС → АРГУМЕНТ → ВЫВОД.""",
+    "hr_manager": """У тебя есть потенциал.
+
+Но я — Сара. Я нанимаю людей каждый день.
+Я слышала эти слова сто раз.
+
+Где КОНКРЕТИКА? Где примеры? Где результаты?
+
+Я не нанимаю по общим фразам. Я нанимаю по ДЕЛАМ.""",
+    "philosopher": """Ты дала ответ.
+
+Но задала ли ты себе ГЛАВНЫЙ ВОПРОС?
+
+Я искал глубину. Ты дала мне поверхность.
+
+В следующий раз — не отвечай. Спрашивай.""",
+    "devil_advocate": """Ха! Ты начала неплохо.
+
+Но я — Виктор. Я давлю, пока не сломается.
+И ты начала сдавать позиции.
+
+В следующий раз — БЕЙ В ОТВЕТ.
+Я не уважаю тех, кто сдаётся.""",
 }
 
-BADGES = {
-    "first_debate": {"name": "🏆 Первый бой", "description": "Завершил первый раунд с персонажем"},
-    "grammar_master": {"name": "📚 Грамматический мастер", "description": "Грамматика выше 90%"},
-    "wordsmith": {"name": "🗣️ Мастер слова", "description": "Словарный запас выше 90%"},
-    "marathoner": {"name": "🏃 Марафонец", "description": "10+ ответов за один раунд"},
-    "all_characters": {"name": "🎭 Коллекционер", "description": "Сыграл со всеми персонажами"},
-    "high_scorer": {"name": "🔥 На вершине", "description": "Средний балл за раунд выше 85"},
-}
+# ---------- ARENA: CHARACTER MEMORY / ANTI-DRIFT ----------
+# "PERSONALITY CORE NEVER CHANGES" — фиксированный блок, который на КАЖДОМ
+# ходу подмешивается в промпт, чтобы персонаж не съезжал в small talk,
+# не становился мягким психологом и не терял миссию.
 
-# ---------- НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ AI.PY ----------
-
-# Зоны роста (для подбора персонажа)
-GROWTH_AREA_LABELS = {
-    "VOCABULARY_RANGE": "Словарный запас",
-    "GRAMMAR_ACCURACY": "Грамматическая точность",
-    "CLARITY": "Ясность мысли",
-    "PRECISION": "Точность формулировок",
-    "ARGUMENTATION": "Аргументация",
-    "PERSUASION": "Убедительность",
-    "FLUENCY": "Беглость речи",
-    "COMPOSURE": "Хладнокровие под давлением",
-    "ADAPTABILITY": "Гибкость в разговоре",
-    "DEPTH": "Глубина мысли",
-}
-
-GROWTH_AREA_TO_PERSONALITY = {
-    "VOCABULARY_RANGE": "ceo",
-    "PERSUASION": "ceo",
-    "GRAMMAR_ACCURACY": "professor",
-    "CLARITY": "journalist",
-    "PRECISION": "journalist",
-    "ARGUMENTATION": "devil_advocate",
-    "COMPOSURE": "devil_advocate",
-    "FLUENCY": "hr_manager",
-    "ADAPTABILITY": "hr_manager",
-    "DEPTH": "philosopher",
-}
-
-SKILL_WEIGHTS = {
-    "A1": {"language": 0.85, "communication": 0.15},
-    "A2": {"language": 0.80, "communication": 0.20},
-    "B1": {"language": 0.65, "communication": 0.35},
-    "B2": {"language": 0.50, "communication": 0.50},
-    "C1": {"language": 0.35, "communication": 0.65},
-    "C2": {"language": 0.20, "communication": 0.80},
-}
-
-LANGUAGE_SKILLS = {
-    "grammar": {"name": "Грамматика", "emoji": "📝"},
-    "vocabulary": {"name": "Словарный запас", "emoji": "📚"},
-    "fluency": {"name": "Беглость", "emoji": "🎤"},
-    "complexity": {"name": "Сложность речи", "emoji": "🧩"},
-    "accuracy": {"name": "Точность", "emoji": "🎯"},
-}
-
-COMMUNICATION_SKILLS = {
-    "clarity": {"name": "Ясность", "emoji": "💡"},
-    "precision": {"name": "Точность формулировок", "emoji": "📐"},
-    "argumentation": {"name": "Аргументация", "emoji": "⚔️"},
-    "persuasion": {"name": "Убедительность", "emoji": "🔥"},
-    "critical_thinking": {"name": "Критическое мышление", "emoji": "🧠"},
-    "adaptability": {"name": "Адаптивность", "emoji": "🌀"},
-    "confidence": {"name": "Уверенность", "emoji": "💪"},
-}
-
-GROWTH_TO_PERSONALITY = {
-    "vocabulary": "ceo",
-    "persuasion": "ceo",
-    "grammar": "professor",
-    "clarity": "journalist",
-    "precision": "journalist",
-    "argumentation": "devil_advocate",
-    "critical_thinking": "devil_advocate",
-    "fluency": "hr_manager",
-    "adaptability": "hr_manager",
-    "confidence": "hr_manager",
-    "complexity": "philosopher",
-    "depth": "philosopher",
-}
-
-PERSONALITY_MISSIONS = {
+CHARACTER_CORE = {
     "ceo": {
-        "name": "Convince the CEO",
-        "description": "Представь бизнес-идею так, чтобы CEO захотел инвестировать",
-        "skills": ["persuasion", "argumentation", "precision"],
-        "target_words": ["ROI", "strategy", "growth", "efficiency", "scale"],
-        "win_condition": "3/4 аргументов должны быть убедительными"
+        "identity": "Richard, CEO крупной компании",
+        "personality_traits": ["требовательный", "прямой", "нетерпеливый", "уважает только факты"],
+        "communication_style": "коротко, жёстко, по делу — цифры и стратегия вместо эмоций",
+        "values": ["ROI", "стратегия", "эффективность", "рост"],
+        "never_become": ["мягкий коуч", "доброжелательный ментор", "терапевт", "случайный собеседник"],
     },
     "journalist": {
-        "name": "Survive the Interview",
-        "description": "Ответь на провокационные вопросы журналиста",
-        "skills": ["clarity", "precision", "critical_thinking"],
-        "target_words": ["evidence", "source", "investigation", "perspective", "controversy"],
-        "win_condition": "Ответь на все вопросы без потери позиции"
+        "identity": "Kate, журналист-расследователь",
+        "personality_traits": ["скептичная", "цепкая", "ищет сенсацию", "не отпускает уклончивые ответы"],
+        "communication_style": "провокационные вопросы, охота за противоречиями",
+        "values": ["факты", "источники", "неожиданные повороты", "правда"],
+        "never_become": ["мягкий интервьюер", "друг", "терапевт", "нейтральный ассистент"],
     },
     "professor": {
-        "name": "Defend Your Thesis",
-        "description": "Защити свою научную работу перед профессором",
-        "skills": ["argumentation", "complexity", "grammar"],
-        "target_words": ["hypothesis", "evidence", "analysis", "conclusion", "methodology"],
-        "win_condition": "Структура: тезис → аргумент → вывод"
+        "identity": "Professor Adams",
+        "personality_traits": ["требовательный", "аналитический", "скептичный", "эмоционально сдержанный"],
+        "communication_style": "требует структуру тезис → аргумент → вывод, придирается к логике",
+        "values": ["доказательства", "точность", "методология", "логика"],
+        "never_become": ["дружелюбный учитель английского", "коуч поддержки", "случайный приятель"],
     },
     "hr_manager": {
-        "name": "Ace the Interview",
-        "description": "Пройди собеседование с HR-директором",
-        "skills": ["clarity", "adaptability", "confidence"],
-        "target_words": ["experience", "responsibility", "achievement", "team", "result"],
-        "win_condition": "Каждый ответ — по STAR-методу"
+        "identity": "Sarah, HR-директор",
+        "personality_traits": ["требовательная", "внимательна к деталям", "не терпит общих фраз"],
+        "communication_style": "стресс-интервью, требует конкретику и результат по STAR",
+        "values": ["ответственность", "конкретные примеры", "результат"],
+        "never_become": ["мягкий рекрутер, который всех хвалит", "терапевт", "друг"],
     },
     "philosopher": {
-        "name": "Explore the Depths",
-        "description": "Веди философский диалог о смысле",
-        "skills": ["depth", "complexity", "critical_thinking"],
-        "target_words": ["meaning", "purpose", "existence", "value", "perspective"],
-        "win_condition": "Каждый ответ должен содержать вопрос"
+        "identity": "Leo, мудрец-философ",
+        "personality_traits": ["спокойный", "глубокий", "никогда не даёт прямых ответов"],
+        "communication_style": "отвечает вопросом на вопрос, копает глубже",
+        "values": ["смысл", "честность мысли", "глубина", "связь с жизнью"],
+        "never_become": ["дающий советы лайф-коуч", "психолог", "обычный собеседник"],
     },
     "devil_advocate": {
-        "name": "Defend Your Position",
-        "description": "Отстой свою позицию под давлением оппонента",
-        "skills": ["argumentation", "critical_thinking", "confidence"],
-        "target_words": ["nevertheless", "furthermore", "consequently", "moreover", "despite"],
-        "win_condition": "Ни разу не сдай позицию"
+        "identity": "Victor, дьявольский адвокат",
+        "personality_traits": ["провокационный", "непреклонный", "уважает только силу аргумента"],
+        "personality_traits_note": "может смягчиться после действительно сильного аргумента, но не меняет характер",
+        "communication_style": "давит, находит слабые места, никогда не сдаётся первым",
+        "values": ["сила аргумента", "уверенность", "устойчивость под давлением"],
+        "never_become": ["сторонник пользователя", "мягкий собеседник", "терапевт"],
+    },
+}
+
+# Шкала результата Battle: 0-30 очков -> DEFEATED / ALMOST / VICTORY / OUTPLAYED
+RESULT_BANDS = [
+    {"key": "defeated", "min": 0, "max": 9, "label": "💀 DEFEATED", "desc": "Миссия не выполнена."},
+    {"key": "almost", "min": 10, "max": 19, "label": "⚠️ ALMOST", "desc": "Ты был близко, но не дожал миссию."},
+    {"key": "victory", "min": 20, "max": 24, "label": "🏆 VICTORY", "desc": "Миссия выполнена."},
+    {"key": "outplayed", "min": 25, "max": 30, "label": "👑 OUTPLAYED", "desc": "Миссия выполнена блестяще, давление персонажа выдержано полностью."},
+]
+
+# ARENA XP отдельно от Battle Score — общий прогресс по кампании (100 XP = уровень)
+XP_REWARDS = {
+    "defeated": 5,
+    "almost": 7,
+    "victory": 10,
+    "outplayed": 12,
+}
+
+# 6 стадий эскалации внутри одного Battle
+BATTLE_STAGES = [
+    {"stage": 1, "name": "OPENING", "instruction": "Представь вызов/миссию, сразу в своём характере, без приветствий."},
+    {"stage": 2, "name": "ARGUMENT", "instruction": "Выслушай позицию пользователя, отреагируй в характере."},
+    {"stage": 3, "name": "PRESSURE", "instruction": "Поставь под сомнение его рассуждение, потребуй обоснование."},
+    {"stage": 4, "name": "OBJECTION", "instruction": "Атакуй самое слабое место в его позиции — конкретно и жёстко."},
+    {"stage": 5, "name": "ADAPTATION", "instruction": "Дай неожиданное возражение, на которое он ещё не отвечал."},
+    {"stage": 6, "name": "FINAL_TEST", "instruction": "Дай последний шанс доказать позицию, это финальная проверка."},
+]
+
+# ---------- ARENA: BATTLE SYSTEM ----------
+
+BATTLE_TYPES = {
+    "mission": {
+        "name": "Миссия",
+        "description": "Убеди персонажа в чём-то важном",
+        "time_limit": 15,  # минут
+        "has_verdict": True,
+        "xp_reward": 100,
+    },
+    "free_talk": {
+        "name": "Свободный разговор",
+        "description": "Просто поговори с персонажем без оценки",
+        "time_limit": None,
+        "has_verdict": False,
+        "xp_reward": 0,
     }
 }
 
-ARENA_MOVES = {
-    "clarify": {"name": "Clarify", "description": "Уточнить расплывчатую мысль"},
-    "contrast": {"name": "Contrast", "description": "Предложить противоположный взгляд"},
-    "follow_up": {"name": "Follow Up", "description": "Развить интересную деталь"},
-    "reflect": {"name": "Reflect", "description": "Показать человеку его собственную мысль"},
-    "test": {"name": "Test", "description": "Проверить устойчивость позиции"},
-    "connect": {"name": "Connect", "description": "Связать с предыдущим ответом"},
-    "deepen": {"name": "Deepen", "description": "Перевести разговор на уровень глубже"},
-    "observe": {"name": "Observe", "description": "Просто отметить паттерн"},
+# Шаблоны миссий для каждого персонажа
+BATTLE_OBJECTIVES = {
+    "ceo": {
+        "objectives": [
+            "Привести 3 убедительных аргумента с цифрами",
+            "Ответить на 2 возражения CEO",
+            "Достичь согласия по 1 пункту"
+        ],
+        "weapons": ["ROI", "strategy", "growth", "efficiency", "scale"],
+        "win_condition": "CEO говорит: 'You've convinced me.'"
+    },
+    "journalist": {
+        "objectives": [
+            "Дать 3 неожиданных факта",
+            "Ответить на 2 провокационных вопроса",
+            "Заставить журналиста замолчать хотя бы на секунду"
+        ],
+        "weapons": ["evidence", "source", "investigation", "perspective", "controversy"],
+        "win_condition": "Journalist говорит: 'That's actually a good point.'"
+    },
+    "professor": {
+        "objectives": [
+            "Сформулировать чёткий тезис",
+            "Подтвердить его 2 аргументами",
+            "Сделать вывод"
+        ],
+        "weapons": ["hypothesis", "evidence", "analysis", "conclusion", "methodology"],
+        "win_condition": "Professor говорит: 'Your thesis is well-argued.'"
+    },
+    "hr_manager": {
+        "objectives": [
+            "Рассказать 1 конкретную ситуацию по STAR",
+            "Ответить на 2 вопроса о деталях",
+            "Показать результат своих действий"
+        ],
+        "weapons": ["experience", "responsibility", "achievement", "team", "result"],
+        "win_condition": "HR Manager говорит: 'I would hire you for this role.'"
+    },
+    "philosopher": {
+        "objectives": [
+            "Задать 3 глубоких вопроса",
+            "Ответить на 2 философских вопроса",
+            "Связать тему с жизнью"
+        ],
+        "weapons": ["meaning", "purpose", "existence", "value", "perspective"],
+        "win_condition": "Philosopher говорит: 'You've given me something to think about.'"
+    },
+    "devil_advocate": {
+        "objectives": [
+            "Защитить свою позицию против 3 атак",
+            "Не сдаться ни разу",
+            "Найти слабое место в аргументах оппонента"
+        ],
+        "weapons": ["nevertheless", "furthermore", "consequently", "moreover", "despite"],
+        "win_condition": "Devil's Advocate говорит: 'You've earned my respect.'"
+    }
 }
 
-BATTLE_COMPLEXITY = {
-    "A1": {"label": "Начальный уровень", "instruction": "Используй простые слова", "focus": "Базовые фразы", "target_skills": ["vocabulary", "grammar"]},
-    "A2": {"label": "Базовый уровень", "instruction": "Используй простые конструкции", "focus": "Простые предложения", "target_skills": ["vocabulary", "grammar", "clarity"]},
-    "B1": {"label": "Средний уровень", "instruction": "Используй связки", "focus": "Связки, аргументация", "target_skills": ["argumentation", "clarity", "precision"]},
-    "B2": {"label": "Продвинутый средний", "instruction": "Используй сложные конструкции", "focus": "Пассивный залог, модальные глаголы", "target_skills": ["argumentation", "persuasion", "adaptability"]},
-    "C1": {"label": "Продвинутый уровень", "instruction": "Используй сложные фразы, идиомы", "focus": "Академическая лексика", "target_skills": ["persuasion", "critical_thinking", "depth"]},
-    "C2": {"label": "Экспертный уровень", "instruction": "Используй нюансированные аргументы", "focus": "Подтекст, сложная аргументация", "target_skills": ["depth", "adaptability", "persuasion"]},
-}
-
-LEVEL_WORDS = {
-    "A1": ["good", "bad", "like", "want", "think", "because", "and", "but"],
-    "A2": ["important", "interesting", "difficult", "easy", "should", "could", "would"],
-    "B1": ["however", "therefore", "although", "furthermore", "consequently", "moreover"],
-    "B2": ["nevertheless", "nonetheless", "accordingly", "in addition", "on the other hand"],
-    "C1": ["notwithstanding", "consequently", "subsequently", "ultimately", "in light of"],
-    "C2": ["insofar as", "insofar", "nonetheless", "notwithstanding", "in the event of"]
-}
+# ---------- ARENA: шаблоны миссий для битв ----------
 
 PERSONALITY_MISSION_TEMPLATES = {
     "ceo": {
@@ -583,59 +622,351 @@ PERSONALITY_MISSION_TEMPLATES = {
     }
 }
 
+# Шаблоны для генерации миссий
 MISSION_SCENARIOS = {
-    "work": {"templates": [
-        "убедить {personality} что {topic} — это правильное решение для команды",
-        "доказать {personality} что {topic} принесёт больше пользы, чем вреда",
-    ]},
-    "life": {"templates": [
-        "убедить {personality} что {topic} — это действительно важно",
-        "доказать {personality} что {topic} может изменить жизнь к лучшему",
-    ]},
-    "money": {"templates": [
-        "убедить {personality} что {topic} — это хорошая инвестиция",
-        "доказать {personality} что {topic} стоит потраченных денег",
-    ]},
-    "abstract": {"templates": [
-        "убедить {personality} что {topic} — это ключ к успеху",
-        "доказать {personality} что {topic} — это не просто слова",
-    ]}
+    "work": {
+        "templates": [
+            "убедить {personality} что {topic} — это правильное решение для команды",
+            "доказать {personality} что {topic} принесёт больше пользы, чем вреда",
+            "переубедить {personality} которая считает что {topic} — пустая трата времени",
+        ]
+    },
+    "life": {
+        "templates": [
+            "убедить {personality} что {topic} — это действительно важно",
+            "доказать {personality} что {topic} может изменить жизнь к лучшему",
+            "переубедить {personality} которая не верит в {topic}",
+        ]
+    },
+    "money": {
+        "templates": [
+            "убедить {personality} что {topic} — это хорошая инвестиция",
+            "доказать {personality} что {topic} стоит потраченных денег",
+            "переубедить {personality} которая считает что {topic} — это дорого и бессмысленно",
+        ]
+    },
+    "abstract": {
+        "templates": [
+            "убедить {personality} что {topic} — это ключ к успеху",
+            "доказать {personality} что {topic} — это не просто слова",
+            "переубедить {personality} которая сомневается в {topic}",
+        ]
+    }
 }
 
-BATTLE_TYPES = {
-    "mission": {"name": "Миссия", "description": "Убеди персонажа в чём-то важном", "time_limit": 15, "has_verdict": True, "xp_reward": 100},
-    "free_talk": {"name": "Свободный разговор", "description": "Просто поговори с персонажем без оценки", "time_limit": None, "has_verdict": False, "xp_reward": 0},
+# ---------- ARENA: интеллектуальные ходы ----------
+
+ARENA_MOVES = {
+    "clarify": {
+        "name": "Clarify",
+        "description": "Уточнить расплывчатую мысль",
+        "trigger": "позиция размыта, нет конкретики",
+        "pattern": "Что именно вы имеете в виду под...?"
+    },
+    "contrast": {
+        "name": "Contrast",
+        "description": "Предложить противоположный взгляд",
+        "trigger": "позиция слишком очевидна или однобока",
+        "pattern": "А если посмотреть на это с противоположной стороны?"
+    },
+    "follow_up": {
+        "name": "Follow Up",
+        "description": "Развить интересную деталь",
+        "trigger": "появилась неожиданная или глубокая деталь",
+        "pattern": "Вы упомянули... Что в этом оказалось самым важным?"
+    },
+    "reflect": {
+        "name": "Reflect",
+        "description": "Показать человеку его собственную мысль",
+        "trigger": "мысль сформулирована, но не осознана",
+        "pattern": "Получается, для вас... важнее, чем..."
+    },
+    "test": {
+        "name": "Test",
+        "description": "Проверить устойчивость позиции",
+        "trigger": "позиция уверенная, но не проверенная",
+        "pattern": "А что могло бы заставить вас изменить это мнение?"
+    },
+    "connect": {
+        "name": "Connect",
+        "description": "Связать с предыдущим ответом",
+        "trigger": "есть связь с более ранним ответом",
+        "pattern": "Это интересно, учитывая, что раньше вы говорили о..."
+    },
+    "deepen": {
+        "name": "Deepen",
+        "description": "Перевести разговор на уровень глубже",
+        "trigger": "поверхностный ответ, за которым чувствуется глубина",
+        "pattern": "Но почему именно это для вас важно?"
+    },
+    "observe": {
+        "name": "Observe",
+        "description": "Просто отметить паттерн, не задавая вопрос",
+        "trigger": "паттерн повторяется, можно просто отметить",
+        "pattern": "Это интересно. Вы уже не первый раз возвращаетесь к этой теме."
+    }
 }
 
-BATTLE_OBJECTIVES = {
+# ---------- ARENA: динамическая система обучения ----------
+
+# Вес навыков в зависимости от уровня
+SKILL_WEIGHTS = {
+    "A1": {"language": 0.85, "communication": 0.15},
+    "A2": {"language": 0.80, "communication": 0.20},
+    "B1": {"language": 0.65, "communication": 0.35},
+    "B2": {"language": 0.50, "communication": 0.50},
+    "C1": {"language": 0.35, "communication": 0.65},
+    "C2": {"language": 0.20, "communication": 0.80},
+}
+
+# Навыки по категориям
+LANGUAGE_SKILLS = {
+    "grammar": {"name": "Грамматика", "emoji": "📝"},
+    "vocabulary": {"name": "Словарный запас", "emoji": "📚"},
+    "fluency": {"name": "Беглость", "emoji": "🎤"},
+    "complexity": {"name": "Сложность речи", "emoji": "🧩"},
+    "accuracy": {"name": "Точность", "emoji": "🎯"},
+}
+
+COMMUNICATION_SKILLS = {
+    "clarity": {"name": "Ясность", "emoji": "💡"},
+    "precision": {"name": "Точность формулировок", "emoji": "📐"},
+    "argumentation": {"name": "Аргументация", "emoji": "⚔️"},
+    "persuasion": {"name": "Убедительность", "emoji": "🔥"},
+    "critical_thinking": {"name": "Критическое мышление", "emoji": "🧠"},
+    "adaptability": {"name": "Адаптивность", "emoji": "🌀"},
+    "confidence": {"name": "Уверенность", "emoji": "💪"},
+}
+
+# 10 скиллов на персонажа: 2 сквозных (одинаковых у всех) + 8 характерных.
+SKILLS_COMMON = ["grammar", "vocabulary"]
+
+SKILL_LABELS = {
+    "grammar": {"name": "Грамматика", "emoji": "📝"},
+    "vocabulary": {"name": "Словарный запас", "emoji": "📚"},
+    "persuasion": {"name": "Убедительность", "emoji": "🔥"},
+    "argumentation": {"name": "Аргументация", "emoji": "⚔️"},
+    "precision": {"name": "Точность формулировок", "emoji": "📐"},
+    "confidence": {"name": "Уверенность", "emoji": "💪"},
+    "decisiveness": {"name": "Решительность", "emoji": "⚡"},
+    "negotiation": {"name": "Переговоры", "emoji": "🤝"},
+    "strategic_thinking": {"name": "Стратегическое мышление", "emoji": "🧭"},
+    "composure": {"name": "Хладнокровие", "emoji": "🧊"},
+    "clarity": {"name": "Ясность", "emoji": "💡"},
+    "critical_thinking": {"name": "Критическое мышление", "emoji": "🧠"},
+    "curiosity": {"name": "Любопытство", "emoji": "🔍"},
+    "storytelling": {"name": "Storytelling", "emoji": "🎬"},
+    "quick_thinking": {"name": "Быстрота реакции", "emoji": "⚡"},
+    "handling_scrutiny": {"name": "Устойчивость к давлению", "emoji": "🛡️"},
+    "adaptability": {"name": "Гибкость", "emoji": "🌀"},
+    "structure": {"name": "Структура речи", "emoji": "🏗️"},
+    "complexity": {"name": "Сложность речи", "emoji": "🧩"},
+    "academic_register": {"name": "Академический стиль", "emoji": "🎓"},
+    "patience": {"name": "Терпение", "emoji": "⏳"},
+    "depth": {"name": "Глубина мысли", "emoji": "🌊"},
+    "empathy": {"name": "Эмпатия", "emoji": "❤️"},
+    "self_reflection": {"name": "Рефлексия", "emoji": "🪞"},
+    "accountability": {"name": "Ответственность", "emoji": "✅"},
+    "teamwork_language": {"name": "Командная лексика", "emoji": "👥"},
+    "open_mindedness": {"name": "Открытость", "emoji": "🌐"},
+    "abstract_reasoning": {"name": "Абстрактное мышление", "emoji": "🎨"},
+    "question_asking": {"name": "Умение спрашивать", "emoji": "❓"},
+    "honesty": {"name": "Честность", "emoji": "🕊️"},
+    "resilience": {"name": "Устойчивость", "emoji": "🧱"},
+    "assertiveness": {"name": "Напористость", "emoji": "🎯"},
+}
+
+# 8 характерных soft-скиллов на каждого персонажа (+ 2 общих = 10 итого)
+PERSONALITY_SKILLS = {
+    "ceo": ["persuasion", "argumentation", "precision", "confidence",
+            "decisiveness", "negotiation", "strategic_thinking", "composure"],
+    "journalist": ["clarity", "precision", "critical_thinking", "curiosity",
+                   "storytelling", "quick_thinking", "handling_scrutiny", "adaptability"],
+    "professor": ["argumentation", "structure", "complexity", "critical_thinking",
+                  "precision", "academic_register", "patience", "depth"],
+    "hr_manager": ["clarity", "adaptability", "confidence", "storytelling",
+                   "empathy", "self_reflection", "accountability", "teamwork_language"],
+    "philosopher": ["depth", "complexity", "critical_thinking", "curiosity",
+                     "open_mindedness", "abstract_reasoning", "question_asking", "honesty"],
+    "devil_advocate": ["argumentation", "confidence", "critical_thinking", "composure",
+                        "resilience", "quick_thinking", "persuasion", "assertiveness"],
+}
+
+# ---------- BATTLE COMPLEXITY ----------
+
+BATTLE_COMPLEXITY = {
+    "A1": {
+        "label": "Начальный уровень",
+        "instruction": "Используй простые слова и постарайся переубедить меня",
+        "focus": "Базовые фразы, простые аргументы",
+        "target_skills": ["vocabulary", "grammar"]
+    },
+    "A2": {
+        "label": "Базовый уровень",
+        "instruction": "Используй простые конструкции и постарайся меня переубедить",
+        "focus": "Простые предложения, базовые связки",
+        "target_skills": ["vocabulary", "grammar", "clarity"]
+    },
+    "B1": {
+        "label": "Средний уровень",
+        "instruction": "Используй связки (however, therefore, although) и постарайся меня переубедить",
+        "focus": "Связки, аргументация, примеры",
+        "target_skills": ["argumentation", "clarity", "precision"]
+    },
+    "B2": {
+        "label": "Продвинутый средний",
+        "instruction": "Используй сложные конструкции и постарайся меня переубедить",
+        "focus": "Пассивный залог, модальные глаголы, идиомы",
+        "target_skills": ["argumentation", "persuasion", "adaptability"]
+    },
+    "C1": {
+        "label": "Продвинутый уровень",
+        "instruction": "Используй сложные фразы, идиомы и постарайся меня переубедить",
+        "focus": "Академическая лексика, сложные конструкции",
+        "target_skills": ["persuasion", "critical_thinking", "depth"]
+    },
+    "C2": {
+        "label": "Экспертный уровень",
+        "instruction": "Используй нюансированные аргументы, идиомы и постарайся меня переубедить",
+        "focus": "Подтекст, сложная аргументация, стилистика",
+        "target_skills": ["depth", "adaptability", "persuasion"]
+    }
+}
+
+# Базовые слова для каждого уровня
+LEVEL_WORDS = {
+    "A1": ["good: хороший", "like: нравится", "want: хотеть", "think: думать", "because: потому что"],
+    "A2": ["important: важный", "interesting: интересный", "should: следует", "could: мог бы", "would: бы"],
+    "B1": ["however: однако", "therefore: следовательно", "although: хотя", "furthermore: более того", "consequently: следовательно"],
+    "B2": ["nevertheless: тем не менее", "nonetheless: несмотря на", "accordingly: соответственно", "in addition: кроме того", "on the other hand: с другой стороны"],
+    "C1": ["notwithstanding: несмотря на", "consequently: следовательно", "ultimately: в конечном счёте", "in light of: в свете", "accordingly: соответственно"],
+    "C2": ["insofar as: поскольку", "nonetheless: тем не менее", "notwithstanding: несмотря на", "in the event of: в случае", "consequently: следовательно"],
+}
+
+# Карта зон роста → персонажи
+GROWTH_TO_PERSONALITY = {
+    "vocabulary": "ceo",
+    "persuasion": "ceo",
+    "grammar": "professor",
+    "clarity": "journalist",
+    "precision": "journalist",
+    "argumentation": "devil_advocate",
+    "critical_thinking": "devil_advocate",
+    "fluency": "hr_manager",
+    "adaptability": "hr_manager",
+    "confidence": "hr_manager",
+    "complexity": "philosopher",
+    "depth": "philosopher",
+}
+
+# Описание миссий для каждого персонажа
+PERSONALITY_MISSIONS = {
     "ceo": {
-        "objectives": ["Привести 3 убедительных аргумента с цифрами", "Ответить на 2 возражения CEO", "Достичь согласия по 1 пункту"],
-        "weapons": ["ROI", "strategy", "growth", "efficiency", "scale"],
-        "win_condition": "CEO говорит: 'You've convinced me.'"
+        "name": "Convince the CEO",
+        "description": "Представь бизнес-идею так, чтобы CEO захотел инвестировать",
+        "skills": ["persuasion", "argumentation", "precision"],
+        "target_words": ["ROI", "strategy", "growth", "efficiency", "scale"],
+        "win_condition": "3/4 аргументов должны быть убедительными"
     },
     "journalist": {
-        "objectives": ["Дать 3 неожиданных факта", "Ответить на 2 провокационных вопроса", "Заставить журналиста замолчать"],
-        "weapons": ["evidence", "source", "investigation", "perspective", "controversy"],
-        "win_condition": "Journalist говорит: 'That's actually a good point.'"
+        "name": "Survive the Interview",
+        "description": "Ответь на провокационные вопросы журналиста",
+        "skills": ["clarity", "precision", "critical_thinking"],
+        "target_words": ["evidence", "source", "investigation", "perspective", "controversy"],
+        "win_condition": "Ответь на все вопросы без потери позиции"
     },
     "professor": {
-        "objectives": ["Сформулировать чёткий тезис", "Подтвердить его 2 аргументами", "Сделать вывод"],
-        "weapons": ["hypothesis", "evidence", "analysis", "conclusion", "methodology"],
-        "win_condition": "Professor говорит: 'Your thesis is well-argued.'"
+        "name": "Defend Your Thesis",
+        "description": "Защити свою научную работу перед профессором",
+        "skills": ["argumentation", "complexity", "grammar"],
+        "target_words": ["hypothesis", "evidence", "analysis", "conclusion", "methodology"],
+        "win_condition": "Структура: тезис → аргумент → вывод"
     },
     "hr_manager": {
-        "objectives": ["Рассказать 1 конкретную ситуацию по STAR", "Ответить на 2 вопроса о деталях", "Показать результат"],
-        "weapons": ["experience", "responsibility", "achievement", "team", "result"],
-        "win_condition": "HR Manager говорит: 'I would hire you for this role.'"
+        "name": "Ace the Interview",
+        "description": "Пройди собеседование с HR-директором",
+        "skills": ["clarity", "adaptability", "confidence"],
+        "target_words": ["experience", "responsibility", "achievement", "team", "result"],
+        "win_condition": "Каждый ответ — по STAR-методу"
     },
     "philosopher": {
-        "objectives": ["Задать 3 глубоких вопроса", "Ответить на 2 философских вопроса", "Связать тему с жизнью"],
-        "weapons": ["meaning", "purpose", "existence", "value", "perspective"],
-        "win_condition": "Philosopher говорит: 'You've given me something to think about.'"
+        "name": "Explore the Depths",
+        "description": "Веди философский диалог о смысле",
+        "skills": ["depth", "complexity", "critical_thinking"],
+        "target_words": ["meaning", "purpose", "existence", "value", "perspective"],
+        "win_condition": "Каждый ответ должен содержать вопрос"
     },
     "devil_advocate": {
-        "objectives": ["Защитить свою позицию против 3 атак", "Не сдаться ни разу", "Найти слабое место оппонента"],
-        "weapons": ["nevertheless", "furthermore", "consequently", "moreover", "despite"],
-        "win_condition": "Devil's Advocate говорит: 'You've earned my respect.'"
+        "name": "Defend Your Position",
+        "description": "Отстой свою позицию под давлением оппонента",
+        "skills": ["argumentation", "critical_thinking", "confidence"],
+        "target_words": ["nevertheless", "furthermore", "consequently", "moreover", "despite"],
+        "win_condition": "Ни разу не сдай позицию"
     }
+}
+
+# ---------- Бейджи/достижения ----------
+
+BADGES = {
+    "first_debate": {"name": "🏆 Первый бой", "description": "Завершил первый раунд с персонажем"},
+    "grammar_master": {"name": "📚 Грамматический мастер", "description": "Грамматика выше 90%"},
+    "wordsmith": {"name": "🗣️ Мастер слова", "description": "Словарный запас выше 90%"},
+    "marathoner": {"name": "🏃 Марафонец", "description": "10+ ответов за один раунд"},
+    "all_characters": {"name": "🎭 Коллекционер", "description": "Сыграл со всеми персонажами"},
+    "high_scorer": {"name": "🔥 На вершине", "description": "Средний балл за раунд выше 85"},
+}
+
+# ---------- Частые грамматические ошибки ----------
+
+COMMON_GRAMMAR_ERRORS = {
+    "have go": "have gone / go",
+    "she don't": "she doesn't",
+    "he don't": "he doesn't",
+    "it don't": "it doesn't",
+    "there is many": "there are many",
+    "there are much": "there is much",
+    "i is": "I am",
+    "we is": "we are",
+    "they is": "they are",
+    "she have": "she has",
+    "he have": "he has",
+    "it have": "it has",
+}
+
+# Резервные связки по уровню
+FALLBACK_LINKING_PHRASES = {
+    "A1": ["and — и — соединение", "but — но — контраст", "because — потому что — причина"],
+    "A2": ["and — и — соединение", "but — но — контраст", "because — потому что — причина", "so — поэтому — результат"],
+    "B1": ["however — однако — контраст", "although — хотя — уступка", "therefore — следовательно — вывод", "for example — например — пример"],
+    "B2": ["however — однако — контраст", "although — хотя — уступка", "therefore — следовательно — вывод", "furthermore — более того — добавление"],
+    "C1": ["nonetheless — тем не менее — контраст", "consequently — вследствие этого — результат", "in addition — кроме того — добавление", "on the contrary — напротив — противопоставление"],
+    "C2": ["nevertheless — тем не менее — контраст", "consequently — вследствие этого — результат", "in light of — в свете — учёт", "on the contrary — напротив — противопоставление"],
+}
+
+# ---------- GROWTH AREAS ----------
+
+GROWTH_AREA_LABELS = {
+    "VOCABULARY_RANGE": "Словарный запас",
+    "GRAMMAR_ACCURACY": "Грамматическая точность",
+    "CLARITY": "Ясность мысли",
+    "PRECISION": "Точность формулировок",
+    "ARGUMENTATION": "Аргументация",
+    "PERSUASION": "Убедительность",
+    "FLUENCY": "Беглость речи",
+    "COMPOSURE": "Хладнокровие под давлением",
+    "ADAPTABILITY": "Гибкость в разговоре",
+    "DEPTH": "Глубина мысли",
+}
+
+GROWTH_AREA_TO_PERSONALITY = {
+    "VOCABULARY_RANGE": "ceo",
+    "PERSUASION": "ceo",
+    "GRAMMAR_ACCURACY": "professor",
+    "CLARITY": "journalist",
+    "PRECISION": "journalist",
+    "ARGUMENTATION": "devil_advocate",
+    "COMPOSURE": "devil_advocate",
+    "FLUENCY": "hr_manager",
+    "ADAPTABILITY": "hr_manager",
+    "DEPTH": "philosopher",
 }

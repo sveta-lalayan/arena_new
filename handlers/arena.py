@@ -6,14 +6,13 @@ from telegram.ext import ContextTypes
 import ai
 import database as db
 import gamification
-from config import CHECKPOINT_TURNS
+from config import CHECKPOINT_TURNS, BATTLE_DURATION_MINUTES
 from game_data import LANGUAGES, LEVELS, PERSONALITIES, BADGES, PERSONALITY_COMMENTS
 from handlers import intro
 
 STATE_KEYS = [
-    "language", "level", "topic", "personality", "mission_words",
+    "language", "level", "topic", "personality", "mission_words", "mission",
     "dialogue", "turn", "awaiting_topic", "awaiting_response", "asked_continue",
-    "case_topic", "tips", "used_words", "word_hint_index"
 ]
 
 
@@ -22,72 +21,39 @@ def _reset_state(context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop(key, None)
 
 
-# ---------- ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ФОРМАТИРОВАНИЯ СЛОВ ----------
-
-def format_words_status(mission_words: str, user_text_full: str, used_words: list = None) -> tuple[str, int, list]:
-    """
-    Форматирует статус слов с определениями.
-    Возвращает: (текст_статуса, количество_использованных, список_использованных_слов)
-    """
+def format_words_status(mission_words: str, user_text: str, used_words: list) -> tuple:
     if not mission_words:
-        return "", 0, []
+        return "📚 Слова не заданы", 0, used_words
 
-    if used_words is None:
-        used_words = []
+    words = [w.strip() for w in mission_words.split(",")]
+    new_used = used_words.copy()
 
-    # Парсим слова с определениями
-    words_list = []
-    for item in mission_words.split(","):
-        item = item.strip()
-        if ":" in item:
-            word, definition = item.split(":", 1)
-            words_list.append({"word": word.strip(), "definition": definition.strip()})
-        else:
-            words_list.append({"word": item.strip(), "definition": ""})
+    for word_item in words:
+        word = word_item.split(":")[0].strip().lower() if ":" in word_item else word_item.lower()
+        if word in user_text.lower() and word not in new_used:
+            new_used.append(word)
 
-    # Проверяем, какие слова использованы
-    user_text_lower = user_text_full.lower()
-    used_count = 0
-    status_lines = ["📋 <b>Слова для использования:</b>"]
+    used_count = len(new_used)
+    total_count = len(words)
 
-    for w in words_list:
-        word = w["word"].lower()
-        if word in user_text_lower:
-            status_lines.append(f"  ✅ <s>{w['word']}</s> — {w['definition']}")
-            used_count += 1
-            if word not in used_words:
-                used_words.append(word)
-        else:
-            status_lines.append(f"  ⬜ {w['word']} — {w['definition']}")
+    status_lines = ["📚 <b>Слова:</b>"]
+    for w in words:
+        w_clean = w.split(":")[0].strip() if ":" in w else w
+        mark = "✅" if w_clean.lower() in user_text.lower() else "⬜"
+        status_lines.append(f"  {mark} {w}")
 
-    status_lines.append(f"\n📊 <b>Прогресс:</b> {used_count}/{len(words_list)}")
+    status_text = "\n".join(status_lines)
+    return status_text, used_count, new_used
 
-    # Находим следующее неиспользованное слово для подсказки
-    word_hint = ""
-    for w in words_list:
-        if w["word"].lower() not in user_text_lower:
-            word_hint = f"\n💡 <b>Попробуй использовать:</b> {w['word']} — {w['definition']}"
-            break
-
-    return "\n".join(status_lines) + word_hint, used_count, used_words
-
-
-# ---------- Выбор языка / уровня / темы ----------
 
 async def play_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Точка входа в игру — и по команде /play, и по кнопке 'Играть'."""
     _reset_state(context)
     keyboard = [
         [InlineKeyboardButton(f"{data['flag']} {data['name']}", callback_data=f"debate_lang_{key}")]
         for key, data in LANGUAGES.items()
     ]
     keyboard.append([InlineKeyboardButton("🔙 В меню", callback_data="back_to_main")])
-    text = (
-        "🎯 <b>ARENA 2.0</b>\n\n"
-        "Выбери язык для игры.\n\n"
-        "💡 <i>Подстрою словарь, уровень сложности и стиль вопросов под тебя.</i>\n"
-        "⚔️ <i>Игру можно завершить в любой момент командой /stop</i>"
-    )
+    text = "🎯 <b>ARENA</b>\n\nВыбери язык."
     markup = InlineKeyboardMarkup(keyboard)
 
     if update.callback_query:
@@ -103,13 +69,12 @@ async def select_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
     language = query.data.replace("debate_lang_", "")
     context.user_data["language"] = language
 
-    lang = LANGUAGES.get(language, {})
     keyboard = [[InlineKeyboardButton(lvl, callback_data=f"debate_level_{lvl}")] for lvl in LEVELS]
     keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="menu_play")])
 
     await query.edit_message_text(
-        f"🌍 <b>Язык:</b> {lang.get('flag', '')} {lang.get('name', language)}\n\n"
-        f"📊 <b>Выбери свой уровень:</b>",
+        f"🌍 <b>Язык:</b> {LANGUAGES.get(language, {}).get('name', language)}\n\n"
+        f"📊 <b>Выбери уровень:</b>",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML",
     )
@@ -123,7 +88,7 @@ async def select_level(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["awaiting_topic"] = True
 
     await query.edit_message_text(
-        f"📊 <b>Уровень:</b> {level}\n\n✏️ <b>Напиши любую тему</b>, которую хочешь обсудить.",
+        f"📊 <b>Уровень:</b> {level}\n\n✏️ <b>Напиши тему</b>",
         parse_mode="HTML",
     )
 
@@ -131,88 +96,51 @@ async def select_level(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_topic_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     topic = update.message.text.strip()
     if len(topic) < 3:
-        await update.message.reply_text("❌ Тема слишком короткая. Напиши что-то более содержательное.")
+        await update.message.reply_text("❌ Тема слишком короткая.")
         return
 
     context.user_data["topic"] = topic
     context.user_data.pop("awaiting_topic", None)
-
-    # Если персонаж уже рекомендован ARENA — пропускаем выбор
-    pre_selected = context.user_data.get("personality")
-    if pre_selected and pre_selected in PERSONALITIES:
-        await _send_personality_card(update, context, pre_selected)
-        return
 
     keyboard = [[InlineKeyboardButton(p["name"], callback_data=f"debate_personality_{key}")]
                 for key, p in PERSONALITIES.items()]
     keyboard.append([InlineKeyboardButton("🔙 В меню", callback_data="back_to_main")])
 
     await update.message.reply_text(
-        f"📚 <b>Тема:</b> {topic}\n\n🎭 <b>Выбери персонажа</b> для игры:",
+        f"📚 <b>Тема:</b> {topic}\n\n🎭 <b>Выбери персонажа:</b>",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="HTML",
     )
 
 
-async def _send_personality_card(update: Update, context: ContextTypes.DEFAULT_TYPE, personality: str):
-    """Карточка персонажа с кейсом, словами и лайфхаками"""
+async def _show_personality_card(update: Update, context: ContextTypes.DEFAULT_TYPE, personality: str):
+    """Общая логика показа карточки персонажа — используется и при обычном
+    выборе (select_personality), и при реванше (rematch), чтобы не парсить
+    callback_data дважды в разных форматах."""
+    query = update.callback_query
     context.user_data["personality"] = personality
+
     person = PERSONALITIES.get(personality, PERSONALITIES["devil_advocate"])
     topic = context.user_data.get("topic", "")
     level = context.user_data.get("level", "B1")
-    language = context.user_data.get("language", "english")
-    interests = context.user_data.get("user_interests", [])
+    language = context.user_data.get("language", "English")
 
-    # Генерируем КЕЙС с темой
-    case_topic = await asyncio.to_thread(
-        ai.generate_case_topic, personality, level, language, interests
-    )
-    context.user_data["case_topic"] = case_topic
-    context.user_data["tips"] = case_topic.get("tips", [])
-    context.user_data["used_words"] = []
-    context.user_data["word_hint_index"] = 0
+    # ===== МИССИЯ: то, что персонаж должен помнить весь бой =====
+    context.user_data["mission"] = f"Убедить {person['name']} в том, что «{topic}» — это важно и заслуживает внимания."
 
-    # Сохраняем слова
-    mission_words = ai.generate_mission_words_from_case(case_topic, level)
+    await query.edit_message_text("🎭 Готовлю персонажа...", parse_mode="HTML")
+
+    mission_words = await asyncio.to_thread(ai.generate_mission_words, topic, level, language)
     context.user_data["mission_words"] = mission_words
 
-    # Формируем отображение слов с определениями
-    words_list = []
-    for item in mission_words.split(","):
-        if ":" in item:
-            word, definition = item.split(":", 1)
-            words_list.append({"word": word.strip(), "definition": definition.strip()})
-        else:
-            words_list.append({"word": item.strip(), "definition": ""})
-
-    words_display = "\n".join([f"  • {w['word']} — {w['definition']}" for w in words_list])
-
-    tips_display = "\n".join([f"  • {t}" for t in case_topic.get("tips", [])]) if case_topic.get("tips") else ""
-    tips_section = f"\n💡 <b>Лайфхаки:</b>\n{tips_display}" if tips_display else ""
-
-    rules = (
-        "\n\n⚔️ <b>Правила:</b>\n"
-        "• Отвечай на утверждение соперника\n"
-        "• Используй слова из миссии\n"
-        "• Аргументируй свою позицию\n"
-        "• Победитель определяется по количеству использованных слов"
-    )
-
-    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("⚔️ НАЧАТЬ ДЕБАТЫ", callback_data="debate_start")]])
-
-    await update.message.reply_text(
-        f"🎭 <b>ТВОЙ ПРОТИВНИК</b>\n\n"
-        f"<b>{person['name']}</b>\n"
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("⚔️ НАЧАТЬ", callback_data="debate_start")]])
+    await query.edit_message_text(
+        f"🎭 <b>{person['name']}</b>\n"
         f"<i>{person['desc']}</i>\n\n"
-        f"📝 <b>Стиль:</b> {person['style']}\n"
-        f"💬 <b>Фирменная фраза:</b> \"{person['phrase']}\"\n\n"
-        f"📚 <b>Кейс:</b> {case_topic.get('title', '')}\n"
-        f"{case_topic.get('description', '')}\n\n"
-        f"🎯 <b>Задача:</b>\n{case_topic.get('challenge', 'Убеди персонажа')}\n\n"
-        f"📋 <b>Слова для использования:</b>\n{words_display}\n"
-        f"{tips_section}\n"
-        f"{rules}\n\n"
-        f"⚔️ <i>Нажми «Начать дебаты», когда будешь готов!</i>",
+        f"📚 <b>Тема:</b> {topic}\n"
+        f"📊 <b>Уровень:</b> {level}\n\n"
+        f"💡 <b>Слова:</b>\n{mission_words}\n\n"
+        f"⚔️ <i>Нажми «Начать»!</i>",
         reply_markup=keyboard,
         parse_mode="HTML",
     )
@@ -222,133 +150,44 @@ async def select_personality(update: Update, context: ContextTypes.DEFAULT_TYPE)
     query = update.callback_query
     await query.answer()
     personality = query.data.replace("debate_personality_", "")
-    context.user_data["personality"] = personality
-
-    person = PERSONALITIES.get(personality, PERSONALITIES["devil_advocate"])
-    topic = context.user_data.get("topic", "")
-    level = context.user_data.get("level", "B1")
-    language = context.user_data.get("language", "english")
-    interests = context.user_data.get("user_interests", [])
-
-    await query.edit_message_text("🎭 Готовлю персонажа...", parse_mode="HTML")
-
-    # Генерируем КЕЙС
-    case_topic = await asyncio.to_thread(
-        ai.generate_case_topic, personality, level, language, interests
-    )
-    context.user_data["case_topic"] = case_topic
-    context.user_data["tips"] = case_topic.get("tips", [])
-    context.user_data["used_words"] = []
-    context.user_data["word_hint_index"] = 0
-
-    mission_words = ai.generate_mission_words_from_case(case_topic, level)
-    context.user_data["mission_words"] = mission_words
-
-    words_list = []
-    for item in mission_words.split(","):
-        if ":" in item:
-            word, definition = item.split(":", 1)
-            words_list.append({"word": word.strip(), "definition": definition.strip()})
-        else:
-            words_list.append({"word": item.strip(), "definition": ""})
-
-    words_display = "\n".join([f"  • {w['word']} — {w['definition']}" for w in words_list])
-
-    tips_display = "\n".join([f"  • {t}" for t in case_topic.get("tips", [])]) if case_topic.get("tips") else ""
-    tips_section = f"\n💡 <b>Лайфхаки:</b>\n{tips_display}" if tips_display else ""
-
-    rules = (
-        "\n\n⚔️ <b>Правила:</b>\n"
-        "• Отвечай на утверждение соперника\n"
-        "• Используй слова из миссии\n"
-        "• Аргументируй свою позицию\n"
-        "• Победитель определяется по количеству использованных слов"
-    )
-
-    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("⚔️ НАЧАТЬ ДЕБАТЫ", callback_data="debate_start")]])
-    await query.edit_message_text(
-        f"🎭 <b>ТВОЙ ПРОТИВНИК</b>\n\n"
-        f"<b>{person['name']}</b>\n"
-        f"<i>{person['desc']}</i>\n\n"
-        f"📝 <b>Стиль:</b> {person['style']}\n"
-        f"💬 <b>Фирменная фраза:</b> \"{person['phrase']}\"\n\n"
-        f"📚 <b>Кейс:</b> {case_topic.get('title', '')}\n"
-        f"{case_topic.get('description', '')}\n\n"
-        f"🎯 <b>Задача:</b>\n{case_topic.get('challenge', 'Убеди персонажа')}\n\n"
-        f"📋 <b>Слова для использования:</b>\n{words_display}\n"
-        f"{tips_section}\n"
-        f"{rules}\n\n"
-        f"⚔️ <i>Нажми «Начать дебаты», когда будешь готов!</i>",
-        reply_markup=keyboard,
-        parse_mode="HTML",
-    )
+    await _show_personality_card(update, context, personality)
 
 
 async def start_arena(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    await query.edit_message_text("⚔️ Игра начинается! Генерирую первое утверждение...")
+    await query.edit_message_text("⚔️ Битва начинается!")
 
-    user = update.effective_user
+    from bot import start_arena_timer
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    start_arena_timer(context, user_id, chat_id, minutes=BATTLE_DURATION_MINUTES)
 
     language = context.user_data.get("language", "English")
     level = context.user_data.get("level", "B1")
     topic = context.user_data.get("topic", "")
     personality = context.user_data.get("personality", "devil_advocate")
-    mission_words = context.user_data.get("mission_words", "")
-    case_topic = context.user_data.get("case_topic", {})
-    tips = context.user_data.get("tips", [])
 
     context.user_data["turn"] = 0
     context.user_data["dialogue"] = []
     context.user_data["awaiting_response"] = True
     context.user_data["used_words"] = []
 
-    # Запускаем таймер
-    from bot import start_arena_timer
-    start_arena_timer(context, user.id, update.effective_chat.id, minutes=2)
-
-    statement = await asyncio.to_thread(
-        ai.generate_opening_statement, personality, topic, level, language, case_topic
-    )
+    statement = await asyncio.to_thread(ai.generate_opening_statement, personality, topic, level, language)
     context.user_data["dialogue"].append({"speaker": "AI", "text": statement})
 
     person = PERSONALITIES.get(personality, {})
-
-    # Форматируем статус слов (пока ничего не использовано)
-    words_status, used_count, used_words = format_words_status(mission_words, "", [])
-
-    # Лайфхаки
-    tips_display = ""
-    if tips:
-        tips_display = "\n💡 <b>Лайфхаки:</b>\n" + "\n".join([f"  • {t}" for t in tips[:3]])
-
-    rules = (
-        "\n\n⚔️ <b>Правила:</b>\n"
-        "• Отвечай на утверждение соперника\n"
-        "• Используй слова из миссии ✅\n"
-        "• Аргументируй свою позицию"
-    )
-
     await query.message.reply_text(
-        f"💬 <b>Раунд 1</b>\n\n"
-        f"<b>{person.get('name', personality)}:</b>\n<i>{statement}</i>\n\n"
-        f"🎤 <b>Твой ответ</b> — просто напиши сообщение.\n"
-        f"<i>Чтобы завершить раньше, отправь /stop</i>\n\n"
-        f"⏰ <i>У тебя 2 минуты!</i>\n\n"
-        f"{words_status}\n"
-        f"{tips_display}"
-        f"{rules}",
+        f"💬 <b>{person.get('name', personality)}:</b>\n<i>{statement}</i>\n\n"
+        f"🎤 Напиши ответ!\n⏰ {BATTLE_DURATION_MINUTES} мин",
         parse_mode="HTML",
     )
 
 
-# ---------- Игровой цикл ----------
-
 async def handle_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text.strip()
     if len(user_text) < 2:
-        await update.message.reply_text("❌ Ответ слишком короткий. Напиши что-то содержательное.")
+        await update.message.reply_text("❌ Слишком коротко.")
         return
 
     dialogue = context.user_data.setdefault("dialogue", [])
@@ -356,37 +195,6 @@ async def handle_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["awaiting_response"] = False
 
     user_turns = sum(1 for d in dialogue if d["speaker"] == "User")
-
-    # Проверяем использованные слова и обновляем статус
-    mission_words = context.user_data.get("mission_words", "")
-    used_words = context.user_data.get("used_words", [])
-
-    if mission_words:
-        user_text_full = " ".join([d["text"] for d in dialogue if d["speaker"] == "User"])
-        # Проверяем, какие слова использованы
-        words_list = []
-        for item in mission_words.split(","):
-            if ":" in item:
-                word = item.split(":", 1)[0].strip().lower()
-            else:
-                word = item.strip().lower()
-            words_list.append(word)
-
-        new_used = []
-        for word in words_list:
-            if word in user_text_full.lower() and word not in used_words:
-                new_used.append(word)
-
-        if new_used:
-            used_words.extend(new_used)
-            context.user_data["used_words"] = used_words
-            # Показываем подтверждение
-            used_display = ", ".join([f"✅ {w}" for w in new_used])
-            await update.message.reply_text(
-                f"📝 <b>Новые слова использованы:</b> {used_display}\n"
-                f"📊 <b>Всего использовано:</b> {len(used_words)}/{len(words_list)}",
-                parse_mode="HTML"
-            )
 
     if user_turns % CHECKPOINT_TURNS == 0 and not context.user_data.get("asked_continue"):
         await _ask_continue(update, context)
@@ -399,67 +207,45 @@ async def _continue_round(update: Update, context: ContextTypes.DEFAULT_TYPE):
     dialogue = context.user_data["dialogue"]
     personality = context.user_data.get("personality", "devil_advocate")
     level = context.user_data.get("level", "B1")
-    language = context.user_data.get("language", "english")
+    language = context.user_data.get("language", "English")
     mission_words = context.user_data.get("mission_words", "")
-    case_topic = context.user_data.get("case_topic", {})
+    mission = context.user_data.get("mission")
     used_words = context.user_data.get("used_words", [])
 
-    # Получаем все ответы пользователя для проверки слов
     user_responses = [d["text"] for d in dialogue if d["speaker"] == "User"]
     user_text_full = " ".join(user_responses)
 
     last_user = next((d["text"] for d in reversed(dialogue) if d["speaker"] == "User"), "")
     history = "\n".join(f"{'Ты' if d['speaker'] == 'User' else 'AI'}: {d['text']}" for d in dialogue)
 
+    # mission передаётся в КАЖДЫЙ вызов — это и есть "память о миссии"
     ai_reply = await asyncio.to_thread(
-        ai.generate_ai_response, personality, history, last_user, level, language, case_topic
+        ai.generate_ai_response, personality, history, last_user, level, language, mission
     )
     dialogue.append({"speaker": "AI", "text": ai_reply})
     context.user_data["awaiting_response"] = True
 
-    person = PERSONALITIES.get(personality, {})
-
-    # ===== ВСЕГДА ПОКАЗЫВАЕМ СЛОВА =====
+    # --- Показываем статус слов ---
     words_status, used_count, updated_used = format_words_status(mission_words, user_text_full, used_words)
     context.user_data["used_words"] = updated_used
 
-    rules = (
-        "\n\n⚔️ <b>Правила:</b>\n"
-        "• Отвечай на утверждение соперника\n"
-        "• Используй слова из миссии ✅\n"
-        "• Аргументируй свою позицию"
-    )
-
-    # Подсчёт прогресса
-    total_words = len(mission_words.split(",")) if mission_words else 0
-    progress_text = f"\n🎯 <b>Прогресс:</b> {used_count}/{total_words} слов использовано"
-
+    person = PERSONALITIES.get(personality, {})
     await update.message.reply_text(
         f"<b>{person.get('name', personality)}:</b>\n<i>{ai_reply}</i>\n\n"
-        f"💬 <i>Напиши ответ или /stop, чтобы завершить</i>\n\n"
-        f"{words_status}\n"
-        f"{progress_text}\n"
-        f"{rules}",
+        f"{words_status}\n\n"
+        f"💬 Напиши ответ или /stop",
         parse_mode="HTML",
     )
 
 
 async def _ask_continue(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["asked_continue"] = True
-
-    # Показываем текущий прогресс перед вопросом
-    mission_words = context.user_data.get("mission_words", "")
-    used_words = context.user_data.get("used_words", [])
-    total_words = len(mission_words.split(",")) if mission_words else 0
-
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("▶️ Продолжить", callback_data="continue_yes")],
-        [InlineKeyboardButton("🏁 Завершить и получить фидбэк", callback_data="continue_no")],
+        [InlineKeyboardButton("🏁 Завершить", callback_data="continue_no")],
     ])
     await update.message.reply_text(
-        f"⏸️ Ты уже прошёл {CHECKPOINT_TURNS} раундов!\n"
-        f"📊 Использовано слов: {len(used_words)}/{total_words}\n\n"
-        f"Продолжаем или подводим итоги?",
+        f"⏸️ Ты прошёл {CHECKPOINT_TURNS} раундов! Продолжаем?",
         reply_markup=keyboard,
     )
 
@@ -467,46 +253,41 @@ async def _ask_continue(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def continue_yes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-
-    from bot import start_arena_timer, stop_arena_timer
-    user = update.effective_user
-    stop_arena_timer(context, user.id)
-    start_arena_timer(context, user.id, update.effective_chat.id, minutes=2)
-
     context.user_data["asked_continue"] = False
     context.user_data["awaiting_response"] = True
-    await query.edit_message_text("▶️ Продолжаем! Пиши следующий ответ.")
+
+    from bot import start_arena_timer, stop_arena_timer
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    stop_arena_timer(context, user_id)
+    start_arena_timer(context, user_id, chat_id, minutes=BATTLE_DURATION_MINUTES)
+
+    await query.edit_message_text("▶️ Продолжаем!")
 
 
 async def continue_no(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-
-    from bot import stop_arena_timer
-    stop_arena_timer(context, update.effective_user.id)
-
-    await query.edit_message_text("🏁 Завершаем раунд, считаю результаты...")
+    await query.edit_message_text("🏁 Завершаем...")
     await finish_arena(update, context, via_callback=True)
 
 
 async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.user_data.get("dialogue"):
-        await update.message.reply_text("Сейчас нет активной игры. Нажми «🎮 Играть», чтобы начать.")
+        await update.message.reply_text("Нет активной игры.")
         return
-
-    from bot import stop_arena_timer
-    stop_arena_timer(context, update.effective_user.id)
-
-    await update.message.reply_text("🏁 Игра завершена по твоей команде! Считаю результаты...")
+    await update.message.reply_text("🏁 Завершаем...")
     await finish_arena(update, context, via_callback=False)
 
 
-# ---------- Финал: определение победителя ----------
-
 async def finish_arena(update: Update, context: ContextTypes.DEFAULT_TYPE, via_callback: bool):
+    from bot import stop_arena_timer
+
     user = update.effective_user
+    stop_arena_timer(context, user.id)
+
     dialogue = context.user_data.get("dialogue", [])
-    language = context.user_data.get("language", "english")
+    language = context.user_data.get("language", "English")
     level = context.user_data.get("level", "B1")
     topic = context.user_data.get("topic", "")
     personality = context.user_data.get("personality", "devil_advocate")
@@ -517,47 +298,11 @@ async def finish_arena(update: Update, context: ContextTypes.DEFAULT_TYPE, via_c
 
     user_responses = [d["text"] for d in dialogue if d["speaker"] == "User"]
     if not user_responses:
-        await send("❌ Ты не успел ничего сказать. Попробуй снова через «🎮 Играть».")
+        await send("❌ Ты ничего не сказал.")
         _reset_state(context)
         return
 
-    person = PERSONALITIES.get(personality, PERSONALITIES["devil_advocate"])
-
-    # ===== ОПРЕДЕЛЯЕМ ПОБЕДИТЕЛЯ =====
-    total_words = len(mission_words.split(",")) if mission_words else 0
-    used_count = len(used_words)
-
-    if total_words > 0:
-        usage_percentage = (used_count / total_words) * 100
-        if usage_percentage >= 80:
-            winner = "🏆 ТЫ ПОБЕДИЛ!"
-            winner_emoji = "🔥"
-            winner_desc = "Ты отлично использовал все слова! Персонаж впечатлён."
-        elif usage_percentage >= 50:
-            winner = "🤝 НИЧЬЯ!"
-            winner_emoji = "⚖️"
-            winner_desc = "Хорошая попытка! Нужно использовать больше слов для полной победы."
-        else:
-            winner = "😈 ПОБЕДИЛ ПЕРСОНАЖ!"
-            winner_emoji = "💀"
-            winner_desc = "Ты использовал слишком мало слов. В следующий раз используй все!"
-    else:
-        winner = "🤝 НИЧЬЯ!"
-        winner_emoji = "⚖️"
-        winner_desc = ""
-
-    await send(
-        f"🥊 ДЕБАТЫ ЗАВЕРШЕНЫ!\n\n"
-        f"📊 Язык: {LANGUAGES.get(language, {}).get('name', language)}\n"
-        f"📚 Тема: {topic}\n"
-        f"🎭 Противник: {person['full_name']}\n"
-        f"💬 Ответов: {len(user_responses)}\n\n"
-        f"{winner_emoji} <b>{winner}</b>\n"
-        f"📊 Слов использовано: {used_count}/{total_words}\n"
-        f"{winner_desc}\n\n"
-        f"📝 Анализирую...",
-        parse_mode="HTML",
-    )
+    await send(f"📝 {user.first_name}, подвожу итоги...")
 
     analysis = await asyncio.to_thread(
         ai.analyze_debate, user_responses, dialogue, topic, level, language, personality, mission_words
@@ -570,71 +315,86 @@ async def finish_arena(update: Update, context: ContextTypes.DEFAULT_TYPE, via_c
     db.add_points(user.id, points_earned)
     new_badges = gamification.check_and_unlock_achievements(user.id, personality, rounds_completed, scores)
 
-    level_text = f"\n{analysis['level_emoji']} УРОВЕНЬ {level}"
-    detected_level = analysis["detected_level"]
-    if detected_level != level:
-        level_text += f"\n📊 Реальный уровень: {detected_level}"
-    if detected_level == level:
-        level_text += "\n🔥 Твой уровень полностью соответствует заявленному!"
-    elif level in ("A1", "A2"):
-        level_text += "\n🌱 Ты на старте! Главное — не бояться говорить!"
-    elif level in ("B1", "B2"):
-        level_text += "\n💪 Ты молодец! Добавляй больше объяснений: because, for example."
-    else:
-        level_text += "\n🧠 Сосредоточься на сложных конструкциях и идиомах."
+    person = PERSONALITIES.get(personality, PERSONALITIES["devil_advocate"])
 
-    personality_comment = PERSONALITY_COMMENTS.get(personality, "Отличный бой! Жду тебя снова!")
+    # --- Статус слов ---
+    total_words = len(mission_words.split(",")) if mission_words else 0
+    used_count = len(used_words)
+    words_status, _, _ = format_words_status(mission_words, " ".join(user_responses), used_words)
+
+    # ===== АКЦЕНТ РАЗБОРА ПО УРОВНЮ =====
+    # Новичкам (A1/A2) важнее всего словарный запас (использовал ли ключевые слова).
+    # Среднему уровню (B1/B2) — ещё и грамматика.
+    # Продвинутым (C1/C2) — акцент на убедительность/аргументацию.
+    if level in ("A1", "A2"):
+        level_emphasis = (
+            f"📚 На твоём уровне сейчас важнее всего <b>словарный запас</b>: "
+            f"ты использовал {used_count} из {total_words} ключевых слов."
+        )
+    elif level in ("B1", "B2"):
+        level_emphasis = (
+            f"📝 На твоём уровне важны <b>грамматика</b> ({int(scores['grammar'])}%) "
+            f"и словарный запас ({int(scores['vocabulary'])}%)."
+        )
+    else:
+        level_emphasis = (
+            f"⚔️ На твоём уровне мы смотрим на <b>умение убеждать</b>: "
+            f"аргументация {int(scores['argumentation'])}%, беглость {int(scores['fluency'])}%."
+        )
 
     feedback_text = f"""
-🏟️ ВЫВОД АРЕНЫ
+🏟️ <b>ВЕРДИКТ АРЕНЫ</b>
 
-📊 ТВОИ ПОКАЗАТЕЛИ
-🧠 АРГУМЕНТАЦИЯ — {int(scores['argumentation'])}% — {analysis['arg_desc']}
-📚 СЛОВАРНЫЙ ЗАПАС — {int(scores['vocabulary'])}% — {analysis['vocab_text']}
-📝 ГРАММАТИКА — {int(scores['grammar'])}% — {analysis['grammar_text']}
-🎤 БЕГЛОСТЬ — {int(scores['fluency'])}% — речь {'плавная' if scores['fluency'] > 60 else 'уверенная'}
-❓ ВОВЛЕЧЕННОСТЬ — {analysis['questions']} вопросов
-📝 ВСЕГО СЛОВ — {analysis['total_words']}
-{analysis['mission_display']}
+{level_emphasis}
 
-{level_text}
+📊 <b>ТВОИ ПОКАЗАТЕЛИ</b>
+🧠 Аргументация — {int(scores['argumentation'])}%
+📚 Словарный запас — {int(scores['vocabulary'])}%
+📝 Грамматика — {int(scores['grammar'])}%
+🎤 Беглость — {int(scores['fluency'])}%
 
-📝 ДЕТАЛИ ПО ГРАММАТИКЕ
-{analysis['grammar_report']}
+{analysis.get('moment_text', '')}
 
-{analysis['psychology_text']}
+💎 <b>Укради эту фразу</b>
+{analysis.get('unique_phrase', 'Используй больше связок.')}
 
-{analysis['moment_text']}
+{words_status}
 
-🔗 СВЯЗКИ ДЛЯ ТВОЕГО УРОВНЯ
-{analysis['linking_phrases_display']}
+👑 <b>{person['name'].upper()}</b>
+{PERSONALITY_COMMENTS.get(personality, 'Отличный бой!')}
 
-💎 УКРАДИ ЭТУ ФРАЗУ
-
-{analysis['unique_phrase']}
-
-👑 СЛОВО {person['name'].upper()}
-{personality_comment}
-
-⭐ <b>+{points_earned} баллов Arena 2.0</b>
+⭐ <b>+{points_earned} баллов</b>
 """
+
     if new_badges:
-        names = ", ".join(BADGES[b]["name"] for b in new_badges if b in BADGES)
+        names = ", ".join(BADGES.get(b, {}).get("name", b) for b in new_badges if b in BADGES)
         feedback_text += f"\n🎉 Новые достижения: {names}"
 
+    context.user_data["last_personality"] = personality
+
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🎮 Играть снова", callback_data="menu_play")],
+        [InlineKeyboardButton("🔁 Реванш", callback_data=f"rematch_{personality}")],
+        [InlineKeyboardButton("🎭 Другой персонаж", callback_data="menu_play")],
         [InlineKeyboardButton("👤 Профиль", callback_data="menu_profile")],
     ])
     await send(feedback_text, reply_markup=keyboard, parse_mode="HTML")
-
-    from bot import stop_arena_timer
-    stop_arena_timer(context, user.id)
-
     _reset_state(context)
 
 
-# ---------- Диспетчер ----------
+async def rematch(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    personality = query.data.replace("rematch_", "")
+    # используем то же topic/level/language, что были в прошлом бою с этим персонажем
+    context.user_data["personality"] = personality
+    await _show_personality_card(update, context, personality)
+
+
+async def freetalk(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text("💬 Свободный разговор — скоро!")
+
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.user_data.get("fe_awaiting_response"):
@@ -643,3 +403,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_topic_input(update, context)
     elif context.user_data.get("awaiting_response"):
         await handle_response(update, context)
+    else:
+        await update.message.reply_text(
+            "Нет активной игры. Нажми «🎮 Играть» или «🏛️ ENTER ARENA»."
+        )

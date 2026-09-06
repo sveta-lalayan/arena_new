@@ -1,156 +1,158 @@
 """
-Геймификация: уровни игрока по опыту, начисление баллов за пройденные этапы,
-разблокировка достижений и текст профиля.
+Геймификация Arena 2.0: баллы, игровые уровни, достижения.
+Логика отделена от базы данных и хендлеров.
 """
-from game_data import BADGES, PERSONALITIES
 import database as db
+from game_data import BADGES, PERSONALITIES
 
-# Пороги баллов для игрового уровня (не путать с уровнем CEFR!)
+# Игровые уровни (баллы)
 PLAYER_LEVELS = [
-    (0, "🌱 Новичок"),
-    (20, "🔤 Практикант"),
-    (60, "💬 Собеседник"),
-    (150, "⚔️ Спорщик"),
-    (300, "🎯 Профи"),
-    (600, "🏆 Мастер Арены"),
-    (1000, "👑 Легенда"),
+    {"name": "🌱 Новичок", "min_points": 0},
+    {"name": "⚔️ Искатель", "min_points": 100},
+    {"name": "🔥 Боец", "min_points": 300},
+    {"name": "🧠 Мастер", "min_points": 600},
+    {"name": "🏆 Легенда", "min_points": 1000},
 ]
 
-POINTS_PER_ROUND = 2       # баллы за каждый пройденный раунд (этап) диалога
-COMPLETION_BONUS = 5       # бонус за то, что довёл раунд до конца (получил фидбэк)
-HIGH_SCORE_BONUS = 5       # бонус, если средний скор за раунд > 80
-
-
-def get_player_level(total_points: int) -> str:
-    label = PLAYER_LEVELS[0][1]
-    for threshold, name in PLAYER_LEVELS:
-        if total_points >= threshold:
-            label = name
-        else:
-            break
-    return label
-
-
-def next_level_progress(total_points: int) -> tuple[str, int] | None:
-    """Возвращает (название следующего уровня, сколько баллов до него) или None, если уровень максимальный."""
-    for threshold, name in PLAYER_LEVELS:
-        if total_points < threshold:
-            return name, threshold - total_points
-    return None
+# Начисление баллов за игровой раунд
+POINTS_PER_ROUND = 10
+COMPLETION_BONUS = 20
+HIGH_SCORE_BONUS = 15  # если средний балл > 80
 
 
 def calculate_points(rounds_completed: int, scores: dict) -> int:
-    points = rounds_completed * POINTS_PER_ROUND + COMPLETION_BONUS
-    values = [v for v in scores.values() if v is not None]
-    if values and (sum(values) / len(values)) > 80:
-        points += HIGH_SCORE_BONUS
-    return points
+    """Рассчитывает баллы за одну игру."""
+    points = rounds_completed * POINTS_PER_ROUND
+    if rounds_completed >= 3:
+        points += COMPLETION_BONUS
+
+    if scores:
+        avg = sum(scores.values()) / len(scores) if scores else 0
+        if avg > 80:
+            points += HIGH_SCORE_BONUS
+
+    return min(points, 200)  # кап на раунд
 
 
-def check_and_unlock_achievements(telegram_id: int, personality: str, rounds_completed: int, scores: dict) -> list[str]:
-    """Проверяет условия и разблокирует новые бейджи. Возвращает список НОВЫХ бейджей (для уведомления)."""
-    newly_unlocked = []
+def get_player_level(total_points: int) -> dict:
+    """Возвращает игровой уровень по количеству баллов."""
+    current = PLAYER_LEVELS[0]
+    next_level = None
 
-    def try_unlock(key: str):
-        if db.unlock_achievement(telegram_id, key):
-            newly_unlocked.append(key)
+    for i, lvl in enumerate(PLAYER_LEVELS):
+        if total_points >= lvl["min_points"]:
+            current = lvl
+            if i < len(PLAYER_LEVELS) - 1:
+                next_level = PLAYER_LEVELS[i + 1]
 
-    try_unlock("first_debate")
+    return {
+        "current": current,
+        "next": next_level,
+        "points_to_next": next_level["min_points"] - total_points if next_level else None,
+    }
 
-    if rounds_completed >= 10:
-        try_unlock("marathoner")
 
-    if scores.get("grammar") and scores["grammar"] > 90:
-        try_unlock("grammar_master")
+def check_and_unlock_achievements(telegram_id: int, personality: str, rounds: int, scores: dict) -> list[str]:
+    """
+    Проверяет условия достижений и разблокирует новые.
+    Возвращает список ключей разблокированных бейджей.
+    """
+    unlocked = []
 
-    if scores.get("vocabulary") and scores["vocabulary"] > 90:
-        try_unlock("wordsmith")
+    # first_debate
+    if not db.unlock_achievement(telegram_id, "first_debate"):
+        pass  # уже есть
+    else:
+        unlocked.append("first_debate")
 
-    values = [v for v in scores.values() if v is not None]
-    if values and (sum(values) / len(values)) > 85:
-        try_unlock("high_scorer")
+    # grammar_master
+    if scores.get("grammar", 0) >= 90:
+        if db.unlock_achievement(telegram_id, "grammar_master"):
+            unlocked.append("grammar_master")
 
+    # wordsmith
+    if scores.get("vocabulary", 0) >= 90:
+        if db.unlock_achievement(telegram_id, "wordsmith"):
+            unlocked.append("wordsmith")
+
+    # marathoner
+    if rounds >= 10:
+        if db.unlock_achievement(telegram_id, "marathoner"):
+            unlocked.append("marathoner")
+
+    # all_characters
     stats = db.get_user_stats(telegram_id)
-    played_all = set(PERSONALITIES.keys()).issubset(stats["unique_personalities"] | {personality})
-    if played_all:
-        try_unlock("all_characters")
+    if len(stats["unique_personalities"]) >= len(PERSONALITIES):
+        if db.unlock_achievement(telegram_id, "all_characters"):
+            unlocked.append("all_characters")
 
-    return newly_unlocked
+    # high_scorer
+    if stats.get("avg_score") and stats["avg_score"] >= 85:
+        if db.unlock_achievement(telegram_id, "high_scorer"):
+            unlocked.append("high_scorer")
+
+    return unlocked
 
 
 def format_profile(telegram_id: int, first_name: str) -> str:
+    """Форматирует профиль пользователя."""
     stats = db.get_user_stats(telegram_id)
-    level_name = get_player_level(stats["total_points"])
-    progress = next_level_progress(stats["total_points"])
+    level_info = get_player_level(stats["total_points"])
 
-    lines = [
-        f"👤 <b>{first_name}</b>",
-        "",
-        f"🏅 Уровень: <b>{level_name}</b>",
-        f"⭐ Баллы: <b>{stats['total_points']}</b>",
-        f"🎮 Игр сыграно: <b>{stats['games_played']}</b>",
-    ]
-    if stats["avg_score"] is not None:
-        lines.append(f"📊 Средний результат: <b>{stats['avg_score']}/100</b>")
-    if progress:
-        next_name, remaining = progress
-        lines.append(f"➡️ До уровня «{next_name}»: <b>{remaining}</b> баллов")
+    text = f"""
+👤 <b>Профиль игрока</b>
+{first_name}
 
-    lines.append("")
-    if stats["achievements"]:
-        badge_names = ", ".join(BADGES[b]["name"] for b in stats["achievements"] if b in BADGES)
-        lines.append(f"🏆 Достижения: {badge_names}")
-    else:
-        lines.append("🏆 Достижений пока нет — сыграй первый раунд, чтобы получить первый бейдж!")
+📊 <b>Баллы</b>
+{stats["total_points"]}
 
-    return "\n".join(lines)
+🏅 <b>Уровень</b>
+{level_info["current"]["name"]}
+"""
+    if level_info["next"]:
+        text += f"До {level_info['next']['name']}: {level_info['points_to_next']} баллов\n"
+
+    text += f"""
+🎮 <b>Игр сыграно</b>
+{stats["games_played"]}
+
+🎭 <b>Персонажей встречено</b>
+{len(stats["unique_personalities"])} из {len(PERSONALITIES)}
+
+📈 <b>Средний балл</b>
+{stats["avg_score"] or "—"}%
+
+🏆 <b>Достижения</b>
+{len(stats["achievements"])} / {len(BADGES)}
+"""
+    return text
 
 
 def format_achievements(telegram_id: int) -> str:
+    """Форматирует список достижений."""
     stats = db.get_user_stats(telegram_id)
     unlocked = set(stats["achievements"])
 
-    lines = ["🏆 <b>Достижения</b>", ""]
+    if not unlocked:
+        return "🏆 <b>Достижения</b>\n\nПока нет разблокированных достижений. Сыграй несколько игр, чтобы открыть их!"
+
+    lines = ["🏆 <b>Достижения</b>\n"]
     for key, badge in BADGES.items():
-        mark = "✅" if key in unlocked else "🔒"
-        lines.append(f"{mark} <b>{badge['name']}</b> — {badge['description']}")
+        status = "✅" if key in unlocked else "⬜"
+        lines.append(f"{status} {badge['name']} — {badge['description']}")
+
     return "\n".join(lines)
 
-def format_arena_profile(telegram_id: int) -> str:
-    """
-    Формирует расширенный профиль с данными ARENA.
-    """
-    # Здесь нужно получать данные из БД
-    # Пока заглушка
-    return """
-🧠 <b>ARENA PROFILE</b>
 
-📊 <b>Текущий уровень</b>
-B1 → B2 (в процессе)
+# ---------- ARENA XP (отдельная система, 100 XP = уровень) ----------
+# Battle Score (0-30, за конкретный бой) и Arena XP (общий прогресс по кампании) —
+# разные вещи, см. пункт "XP SYSTEM" в ТЗ. XP_REWARDS — в game_data.py.
 
-📈 <b>Прогресс</b>
-Language Skills
-  📝 Грамматика ████████░░ 82%
-  📚 Словарный запас ██████░░░ 68%
-  🎤 Беглость █████████░ 90%
-  🧩 Сложность речи ██████░░░ 65%
-
-Communication Skills
-  💡 Ясность ████████░░ 78%
-  📐 Точность формулировок ██████░░░ 62% 🎯
-  ⚔️ Аргументация ███████░░░ 71%
-  🔥 Убедительность ██████░░░ 60%
-  🧠 Критическое мышление ███████░░░ 74%
-  💪 Уверенность ████████░░ 80%
-
-🎯 <b>Current Focus</b>
-Точность формулировок
-
-⚔️ <b>Last Battle</b>
-HR Manager — Convince the HR Manager
-Result: 3/4 arguments
-+120 XP
-
-🏆 <b>Battles Won</b>
-6 из 12
-"""
+def award_arena_xp(telegram_id: int, band_key: str) -> dict:
+    """Начисляет Arena XP по итогам боя (band_key: defeated/almost/victory/outplayed).
+    Возвращает {'xp': итоговый XP, 'level': уровень, 'leveled_up': bool, 'xp_gained': int}."""
+    from game_data import XP_REWARDS
+    xp_gained = XP_REWARDS.get(band_key, 5)
+    result = db.add_arena_xp(telegram_id, xp_gained)
+    result["xp_gained"] = xp_gained
+    return result
