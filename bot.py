@@ -1,8 +1,10 @@
+import asyncio
 import logging
 
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 
-from config import BOT_TOKEN
+from config import BOT_TOKEN, DAILY_PUSH_HOUR
+import ai
 import database as db
 from handlers import start, profile, arena, intro
 
@@ -12,7 +14,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Хранилище таймеров
 arena_timers = {}
 
 
@@ -41,44 +42,55 @@ async def arena_timeout(context):
     data = context.job.data
     user_id = data["user_id"]
     chat_id = data["chat_id"]
-
     try:
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text="⏰ Время вышло! Битва завершена."
-        )
+        await context.bot.send_message(chat_id=chat_id, text="⏰ Время вышло! Битва завершена.")
     except Exception:
         pass
-
     if user_id in arena_timers:
         del arena_timers[user_id]
 
 
+# ---------- Ежедневный пуш от персонажа (фича 4) ----------
+
+async def send_daily_pushes(context):
+    """Раз в день отправляет каждому пользователю провокационное сообщение
+    от персонажа, которого ему рекомендовала Arena, со ссылкой на темы,
+    которые он уже обсуждал."""
+    profiles = await asyncio.to_thread(db.get_all_push_profiles)
+    for p in profiles:
+        try:
+            message = await asyncio.to_thread(
+                ai.generate_daily_push, p["personality"], p["topics"], p["first_name"], "english"
+            )
+            await context.bot.send_message(chat_id=p["telegram_id"], text=message)
+        except Exception as e:
+            logger.warning(f"Не удалось отправить пуш пользователю {p['telegram_id']}: {e}")
+
+
 def main():
     db.init_db()
-
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # --- Команды ---
+    # Ежедневный пуш — один раз в сутки, в DAILY_PUSH_HOUR (UTC)
+    from datetime import time as dt_time
+    app.job_queue.run_daily(send_daily_pushes, time=dt_time(hour=DAILY_PUSH_HOUR, minute=0))
+
     app.add_handler(CommandHandler("start", start.start))
     app.add_handler(CommandHandler("play", arena.play_entry))
     app.add_handler(CommandHandler("profile", profile.profile_command))
     app.add_handler(CommandHandler("achievements", profile.achievements_command))
     app.add_handler(CommandHandler("stop", arena.stop_command))
 
-    # --- Главное меню ---
     app.add_handler(CallbackQueryHandler(start.show_main_menu, pattern="^back_to_main$"))
     app.add_handler(CallbackQueryHandler(arena.play_entry, pattern="^menu_play$"))
     app.add_handler(CallbackQueryHandler(profile.profile_callback, pattern="^menu_profile$"))
     app.add_handler(CallbackQueryHandler(profile.achievements_callback, pattern="^menu_achievements$"))
 
-    # --- ARENA First Encounter ---
     app.add_handler(CommandHandler("arena", intro.enter_arena_menu))
     app.add_handler(CallbackQueryHandler(intro.enter_arena_menu, pattern="^menu_enter_arena$"))
     app.add_handler(CallbackQueryHandler(intro.select_language, pattern="^fe_lang_"))
     app.add_handler(CallbackQueryHandler(intro.start_battle, pattern="^fe_start_battle$"))
 
-    # --- Игровой поток ---
     app.add_handler(CallbackQueryHandler(arena.select_language, pattern="^debate_lang_"))
     app.add_handler(CallbackQueryHandler(arena.select_level, pattern="^debate_level_"))
     app.add_handler(CallbackQueryHandler(arena.select_personality, pattern="^debate_personality_"))
@@ -86,14 +98,13 @@ def main():
     app.add_handler(CallbackQueryHandler(arena.continue_yes, pattern="^continue_yes$"))
     app.add_handler(CallbackQueryHandler(arena.continue_no, pattern="^continue_no$"))
 
-    # --- После боя ---
     app.add_handler(CallbackQueryHandler(arena.rematch, pattern="^rematch_"))
-    app.add_handler(CallbackQueryHandler(arena.freetalk, pattern="^freetalk_"))
+    app.add_handler(CallbackQueryHandler(arena.freetalk_pick, pattern="^freetalk_pick_"))
+    app.add_handler(CallbackQueryHandler(arena.freetalk, pattern="^freetalk$"))
 
-    # --- Обработка текста ---
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, arena.handle_text))
 
-    logger.info("Arena 2.0 запущен")
+    logger.info("Arena запущена")
     app.run_polling()
 
 

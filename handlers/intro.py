@@ -5,6 +5,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
 import ai
+import database as db
 from config import FIRST_ENCOUNTER_MOVES, BATTLE_DURATION_MINUTES
 from game_data import LANGUAGES, PERSONALITIES
 
@@ -52,6 +53,11 @@ async def select_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_fe_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    ВАЖНО: нигде в этой функции не показываем пользователю номер хода
+    (никаких "1/8", "2/8" и т.п.) — это внутренний счётчик, скрытый от
+    человека. Arena просто слушает и реагирует, без видимого таймлайна.
+    """
     user_text = update.message.text.strip()
     if len(user_text) < 1:
         return
@@ -74,11 +80,12 @@ async def handle_fe_response(update: Update, context: ContextTypes.DEFAULT_TYPE)
         history,
         user_text,
         language,
-        user_turns + 1
+        user_turns + 1,  # только для внутренней ориентации модели
     )
     dialogue.append({"speaker": "AI", "text": reaction})
     context.user_data["fe_awaiting_response"] = True
 
+    # Отправляем ТОЛЬКО реакцию — без каких-либо счётчиков ходов
     await update.message.reply_text(reaction)
 
 
@@ -86,8 +93,7 @@ async def _reveal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     language = context.user_data.get("fe_language", "English")
     dialogue = context.user_data.get("fe_dialogue", [])
     user_responses = [d["text"] for d in dialogue if d["speaker"] == "User"]
-
-    await update.message.reply_text("I've seen enough.")
+    user_name = update.effective_user.first_name or ""
 
     result = await asyncio.to_thread(ai.analyze_first_encounter, user_responses, language)
 
@@ -97,53 +103,47 @@ async def _reveal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["user_interests"] = result.get("interests", [])
     topic = result.get("interests", ["интересная тема"])[0]
     context.user_data["topic"] = topic
+    level = result["estimated_level"]
+    personality = result["recommended_personality"]
 
-    person = PERSONALITIES.get(result["recommended_personality"], PERSONALITIES["hr_manager"])
+    person = PERSONALITIES.get(personality, PERSONALITIES["hr_manager"])
 
-    # --- Интересы ---
-    interests_text = "\n".join(f"  • {i}" for i in result.get("interests", ["разные темы"])[:3])
+    # ===== Колкая фраза-рекомендация (без сухого отчёта с ярлыками) =====
+    insight = await asyncio.to_thread(ai.generate_character_insight, personality, topic, user_name, language)
 
-    # --- Профиль ---
-    profile_text = (
-        "🧠 <b>ARENA'S READ</b>\n\n"
-        f"📊 <b>Уровень:</b> {result['estimated_level']}\n\n"
-        f"🔍 <b>Интересующие темы:</b>\n{interests_text}\n\n"
-        f"✅ <b>Сильная сторона:</b>\n{result.get('strength', 'Хорошо выражает мысли')}\n\n"
-        f"🎯 <b>Зона роста:</b>\n{result.get('growth', 'Можно больше внимания деталям')}"
-    )
-    await update.message.reply_text(profile_text, parse_mode="HTML")
-
-    # --- Рекомендация персонажа ---
     recommendation = (
-        f"Вижу, тебя зацепила тема <b>«{topic}»</b>.\n"
-        f"Было бы круто поговорить об этом с <b>{person['full_name']}</b> — "
-        f"{person['desc']}\n\n"
-        f"💬 <i>«{person.get('phrase', '')}»</i>"
+        f"Кажется, тебя зацепила тема <b>«{topic}»</b>.\n"
+        f"Поговори об этом с <b>{person['full_name']}</b>.\n\n"
+        f"💬 <i>{insight}</i>"
     )
 
-    # --- Генерируем слова для миссии ---
-    level = context.user_data.get("level", "B1")
-    words = await asyncio.to_thread(ai.generate_mission_words, topic, level, language)
-    tips = await asyncio.to_thread(ai.generate_tips, result["recommended_personality"])
-    context.user_data["mission_words"] = words
+    # ===== Короткое конкретное задание + оружие по уровню =====
+    task = await asyncio.to_thread(ai.generate_mission_task, topic, personality, user_name, language)
+    situation = await asyncio.to_thread(ai.generate_situation, topic, personality, language)
+    weapons, _, win_condition = await asyncio.to_thread(
+        ai.generate_weapons_by_level, topic, level, personality, language
+    )
 
-    # --- Миссия ---
+    context.user_data["mission"] = task
+    context.user_data["mission_weapons"] = weapons
+    context.user_data["win_condition"] = win_condition
+    context.user_data["used_weapons"] = []
+
+    # ===== Сохраняем персонажа/темы для ежедневного пуша (фича 4) =====
+    db.set_push_profile(update.effective_user.id, personality, result.get("interests", [topic]))
+
     mission_text = (
-        f"⚔️ <b>ТВОЯ МИССИЯ</b>\n\n"
-        f"🎭 <b>{person['full_name']}</b>\n\n"
-        f"📋 <b>Задача:</b>\n"
-        f"Обсуди с {person['name']} тему: <b>{topic}</b>\n\n"
-        f"📚 <b>Слова для победы</b> (используй их в диалоге):\n"
-        f"{' · '.join(words.split(',')[:5])}\n\n"
-        f"💡 <b>Советы:</b>\n{tips}\n\n"
-        f"⏱️ <b>Время:</b> {BATTLE_DURATION_MINUTES} мин"
+        f"⚔️ <b>{task}</b>\n"
+        f"<i>{situation}</i>\n\n"
+        f"🗡️ <b>Оружие:</b> {weapons}\n\n"
+        f"✅ <b>Условие победы:</b>\n{win_condition}\n\n"
+        f"⏱️ {BATTLE_DURATION_MINUTES} мин"
     )
 
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton(f"⚔️ НАЧАТЬ БИТВУ С {person['name']}", callback_data="fe_start_battle")]
     ])
 
-    # --- Отправка ---
     photo = person.get("photo")
     if photo:
         try:
@@ -177,37 +177,28 @@ async def start_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     language = context.user_data.get("language", "English")
     topic = context.user_data.get("topic", "интересную тему")
     level = context.user_data.get("level", "B1")
-    mission_words = context.user_data.get("mission_words", "")
+    weapons = context.user_data.get("mission_weapons", "")
+    mission = context.user_data.get("mission") or f"Убедить {personality} в теме «{topic}»."
 
     person = PERSONALITIES.get(personality, PERSONALITIES["hr_manager"])
 
-    # --- Открывающая реплика ---
-    opening = await asyncio.to_thread(
-        ai.generate_opening_statement, personality, topic, level, language
-    )
+    opening = await asyncio.to_thread(ai.generate_opening_statement, personality, topic, level, language)
 
-    # --- Запускаем таймер ---
     from bot import start_arena_timer
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     start_arena_timer(context, user_id, chat_id, minutes=BATTLE_DURATION_MINUTES)
 
-    # --- СОСТОЯНИЕ ДЛЯ arena.py (ЭТО ГЛАВНОЕ!) ---
-    context.user_data["dialogue"] = []
-    context.user_data["dialogue"].append({"speaker": "AI", "text": opening})
-    context.user_data["awaiting_response"] = True   # ← ЭТО КЛЮЧЕВОЕ!
+    context.user_data["dialogue"] = [{"speaker": "AI", "text": opening}]
+    context.user_data["awaiting_response"] = True
     context.user_data["turn"] = 0
     context.user_data["personality"] = personality
-    context.user_data["mission_words"] = mission_words
+    context.user_data["mission_weapons"] = weapons
+    context.user_data["used_weapons"] = []
     context.user_data["language"] = language
     context.user_data["level"] = level
     context.user_data["topic"] = topic
-
-    # ===== МИССИЯ: персонаж должен помнить это на протяжении ВСЕГО боя =====
-    context.user_data["mission"] = (
-        f"Убедить {person['name']} в теме «{topic}». "
-        f"Не отклоняться от этой темы, даже если пользователь уводит разговор в сторону."
-    )
+    context.user_data["mission"] = mission
 
     await query.edit_message_text(
         f"⚔️ <b>БИТВА НАЧАЛАСЬ!</b>\n\n"
@@ -215,7 +206,6 @@ async def start_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"<i>{opening}</i>\n\n"
         f"💬 Напиши свой ответ!\n"
         f"⏰ <i>У тебя {BATTLE_DURATION_MINUTES} минут!</i>\n\n"
-        f"📚 <b>Слова для победы:</b>\n"
-        f"{' · '.join(mission_words.split(',')[:5])}",
+        f"🗡️ <b>Оружие:</b> {weapons}",
         parse_mode="HTML"
     )

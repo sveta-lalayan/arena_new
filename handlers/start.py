@@ -1,27 +1,49 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
+import database as db
+
+
+def _build_menu(telegram_id: int) -> InlineKeyboardMarkup:
+    """До первого завершённого боя — только один вход в ARENA.
+    После первого боя — полное меню: новая встреча, свободный разговор,
+    профиль, достижения."""
+    if not db.has_completed_first_battle(telegram_id):
+        return InlineKeyboardMarkup([
+            [InlineKeyboardButton("🏛️ ENTER ARENA", callback_data="menu_enter_arena")],
+        ])
+
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🏛️ ENTER ARENA", callback_data="menu_enter_arena")],
+        [InlineKeyboardButton("⚔️ Battle", callback_data="menu_play")],
+        [InlineKeyboardButton("💬 Free talk", callback_data="freetalk")],
+        [InlineKeyboardButton("👤 Profile", callback_data="menu_profile")],
+        [InlineKeyboardButton("🏆 Achievements", callback_data="menu_achievements")],
+    ])
+
+
+def _welcome_text(user, first_time: bool) -> str:
+    if first_time:
+        return (
+            f"👋 {user.first_name}\n"
+            f"Welcome to <b>ARENA</b>.\n\n"
+            f"🏛️ <b>ENTER ARENA</b>\n"
+            f"Let Arena listen to you and decide who you meet."
+        )
+    return (
+        f"👋 {user.first_name}\n"
+        f"Welcome back to <b>ARENA</b>."
+    )
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-
-    text = (
-        f"👋 Привет, {user.first_name}!\n\n"
-        "Добро пожаловать в <b>Arena 2.0</b>!\n\n"
-        "🏛️ <b>ENTER ARENA</b> — пройди 8 ходов, и ARENA подберёт тебе противника.\n\n"
-        "🎮 <b>Играть</b> — выбери всё сам."
-    )
-
-    keyboard = [
-        [InlineKeyboardButton("🏛️ ENTER ARENA", callback_data="menu_enter_arena")],
-        [InlineKeyboardButton("🎮 Играть", callback_data="menu_play")],
-        [InlineKeyboardButton("👤 Профиль", callback_data="menu_profile")],
-        [InlineKeyboardButton("🏆 Достижения", callback_data="menu_achievements")],
-    ]
+    db.get_or_create_user(user.id, user.username, user.first_name)
+    first_time = not db.has_completed_first_battle(user.id)
 
     await update.message.reply_text(
-        text,
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        _welcome_text(user, first_time),
+        reply_markup=_build_menu(user.id),
         parse_mode="HTML",
     )
 
@@ -29,16 +51,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-
-    keyboard = [
-        [InlineKeyboardButton("🏛️ ENTER ARENA", callback_data="menu_enter_arena")],
-        [InlineKeyboardButton("🎮 Играть", callback_data="menu_play")],
-        [InlineKeyboardButton("👤 Профиль", callback_data="menu_profile")],
-        [InlineKeyboardButton("🏆 Достижения", callback_data="menu_achievements")],
-    ]
+    user = update.effective_user
+    first_time = not db.has_completed_first_battle(user.id)
 
     await query.edit_message_text(
-        "🏠 <b>Главное меню</b>",
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        _welcome_text(user, first_time),
+        reply_markup=_build_menu(user.id),
         parse_mode="HTML",
     )

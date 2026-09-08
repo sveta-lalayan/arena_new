@@ -7,6 +7,9 @@
 сохранить оригинальную механику и голос персонажей.
 """
 
+# ---------- ARENA: FIRST ENCOUNTER CONFIG ----------
+FIRST_ENCOUNTER_MOVES = 8  # Количество раундов слушания перед переходом к персонажу
+
 LANGUAGES = {
     "english": {"flag": "🇬🇧", "name": "English"},
     "german": {"flag": "🇩🇪", "name": "Deutsch"},
