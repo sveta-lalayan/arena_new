@@ -1,5 +1,6 @@
 """
-Геймификация ARENA: баллы, игровые уровни, достижения, профиль.
+Геймификация ARENA: баллы, игровые уровни, достижения, профиль,
+мягкая адаптация уровня персонажей под участника.
 """
 import database as db
 from game_data import BADGES, PERSONALITIES
@@ -69,10 +70,6 @@ def check_and_unlock_achievements(telegram_id: int, personality: str, rounds: in
 
 
 def format_profile(telegram_id: int, first_name: str) -> str:
-    """
-    Профиль: баллы/уровень, сильная сторона и зона роста из последнего боя,
-    план развития на 10 раундов, словарь слов для заучивания (ошибки).
-    """
     stats = db.get_user_stats(telegram_id)
     level_info = get_player_level(stats["total_points"])
 
@@ -120,3 +117,19 @@ def format_achievements(telegram_id: int) -> str:
         status = "✅" if key in unlocked else "⬜"
         lines.append(f"{status} {badge['name']} — {badge['description']}")
     return "\n".join(lines)
+
+
+# ---------- Мягкая адаптация уровня персонажей под участника ----------
+
+LEVEL_ORDER = ["A1", "A2", "B1", "B2", "C1", "C2"]
+
+
+def adapt_level(current_level: str, avg_score: float | None) -> str:
+    if avg_score is None or current_level not in LEVEL_ORDER:
+        return current_level
+    idx = LEVEL_ORDER.index(current_level)
+    if avg_score >= 82 and idx < len(LEVEL_ORDER) - 1:
+        return LEVEL_ORDER[idx + 1]
+    if avg_score <= 45 and idx > 0:
+        return LEVEL_ORDER[idx - 1]
+    return current_level

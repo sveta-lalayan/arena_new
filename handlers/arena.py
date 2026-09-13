@@ -7,13 +7,14 @@ import ai
 import database as db
 import gamification
 from config import CHECKPOINT_TURNS, BATTLE_DURATION_MINUTES
-from game_data import LANGUAGES, LEVELS, PERSONALITIES, BADGES
+from game_data import LANGUAGES, LEVELS, PERSONALITIES, BADGES, ARENA_BEHAVIOURS
 from handlers import intro
 
 STATE_KEYS = [
     "language", "level", "topic", "personality", "mission_weapons", "used_weapons",
     "mission", "win_condition", "dialogue", "turn",
     "awaiting_topic", "awaiting_response", "asked_continue", "battle_type",
+    "arena_analysis",
 ]
 
 SCORE_LABELS = {
@@ -30,7 +31,6 @@ def _reset_state(context: ContextTypes.DEFAULT_TYPE):
 
 
 def format_weapons_status(weapons: str, user_text: str, used_weapons: list) -> tuple:
-    """Подсвечивает ✅/⬜ те слова/фразы-оружие, которые уже использованы."""
     if not weapons:
         return "", 0, used_weapons
 
@@ -49,6 +49,43 @@ def format_weapons_status(weapons: str, user_text: str, used_weapons: list) -> t
         status_lines.append(f"  {mark} {item}")
 
     return "\n".join(status_lines), len(new_used), new_used
+
+
+def _bar(v: int) -> str:
+    filled = int(round(max(0, min(100, v)) / 10))
+    return "█" * filled + "░" * (10 - filled)
+
+
+def _format_analysis_block(analysis: dict) -> str:
+    """3-слойный разбор для показа после боя. Без RESILIENCE (скрытый)."""
+    if not analysis:
+        return ""
+
+    lang = analysis.get("language", {}) or {}
+    comm = analysis.get("communication", {}) or {}
+    rank = analysis.get("arena_rank", {}) or {}
+    behaviour = analysis.get("behaviour", "")
+
+    lines = ["\n📊 <b>Твой профиль ARENA</b>"]
+
+    if lang:
+        lines.append("<b>LANGUAGE</b>")
+        for k, v in lang.items():
+            lines.append(f"  {k.capitalize():<12} {_bar(v)} {v}")
+
+    if comm:
+        lines.append("<b>COMMUNICATION</b>")
+        for k, v in comm.items():
+            lines.append(f"  {k.capitalize():<14} {_bar(v)} {v}")
+
+    if rank:
+        lines.append(f"\n🏅 <b>ARENA Rank {rank.get('rank','')}: {rank.get('name','')}</b>")
+        lines.append(f"   {rank.get('goal','')}")
+
+    if behaviour:
+        lines.append(f"\n🎭 <b>Стиль:</b> {ARENA_BEHAVIOURS.get(behaviour, behaviour)}")
+
+    return "\n".join(lines) + "\n"
 
 
 async def play_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -115,16 +152,20 @@ async def handle_topic_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def _show_personality_card(update: Update, context: ContextTypes.DEFAULT_TYPE, personality: str):
-    """Карточка персонажа: задание + оружие по уровню — общая для обычного
-    выбора (select_personality) и реванша (rematch)."""
     query = update.callback_query
     context.user_data["personality"] = personality
 
     person = PERSONALITIES.get(personality, PERSONALITIES["devil_advocate"])
     topic = context.user_data.get("topic", "")
-    level = context.user_data.get("level", "B1")
-    language = context.user_data.get("language", "English")
+    language = context.user_data.get("language", "english")
     user_name = update.effective_user.first_name or ""
+
+    level = (
+        context.user_data.get("level")
+        or db.get_current_level(update.effective_user.id)
+        or "B1"
+    )
+    context.user_data["level"] = level
 
     await query.edit_message_text("🎭 Готовлю персонажа...", parse_mode="HTML")
 
@@ -167,8 +208,13 @@ async def start_arena(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     start_arena_timer(context, user_id, chat_id, minutes=BATTLE_DURATION_MINUTES)
 
-    language = context.user_data.get("language", "English")
-    level = context.user_data.get("level", "B1")
+    language = context.user_data.get("language", "english")
+    level = (
+        context.user_data.get("level")
+        or db.get_current_level(user_id)
+        or "B1"
+    )
+    context.user_data["level"] = level
     topic = context.user_data.get("topic", "")
     personality = context.user_data.get("personality", "devil_advocate")
 
@@ -211,8 +257,15 @@ async def handle_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def _continue_round(update: Update, context: ContextTypes.DEFAULT_TYPE):
     dialogue = context.user_data["dialogue"]
     personality = context.user_data.get("personality", "devil_advocate")
-    level = context.user_data.get("level", "B1")
-    language = context.user_data.get("language", "English")
+    language = context.user_data.get("language", "english")
+
+    level = (
+        context.user_data.get("level")
+        or db.get_current_level(update.effective_user.id)
+        or "B1"
+    )
+    context.user_data["level"] = level
+
     weapons = context.user_data.get("mission_weapons", "")
     mission = context.user_data.get("mission")
     used_weapons = context.user_data.get("used_weapons", [])
@@ -298,8 +351,12 @@ async def finish_arena(update: Update, context: ContextTypes.DEFAULT_TYPE, via_c
     stop_arena_timer(context, user.id)
 
     dialogue = context.user_data.get("dialogue", [])
-    language = context.user_data.get("language", "English")
-    level = context.user_data.get("level", "B1")
+    language = context.user_data.get("language", "english")
+    level = (
+        context.user_data.get("level")
+        or db.get_current_level(user.id)
+        or "B1"
+    )
     topic = context.user_data.get("topic", "")
     personality = context.user_data.get("personality", "devil_advocate")
     weapons = context.user_data.get("mission_weapons", "")
@@ -315,7 +372,7 @@ async def finish_arena(update: Update, context: ContextTypes.DEFAULT_TYPE, via_c
 
     person = PERSONALITIES.get(personality, PERSONALITIES["devil_advocate"])
 
-    # ===== СВОБОДНЫЙ РАЗГОВОР: без оценки, без баллов =====
+    # ===== СВОБОДНЫЙ РАЗГОВОР =====
     if context.user_data.get("battle_type") == "free_talk":
         keyboard_ft = InlineKeyboardMarkup([
             [InlineKeyboardButton("💬 Свободный разговор ещё раз", callback_data="freetalk")],
@@ -335,17 +392,14 @@ async def finish_arena(update: Update, context: ContextTypes.DEFAULT_TYPE, via_c
     scores = analysis["scores"]
     rounds_completed = len(user_responses)
 
-    # ===== Живой вердикт судьи (тёплый тон, обращение по имени) =====
     verdict = await asyncio.to_thread(ai.generate_arena_verdict, user_responses, user_name, language)
 
-    # ===== Сильная сторона / зона роста из очков + план на 10 раундов =====
     best_key = max(scores, key=scores.get)
     worst_key = min(scores, key=scores.get)
     strength_text = SCORE_LABELS.get(best_key, best_key)
     growth_text = SCORE_LABELS.get(worst_key, worst_key)
     growth_plan = await asyncio.to_thread(ai.generate_growth_plan, user_name, strength_text, growth_text, language)
 
-    # ===== Слова, использованные неправильно — в личный словарь =====
     mistakes = await asyncio.to_thread(ai.extract_vocabulary_mistakes, user_responses, language)
     if mistakes:
         db.add_vocabulary_mistakes(user.id, mistakes)
@@ -355,6 +409,14 @@ async def finish_arena(update: Update, context: ContextTypes.DEFAULT_TYPE, via_c
         user.id, personality, language, level, topic, rounds_completed, scores, points_earned,
         strength=strength_text, growth=growth_text, growth_plan=growth_plan,
     )
+
+    # Мягкая адаптация уровня
+    avg_recent = db.get_recent_avg_scores(user.id, n=3)
+    new_level = gamification.adapt_level(level, avg_recent)
+    if new_level != level:
+        db.add_level_snapshot(user.id, new_level, source="battle_finish")
+        context.user_data["level"] = new_level
+
     db.add_points(user.id, points_earned)
     db.mark_first_battle_done(user.id)
     new_badges = gamification.check_and_unlock_achievements(user.id, personality, rounds_completed, scores)
@@ -366,9 +428,15 @@ async def finish_arena(update: Update, context: ContextTypes.DEFAULT_TYPE, via_c
         mistakes_lines = "\n".join(f"  • {m['wrong']} → <b>{m['correct']}</b>" for m in mistakes[:5])
         mistakes_block = f"\n📚 <b>Слова для заучивания:</b>\n{mistakes_lines}\n"
 
+    # 3-слойный разбор Храма (показываем после боя)
+    arena_analysis = context.user_data.get("arena_analysis")
+    if not arena_analysis:
+        arena_analysis = db.get_latest_arena_analysis(user.id)
+    analysis_block = _format_analysis_block(arena_analysis) if arena_analysis else ""
+
     feedback_text = f"""
 🏟️ <b>{verdict}</b>
-
+{analysis_block}
 {weapons_status}
 {mistakes_block}
 🗺️ <b>План на следующие 10 раундов:</b>
@@ -398,7 +466,7 @@ async def rematch(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _show_personality_card(update, context, personality)
 
 
-# ---------- Свободный разговор: выбор персонажа + любая тема ----------
+# ---------- Свободный разговор ----------
 
 async def freetalk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -441,7 +509,11 @@ async def handle_freetalk_topic_input(update: Update, context: ContextTypes.DEFA
 
     context.user_data["personality"] = personality
     context.user_data["language"] = context.user_data.get("language", "english")
-    context.user_data["level"] = context.user_data.get("level", "B1")
+    context.user_data["level"] = (
+        context.user_data.get("level")
+        or db.get_current_level(update.effective_user.id)
+        or "B1"
+    )
     context.user_data["topic"] = topic
     context.user_data["mission"] = None
     context.user_data["mission_weapons"] = ""

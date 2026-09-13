@@ -1,6 +1,6 @@
 """
 БД под ARENA: профиль, баллы, история игр, достижения, словарь ошибок,
-данные для ежедневного пуша.
+данные для ежедневного пуша, история уровня, разбор Храма (3 слоя).
 """
 import sqlite3
 import json
@@ -50,8 +50,6 @@ CREATE TABLE IF NOT EXISTS achievements (
     UNIQUE (telegram_id, badge_key)
 );
 
--- Слова/выражения, использованные пользователем НЕПРАВИЛЬНО — личный
--- словарь для заучивания, показывается в профиле.
 CREATE TABLE IF NOT EXISTS vocabulary_mistakes (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     telegram_id   INTEGER NOT NULL,
@@ -61,6 +59,35 @@ CREATE TABLE IF NOT EXISTS vocabulary_mistakes (
     learned       INTEGER NOT NULL DEFAULT 0,
     created_at    TEXT NOT NULL,
     UNIQUE (telegram_id, wrong)
+);
+
+CREATE TABLE IF NOT EXISTS user_level_history (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_id   INTEGER NOT NULL,
+    level         TEXT NOT NULL,
+    source        TEXT NOT NULL,
+    session_id    INTEGER,
+    created_at    TEXT NOT NULL
+);
+
+-- 3-слойный разбор Храма (LANGUAGE + COMMUNICATION + BEHAVIOUR).
+-- Хранится отдельной записью, чтобы не терялся, даже если бой не состоялся.
+CREATE TABLE IF NOT EXISTS arena_analyses (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_id      INTEGER NOT NULL,
+    language_metrics TEXT,
+    communication    TEXT,
+    hidden_metrics   TEXT,
+    grammar_weak     TEXT,
+    vocabulary_weak  TEXT,
+    behaviour        TEXT,
+    weakest_skill    TEXT,
+    strongest_skill  TEXT,
+    arena_rank       TEXT,
+    interests        TEXT,
+    main_topic       TEXT,
+    level            TEXT,
+    created_at       TEXT NOT NULL
 );
 """
 
@@ -80,7 +107,7 @@ def get_conn():
 def init_db():
     with get_conn() as conn:
         conn.executescript(SCHEMA)
-        # Мягкая миграция для БД, созданных до добавления новых колонок
+
         existing_cols = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
         for col, ddl in [
             ("first_battle_done", "ALTER TABLE users ADD COLUMN first_battle_done INTEGER NOT NULL DEFAULT 0"),
@@ -92,6 +119,7 @@ def init_db():
                     conn.execute(ddl)
                 except sqlite3.OperationalError:
                     pass
+
         existing_session_cols = {row["name"] for row in conn.execute("PRAGMA table_info(game_sessions)")}
         for col, ddl in [
             ("strength", "ALTER TABLE game_sessions ADD COLUMN strength TEXT"),
@@ -143,7 +171,6 @@ def mark_first_battle_done(telegram_id: int):
 
 
 def set_push_profile(telegram_id: int, personality: str, topics: list):
-    """Сохраняет, какой персонаж и по каким темам будет слать ежедневный пуш."""
     with get_conn() as conn:
         conn.execute(
             "UPDATE users SET push_personality = ?, push_topics = ?, updated_at = ? WHERE telegram_id = ?",
@@ -152,7 +179,6 @@ def set_push_profile(telegram_id: int, personality: str, topics: list):
 
 
 def get_all_push_profiles() -> list[dict]:
-    """Для планировщика — все пользователи, у которых есть назначенный персонаж для пуша."""
     with get_conn() as conn:
         rows = conn.execute(
             "SELECT telegram_id, push_personality, push_topics, first_name FROM users "
@@ -255,10 +281,9 @@ def unlock_achievement(telegram_id: int, badge_key: str) -> bool:
             return False
 
 
-# ---------- Словарь слов для заучивания (ошибки пользователя) ----------
+# ---------- Словарь слов для заучивания ----------
 
 def add_vocabulary_mistakes(telegram_id: int, mistakes: list[dict]):
-    """mistakes: [{'wrong': ..., 'correct': ...}, ...]"""
     if not mistakes:
         return
     with get_conn() as conn:
@@ -288,3 +313,96 @@ def get_vocabulary_to_learn(telegram_id: int, limit: int = 10) -> list[dict]:
             (telegram_id, limit),
         ).fetchall()
     return [{"wrong": r["wrong"], "correct": r["correct"], "times_seen": r["times_seen"]} for r in rows]
+
+
+# ---------- История уровня и мягкая адаптация ----------
+
+def add_level_snapshot(telegram_id: int, level: str, source: str, session_id: int | None = None):
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO user_level_history (telegram_id, level, source, session_id, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (telegram_id, level, source, session_id, _now()),
+        )
+
+
+def get_current_level(telegram_id: int) -> str | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT level FROM user_level_history WHERE telegram_id = ? "
+            "ORDER BY id DESC LIMIT 1",
+            (telegram_id,),
+        ).fetchone()
+    return row["level"] if row else None
+
+
+def get_recent_avg_scores(telegram_id: int, n: int = 3) -> float | None:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT argumentation_score, vocabulary_score, grammar_score, fluency_score "
+            "FROM game_sessions WHERE telegram_id = ? ORDER BY id DESC LIMIT ?",
+            (telegram_id, n),
+        ).fetchall()
+    if not rows:
+        return None
+    vals = []
+    for r in rows:
+        s = [r["argumentation_score"], r["vocabulary_score"], r["grammar_score"], r["fluency_score"]]
+        s = [v for v in s if v is not None]
+        if s:
+            vals.append(sum(s) / len(s))
+    return sum(vals) / len(vals) if vals else None
+
+
+# ---------- 3-слойный разбор Храма ----------
+
+def save_arena_analysis(telegram_id: int, analysis: dict):
+    """Сохраняет разбор Храма (LANGUAGE + COMMUNICATION + BEHAVIOUR)."""
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO arena_analyses
+               (telegram_id, language_metrics, communication, hidden_metrics,
+                grammar_weak, vocabulary_weak, behaviour, weakest_skill,
+                strongest_skill, arena_rank, interests, main_topic, level, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                telegram_id,
+                json.dumps(analysis.get("language", {}), ensure_ascii=False),
+                json.dumps(analysis.get("communication", {}), ensure_ascii=False),
+                json.dumps(analysis.get("hidden", {}), ensure_ascii=False),
+                json.dumps(analysis.get("grammar_weak_areas", []), ensure_ascii=False),
+                json.dumps(analysis.get("vocabulary_weak_areas", []), ensure_ascii=False),
+                analysis.get("behaviour", ""),
+                analysis.get("weakest_skill", ""),
+                analysis.get("strongest_skill", ""),
+                json.dumps(analysis.get("arena_rank", {}), ensure_ascii=False),
+                json.dumps(analysis.get("interests", []), ensure_ascii=False),
+                analysis.get("main_topic", ""),
+                analysis.get("estimated_level", ""),
+                _now(),
+            ),
+        )
+
+
+def get_latest_arena_analysis(telegram_id: int) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM arena_analyses WHERE telegram_id = ? ORDER BY id DESC LIMIT 1",
+            (telegram_id,),
+        ).fetchone()
+    if not row:
+        return None
+    return {
+        "language": json.loads(row["language_metrics"] or "{}"),
+        "communication": json.loads(row["communication"] or "{}"),
+        "hidden": json.loads(row["hidden_metrics"] or "{}"),
+        "grammar_weak_areas": json.loads(row["grammar_weak"] or "[]"),
+        "vocabulary_weak_areas": json.loads(row["vocabulary_weak"] or "[]"),
+        "behaviour": row["behaviour"] or "",
+        "weakest_skill": row["weakest_skill"] or "",
+        "strongest_skill": row["strongest_skill"] or "",
+        "arena_rank": json.loads(row["arena_rank"] or "{}"),
+        "interests": json.loads(row["interests"] or "[]"),
+        "main_topic": row["main_topic"] or "",
+        "estimated_level": row["level"] or "",
+    }

@@ -1,9 +1,13 @@
 import re
+import random
 import logging
 import requests
 
 from config import YANDEX_API_KEY, YANDEX_FOLDER_ID
-from game_data import LANGUAGES, PERSONALITIES, LEVEL_DESCRIPTIONS, ROLE_STYLE
+from game_data import (
+    LANGUAGES, PERSONALITIES, LEVEL_DESCRIPTIONS, ROLE_STYLE,
+    SKILL_TO_PERSONALITY, ARENA_RANKS, ARENA_BEHAVIOURS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,23 +37,32 @@ def ask_gpt(prompt: str, temperature: float = 0.7, max_tokens: int = 500) -> str
     return None
 
 
-# ========== ARENA REACTION (для First Encounter) ==========
-# ВАЖНО: move_number используется только ВНУТРИ промпта для ориентации модели.
-# Номер хода НИКОГДА не должен попадать в текст, который видит пользователь —
-# по этой причине handlers/intro.py не подставляет move_number в reply-текст.
+# ========== ARENA REACTION (Храм шумит, копает глубже) ==========
 
 def generate_arena_reaction(dialogue_history: str, last_user_response: str, language: str, move_number: int) -> str:
+    """
+    Храм: живой, проницательный, слегка провокационный. Не просто комментирует —
+    копает глубже, переспрашивает, вытаскивает конкретику.
+    Номер хода НИКОГДА не попадает в текст пользователю.
+    """
     lang_name = LANGUAGES.get(language, {}).get("name", language)
     prompt = f"""
-    Ты — ARENA. Ты наблюдаешь за человеком и даёшь проницательный комментарий.
+    Ты — ARENA. Ты слушаешь человека и хочешь узнать его по-настоящему.
+    Ты не просто комментируешь — ты КОПАЕШЬ, ПЕРЕСПРАШИВАЕШЬ, ПРОВОЦИРУЕШЬ.
+
     Твой ответ должен быть:
     - коротким (1-2 предложения)
-    - живым, как реальный комментарий
-    - либо острым наблюдением, либо уточняющим вопросом
-    - НЕ давай оценок, НЕ говори "хорошо" или "плохо"
-    - НИКОГДА не используй слова "помочь", "assist", "help", "support"
-    - Обращайся к собеседнику на "ты"
-    - НИКОГДА не упоминай номер хода или счётчик (например "ход 3 из 8")
+    - живым, как реакция внимательного собеседника
+    - содержать одну из тактик (выбирай по ситуации):
+        * неожиданный уточняющий вопрос ("А что именно тебя в этом зацепило?")
+        * лёгкая провокация ("Звучит как отговорка. Попробуй ещё раз.")
+        * зеркалирование с обострением ("То есть для тебя это важнее, чем кажется?")
+        * требование конкретики ("Дай пример. Один. Реальный.")
+        * неожиданный поворот ("А если бы наоборот — что тогда?")
+    - НЕ давай оценок ("хорошо", "интересно", "классно")
+    - НЕ используй слова "помочь", "assist", "help", "support"
+    - НИКОГДА не упоминай номер хода или счётчик
+    - Обращайся на "ты"
 
     Язык: {lang_name}
     Ход (только для твоей ориентации, не упоминай его): {move_number} из 8
@@ -60,22 +73,22 @@ def generate_arena_reaction(dialogue_history: str, last_user_response: str, lang
     Последнее сообщение человека:
     {last_user_response}
 
-    Твой ответ (живой, проницательный, без «I see», без оценки, без номеров ходов):
+    Твой ответ (короче, острее, конкретнее — как будто тебе реально важно понять этого человека):
     """
-    response = ask_gpt(prompt, temperature=0.85, max_tokens=150)
+    response = ask_gpt(prompt, temperature=0.9, max_tokens=180)
     if not response:
-        return "Это интересно. Расскажи подробнее."
+        return "Дай пример. Конкретный."
     return response.strip()
 
 
 # ========== ОРУЖИЕ ПО УРОВНЯМ ==========
 
 def generate_weapons_by_level(topic: str, level: str, personality: str, language: str) -> tuple:
-    """Генерирует слова, фразы и условия победы в зависимости от уровня."""
     lang_name = LANGUAGES.get(language, {}).get("name", language)
-    person = PERSONALITIES.get(personality, {})
 
-    level_key = level.upper()
+    level_key = (level or "B1").strip().upper()
+    m = re.match(r"(A1|A2|B1|B2|C1|C2)", level_key)
+    level_key = m.group(1) if m else "B1"
 
     level_config = {
         "A1": {
@@ -113,111 +126,31 @@ def generate_weapons_by_level(topic: str, level: str, personality: str, language
     return weapons_response, "", config["condition"]
 
 
-def generate_situation(topic: str, personality: str, language: str) -> str:
-    """Генерирует ситуацию для миссии."""
-    person = PERSONALITIES.get(personality, {})
-    lang_name = LANGUAGES.get(language, {}).get("name", language)
-
-    prompt = f"""
-    Create a short, specific situation for a debate about "{topic}" with {person.get('name', 'a person')}.
-    Language: {lang_name}.
-
-    The situation should be:
-    - 2-3 sentences
-    - Concrete and realistic
-    - Create tension or conflict
-
-    Examples:
-    "Your company wants to introduce a new employee wellbeing programme. Sarah controls the budget."
-    "You have an idea that could revolutionize your industry. Richard is skeptical."
-
-    Write in English:
-    """
-
-    response = ask_gpt(prompt, temperature=0.7, max_tokens=100)
-    if not response:
-        return f"You need to discuss '{topic}' with {person.get('name', 'the expert')}. They are not convinced."
-    return response.strip()
-
-
-def generate_persuasion_phrases(personality: str, topic: str, level: str, language: str) -> str:
-    """Генерирует 5 фраз-убеждений для миссии."""
-    person = PERSONALITIES.get(personality, {})
-    lang_name = LANGUAGES.get(language, {}).get("name", language)
-
-    prompt = f"""
-    Generate 5 persuasive phrases that help convince {person.get('name', 'собеседника')} on topic "{topic}".
-    Level: {level}.
-    Language: {lang_name}.
-    Format (separated by commas): phrase1, phrase2, phrase3, phrase4, phrase5
-    """
-    response = ask_gpt(prompt, temperature=0.7, max_tokens=100)
-    if not response:
-        return "I believe, Let's consider, The point is, What if, Imagine"
-    return response.strip()
-
-
-def generate_tips(personality: str) -> str:
-    person = PERSONALITIES.get(personality, {})
-    prompt = f"""
-    Дай 3 коротких совета как общаться с {person.get('name', 'собеседником')}.
-    Формат: совет1 · совет2 · совет3
-    """
-    response = ask_gpt(prompt, temperature=0.7, max_tokens=80)
-    if not response:
-        return "Будь уверен · Приводи примеры · Слушай внимательно"
-    return response.strip()
-
-
-# ========== КОЛКАЯ ФРАЗА И ЗАДАНИЕ ==========
-
-def generate_character_insight(personality: str, topic: str, user_name: str, language: str) -> str:
-    """
-    Колкая яркая фраза — почему стоит поговорить именно с этим персонажем.
-    """
-    person = PERSONALITIES.get(personality, {})
-    prompt = f"""
-    Ты — ARENA. Ты только что порекомендовал {person.get('name', 'персонажа')} для {user_name}.
-    Тема: {topic}.
-
-    Скажи ОДНУ яркую, колкую фразу (на РУССКОМ языке) о том, почему {user_name} стоит поговорить с {person.get('name', 'ним')} именно сейчас.
-
-    Примеры:
-    "Этот разговор сломает твой шаблон."
-    "Он вытащит из тебя то, что ты даже не знал, что можешь сказать."
-    "Она заставит тебя увидеть это иначе."
-
-    Фраза должна быть живой, без 'потому что', без объяснений.
-    """
-    response = ask_gpt(prompt, temperature=0.85, max_tokens=80)
-    if not response:
-        return f"Разговор с {person.get('name', 'этим персонажем')} изменит твой взгляд на тему."
-    return response.strip()
-
+# ========== ЗАДАНИЕ ПО ТЕМЕ (неприкосновенная тема) ==========
 
 def generate_mission_task(topic: str, personality: str, user_name: str, language: str) -> str:
-    """
-    Конкретное задание по теме.
-    """
     person = PERSONALITIES.get(personality, {})
     prompt = f"""
     Придумай конкретное задание для {user_name} в разговоре с {person.get('name', 'персонажем')}.
-    Тема: {topic}.
 
-    Задание должно быть:
-    - конкретным
-    - связанным с темой
+    ТЕМА (НЕ МЕНЯЙ ЕЁ, НЕ ОБОБЩАЙ, НЕ ЗАМЕНЯЙ НА ДРУГУЮ):
+    "{topic}"
+
+    Задание должно:
+    - быть конкретным
+    - напрямую касаться темы "{topic}"
     - звучать как вызов
     - на РУССКОМ языке
+    - уложиться в 1 предложение
 
-    Примеры:
+    Примеры формата (не копируй дословно):
     "Убеди его, что эта идея стоит инвестиций."
     "Заставь его признать, что ты прав."
     "Докажи ей, что твой подход более эффективен."
 
-    Напиши 1 предложение на РУССКОМ языке.
+    Напиши 1 предложение на РУССКОМ языке:
     """
-    response = ask_gpt(prompt, temperature=0.7, max_tokens=100)
+    response = ask_gpt(prompt, temperature=0.6, max_tokens=100)
     if not response:
         return f"Убеди {person.get('name', 'собеседника')} в своей правоте по теме «{topic}»."
     return response.strip()
@@ -245,16 +178,6 @@ def generate_opening_statement(personality: str, topic: str, level: str, languag
 
 def generate_ai_response(personality: str, dialogue_history: str, last_user_response: str, level: str,
                          language: str, mission: str = None, user_name: str = "") -> str:
-    """
-    mission — короткое напоминание о том, чего персонаж добивается от пользователя
-    в этом бою (например: "Убедить Sarah, что тема X стоит внимания").
-    Подмешивается в промпт на КАЖДОМ ходу, чтобы персонаж не "забывал" миссию
-    и не соскальзывал в обычный small talk посреди боя.
-
-    role_style — стиль поведения персонажа (провокационные вопросы, взгляд с
-    другой стороны и т.д.), чтобы персонажи не были "удобными собеседниками",
-    а вели себя согласно своему характеру.
-    """
     person_name = PERSONALITIES.get(personality, {}).get("full_name", personality)
     lang_name = LANGUAGES.get(language, {}).get("name", language)
     level_desc = LEVEL_DESCRIPTIONS.get(level, "")
@@ -294,12 +217,6 @@ def generate_ai_response(personality: str, dialogue_history: str, last_user_resp
 # ========== ВЕРДИКТ ПОСЛЕ БИТВЫ ==========
 
 def generate_arena_verdict(user_responses: list[str], user_name: str, language: str) -> str:
-    """
-    Живой вердикт судьи ПОСЛЕ битвы (не в First Encounter).
-    Используется только в конце игры. Тон — тёплый, не агрессивный, сначала
-    что было круто, потом — зона роста. Обращение по имени, никогда не
-    "пользователь"/"участник".
-    """
     lang_name = LANGUAGES.get(language, {}).get("name", language)
     user_text = " ".join(user_responses)[:1500]
 
@@ -315,7 +232,7 @@ def generate_arena_verdict(user_responses: list[str], user_name: str, language: 
     языке). Структура обязательна:
     1) Сначала — что было круто (конкретно: грамматика, слова, или мягкие
        навыки — уверенность, аргументация, адаптивность).
-    2) Потом — одна конкретная зона роста, без critики в лоб, по-доброму.
+    2) Потом — одна конкретная зона роста, без критики в лоб, по-доброму.
     Без сухих списков, без оценок в процентах, без слова "пользователь".
     Обращайся к {user_name} по имени.
 
@@ -328,10 +245,6 @@ def generate_arena_verdict(user_responses: list[str], user_name: str, language: 
 
 
 def generate_growth_plan(user_name: str, strength: str, growth: str, language: str) -> str:
-    """
-    План развития на 10 раундов вперёд — используется в профиле после
-    завершения боя. Короткий, конкретный, по шагам.
-    """
     prompt = f"""
     {user_name} только что закончил бой на ARENA.
     Сильная сторона: {strength}
@@ -348,12 +261,6 @@ def generate_growth_plan(user_name: str, strength: str, growth: str, language: s
 
 
 def extract_vocabulary_mistakes(user_responses: list[str], language: str) -> list[dict]:
-    """
-    Достаёт из ответов пользователя слова/выражения, использованные
-    НЕПРАВИЛЬНО, вместе с правильной формой — чтобы добавить их в личный
-    словарь "слов для заучивания" в профиле.
-    Возвращает список [{"wrong": "...", "correct": "...", "note": "..."}]
-    """
     lang_name = LANGUAGES.get(language, {}).get("name", language)
     user_text = " ".join(user_responses)[:1500]
 
@@ -383,12 +290,7 @@ def extract_vocabulary_mistakes(user_responses: list[str], language: str) -> lis
 
 
 def generate_daily_push(personality: str, topics: list[str], user_name: str, language: str) -> str:
-    """
-    Провокационное сообщение "от персонажа" для ежедневного пуша — со ссылкой
-    на то, что человек уже обсуждал раньше, и приглашением продолжить.
-    """
     person = PERSONALITIES.get(personality, {})
-    lang_name = LANGUAGES.get(language, {}).get("name", language)
     topics_text = ", ".join(topics[:3]) if topics else "то, о чём вы говорили"
 
     prompt = f"""
@@ -411,55 +313,258 @@ def generate_daily_push(personality: str, topics: list[str], user_name: str, lan
     return response.strip()
 
 
-# ========== АНАЛИЗ ==========
+# ========== 3-СЛОЙНЫЙ АНАЛИЗ ХРАМА ==========
 
 def analyze_first_encounter(user_responses: list[str], language: str) -> dict:
+    """
+    Полный разбор после 8 сообщений в Храме.
+    3 слоя: LANGUAGE + COMMUNICATION + ARENA BEHAVIOUR.
+    """
     user_text = " ".join(user_responses)
     lang_name = LANGUAGES.get(language, {}).get("name", language)
 
     prompt = f"""
-    Проанализируй ответы пользователя на языке {lang_name}.
-    Ответы: {user_text[:1000]}
+    Проанализируй ответы пользователя на языке {lang_name} по системе ARENA.
 
-    Формат:
-    УРОВЕНЬ: [A1/A2/B1/B2/C1/C2]
-    ИНТЕРЕСЫ: [тема1, тема2, тема3]
-    СИЛЬНОЕ: [что хорошо]
-    РОСТ: [что можно улучшить]
-    ПЕРСОНАЖ: [hr_manager/ceo/journalist/professor/philosopher/devil_advocate]
+    Ответы пользователя (что он сам рассказал о себе):
+    ---
+    {user_text[:2500]}
+    ---
+
+    === СЛОЙ 1: LANGUAGE ===
+    Оцени 4 метрики от 0 до 100 (строго формат "ИМЯ: число"):
+    GRAMMAR: [0-100]
+    VOCABULARY: [0-100]
+    EXPRESSION: [0-100]
+    COMPLEXITY: [0-100]
+
+    GRAMMAR_WEAK: [1-2 подкатегории из списка: sentence structure, verb tenses,
+    articles, prepositions, word order, agreement, complex structures.
+    Разделитель — запятая.]
+    VOCABULARY_WEAK: [1-2 подкатегории из списка: range, repetition, precision,
+    topic-specific vocabulary, collocations, naturalness, word choice.
+    Разделитель — запятая.]
+
+    === СЛОЙ 2: COMMUNICATION ===
+    Оцени 6 метрик от 0 до 100:
+    CLARITY: [0-100]
+    ARGUMENTATION: [0-100]
+    EVIDENCE: [0-100]
+    ADAPTABILITY: [0-100]
+    PERSUASION: [0-100]
+    CONTROL: [0-100]
+
+    Скрытая метрика (не будет показана пользователю):
+    RESILIENCE: [0-100]
+
+    === СЛОЙ 3: ARENA BEHAVIOUR ===
+    Определи ОДИН стиль игрока из списка (ровно одно слово):
+    BEHAVIOUR: [analyst | challenger | explorer | precise | defender]
+
+    Расшифровка:
+    - analyst: много объясняет, любит логику, может быть сухим
+    - challenger: сразу спорит, уверенный, иногда не слушает
+    - explorer: легко поддерживает разговор, задаёт вопросы, но может не иметь чёткой позиции
+    - precise: краткий и точный, но недостаточно развивает мысль
+    - defender: хорошо защищается, но плохо начинает собственную стратегию
+
+    === УРОВЕНЬ И ТЕМЫ ===
+    УРОВЕНЬ: [ровно одна из строк: A1, A2, B1, B2, C1, C2 — без пояснений]
+
+    ИНТЕРЕСЫ: [3-5 конкретных тем, которые ЧЕЛОВЕК САМ упомянул.
+    Каждая тема — 1-3 слова, разделитель — запятая.
+    Используй ЕГО слова, не обобщай.]
+
+    ГЛАВНАЯ_ТЕМА: [одна самая эмоционально заряженная тема из списка.
+    Только текст темы, без пояснений.]
+
+    ВАЖНО: отвечай СТРОГО в этом формате, без markdown-разметки
+    (никаких ** и ##), без вступлений и без пояснений.
     """
-    raw = ask_gpt(prompt, temperature=0.5, max_tokens=300)
+    # Было 600 — конец ответа (УРОВЕНЬ/ИНТЕРЕСЫ/ГЛАВНАЯ_ТЕМА) обрезался,
+    # и бот молча падал в дефолты B1 + «то, о чём ты говорил в Храме».
+    raw = ask_gpt(prompt, temperature=0.4, max_tokens=900)
 
-    result = {
-        "estimated_level": "B1",
-        "interests": ["интересная тема"],
-        "strength": "Хорошо выражает мысли",
-        "growth": "Можно больше внимания деталям",
-        "recommended_personality": "hr_manager",
+    language_metrics = {"grammar": 60, "vocabulary": 60, "expression": 60, "complexity": 60}
+    grammar_weak = []
+    vocabulary_weak = []
+
+    communication_metrics = {
+        "clarity": 60, "argumentation": 60, "evidence": 60,
+        "adaptability": 60, "persuasion": 60, "control": 60,
     }
+    hidden_metrics = {"resilience": 60}
+
+    behaviour = "explorer"
+    estimated_level = "B1"
+    interests = []
+    main_topic = ""
+
+    def _clean(line: str) -> str:
+        # GPT любит markdown: **УРОВЕНЬ:** B1 → УРОВЕНЬ: B1
+        for junk in ("**", "__", "`"):
+            line = line.replace(junk, "")
+        line = re.sub(r"^[\s\-–—*•>]+", "", line.strip())  # маркеры списков
+        line = line.replace(" :", ":").replace("：", ":")
+        return line.strip()
 
     if raw:
+        level_found = False
+
         for line in raw.split("\n"):
-            line = line.strip()
-            if line.startswith("УРОВЕНЬ:"):
-                lvl = line.replace("УРОВЕНЬ:", "").strip().upper()
-                if lvl in ["A1", "A2", "B1", "B2", "C1", "C2"]:
-                    result["estimated_level"] = lvl
-            elif line.startswith("ИНТЕРЕСЫ:"):
-                interests_str = line.replace("ИНТЕРЕСЫ:", "").strip()
-                if interests_str:
-                    result["interests"] = [i.strip() for i in interests_str.split(",")]
-            elif line.startswith("СИЛЬНОЕ:"):
-                result["strength"] = line.replace("СИЛЬНОЕ:", "").strip()
-            elif line.startswith("РОСТ:"):
-                result["growth"] = line.replace("РОСТ:", "").strip()
-            elif line.startswith("ПЕРСОНАЖ:"):
-                key = line.replace("ПЕРСОНАЖ:", "").strip().lower()
-                if key in PERSONALITIES:
-                    result["recommended_personality"] = key
+            line = _clean(line)
+            if not line:
+                continue
 
-    return result
+            m = re.match(r"([A-Za-z_]+):\s*(\d+)", line)
+            if m:
+                key = m.group(1).lower()
+                value = max(0, min(100, int(m.group(2))))
+                if key in language_metrics:
+                    language_metrics[key] = value
+                elif key in communication_metrics:
+                    communication_metrics[key] = value
+                elif key in hidden_metrics:
+                    hidden_metrics[key] = value
+                continue
 
+            upper = line.upper()
+
+            if upper.startswith("GRAMMAR_WEAK"):
+                s = line.split(":", 1)[1] if ":" in line else ""
+                grammar_weak = [x.strip(" .") for x in re.split(r"[,;]", s) if x.strip()]
+            elif upper.startswith("VOCABULARY_WEAK"):
+                s = line.split(":", 1)[1] if ":" in line else ""
+                vocabulary_weak = [x.strip(" .") for x in re.split(r"[,;]", s) if x.strip()]
+            elif upper.startswith("BEHAVIOUR"):
+                b = line.split(":", 1)[1].strip().lower() if ":" in line else ""
+                b = b.split()[0].strip(" .,;") if b else ""  # "analyst — объясняет" → "analyst"
+                if b in ARENA_BEHAVIOURS:
+                    behaviour = b
+            elif upper.startswith("УРОВЕНЬ"):
+                lvl_match = re.search(r"\b(A1|A2|B1|B2|C1|C2)\b", upper)
+                if lvl_match:
+                    estimated_level = lvl_match.group(1)
+                    level_found = True
+            elif upper.startswith("ИНТЕРЕС"):
+                s = line.split(":", 1)[1] if ":" in line else ""
+                if s:
+                    interests = [x.strip(" .\"'«»") for x in re.split(r"[,;·]", s) if x.strip()]
+            elif upper.startswith("ГЛАВНАЯ_ТЕМА") or upper.startswith("ГЛАВНАЯ ТЕМА"):
+                s = line.split(":", 1)[1] if ":" in line else ""
+                main_topic = s.strip(" .\"'«»")
+
+        # Последний шанс найти уровень, если GPT вывел его вне формата
+        if not level_found:
+            lvl_match = re.search(r"\b(A1|A2|B1|B2|C1|C2)\b", raw.upper())
+            if lvl_match:
+                estimated_level = lvl_match.group(1)
+
+    if not interests:
+        interests = ["то, о чём ты говорил в Храме"]
+    if not main_topic:
+        main_topic = interests[0]
+
+    weakest_skill = min(communication_metrics, key=communication_metrics.get)
+    strongest_skill = max(communication_metrics, key=communication_metrics.get)
+    recommended_personality = SKILL_TO_PERSONALITY.get(
+        weakest_skill, random.choice(list(PERSONALITIES.keys()))
+    )
+
+    arena_rank = ARENA_RANKS.get(weakest_skill, {
+        "rank": "I", "name": "SPEAK", "goal": "state your opinion", "tools": "words",
+    })
+
+    return {
+        "estimated_level": estimated_level,
+        "interests": interests,
+        "main_topic": main_topic,
+
+        "language": language_metrics,
+        "grammar_weak_areas": grammar_weak,
+        "vocabulary_weak_areas": vocabulary_weak,
+
+        "communication": communication_metrics,
+        "hidden": hidden_metrics,
+
+        "behaviour": behaviour,
+
+        "weakest_skill": weakest_skill,
+        "strongest_skill": strongest_skill,
+        "recommended_personality": recommended_personality,
+        "arena_rank": arena_rank,
+
+        "strength": strongest_skill,
+        "growth": weakest_skill,
+    }
+
+
+def generate_arena_observation(user_responses: list[str], language: str, level: str,
+                               strongest_skill: str, weakest_skill: str) -> str:
+    lang_name = LANGUAGES.get(language, {}).get("name", language)
+    level_desc = LEVEL_DESCRIPTIONS.get(level, "")
+    user_text = " ".join(user_responses)[:1200]
+
+    prompt = f"""
+    Ты — ARENA, верховный судья. Ты только что выслушал человека (8 реплик).
+
+    Что он говорил: {user_text}
+    Его сильная сторона в общении: {strongest_skill}
+    Его слабая сторона в общении: {weakest_skill}
+
+    Напиши 4-5 КОРОТКИХ рубленых строк (каждая мысль — своя строка, максимум
+    5-7 слов), СТРОГО на языке {lang_name}, сложность речи — уровень {level}
+    ({level_desc}).
+
+    Стиль (не копируй дословно, только структуру и длину строк):
+    "That was interesting.
+    You have a point of view.
+    You don't always make it easy to challenge you.
+    But I noticed something.
+    You have more to say than you initially show."
+
+    Естественно вплети его сильную сторону, без ярлыков и процентов.
+    Последняя строка обязательно — короткий переход в духе
+    "So I know who you should meet." (переведи эту мысль на {lang_name},
+    не называй имя персонажа — оно будет добавлено отдельно).
+    Обращайся на "ты"/"you". Никогда не говори "участник"/"пользователь".
+    Ответь ТОЛЬКО этими строками, без вступлений и заголовков.
+    """
+    response = ask_gpt(prompt, temperature=0.8, max_tokens=180)
+    if not response:
+        return "That was interesting.\nYou have more to say than you show.\nSo I know who you should meet."
+    return response.strip()
+
+
+def generate_character_pitch(personality: str, topic: str, language: str, level: str) -> str:
+    person = PERSONALITIES.get(personality, {})
+    lang_name = LANGUAGES.get(language, {}).get("name", language)
+    level_desc = LEVEL_DESCRIPTIONS.get(level, "")
+
+    prompt = f"""
+    Персонаж: {person.get('full_name', personality)} — {person.get('desc', '')}
+    Тема разговора: {topic}
+
+    Напиши 3-4 КОРОТКИХ рубленых строки (каждая — отдельная мысль, максимум
+    5-8 слов), СТРОГО на языке {lang_name}, сложность речи — уровень {level}
+    ({level_desc}), объясняющих, почему стоит поговорить именно с этим
+    персонажем прямо сейчас.
+
+    Стиль (не копируй дословно, только структуру и длину строк):
+    "She's heard every 'great idea' before.
+    Bring her something she hasn't heard.
+    She controls the budget.
+    She's not convinced."
+
+    Ответь ТОЛЬКО этими строками, без вступлений, без имени персонажа в тексте.
+    """
+    response = ask_gpt(prompt, temperature=0.8, max_tokens=140)
+    if not response:
+        return "They won't be easily convinced.\nBring your best argument."
+    return response.strip()
+
+
+# ========== АНАЛИЗ БОЯ (для finish_arena) ==========
 
 def analyze_debate(user_responses: list[str], dialogue: list[dict], topic: str, level: str, language: str,
                    personality: str, mission_words: str = "") -> dict:
@@ -467,12 +572,10 @@ def analyze_debate(user_responses: list[str], dialogue: list[dict], topic: str, 
     lang_name = LANGUAGES.get(language, {}).get("name", "English")
     user_text_full = " ".join(user_responses)
 
-    # --- Аргументация ---
     arg_keywords = ["because", "since", "therefore", "however", "although", "but"]
     arg_count = sum(1 for w in arg_keywords if w in user_text_full.lower())
     argumentation_score = max(30, min(100, 40 + arg_count * 10))
 
-    # --- Словарный запас ---
     vocab_prompt = f"Оцени словарный запас пользователя на {lang_name}. Ответы: {user_text_full[:500]}\nФормат: СКОР: [число]"
     vocab_raw = ask_gpt(vocab_prompt, temperature=0.5, max_tokens=50)
     vocab_score = 70
@@ -481,7 +584,6 @@ def analyze_debate(user_responses: list[str], dialogue: list[dict], topic: str, 
         if nums:
             vocab_score = min(100, int(nums[0]))
 
-    # --- Грамматика ---
     grammar_prompt = f"Оцени грамматику пользователя на {lang_name}. Ответы: {user_text_full[:500]}\nФормат: СКОР: [число]"
     grammar_raw = ask_gpt(grammar_prompt, temperature=0.5, max_tokens=50)
     grammar_score = 70
@@ -490,11 +592,9 @@ def analyze_debate(user_responses: list[str], dialogue: list[dict], topic: str, 
         if nums:
             grammar_score = min(100, int(nums[0]))
 
-    # --- Беглость ---
     avg_len = sum(len(r.split()) for r in user_responses) / len(user_responses) if user_responses else 0
     fluency_score = max(30, min(100, round(40 + avg_len * 4)))
 
-    # --- Анализ ---
     verdict_prompt = f"""
     Проанализируй ответы пользователя с {person['full_name']} на тему "{topic}".
     Язык: {lang_name}.
