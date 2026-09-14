@@ -17,3 +17,9 @@ BATTLE_DURATION_MINUTES = int(os.getenv("BATTLE_DURATION_MINUTES", "2"))
 
 # В какой час (UTC, 0-23) отправлять ежедневный пуш от персонажа
 DAILY_PUSH_HOUR = int(os.getenv("DAILY_PUSH_HOUR", "12"))
+BATTLE_MAX_ROUNDS = int(os.getenv("BATTLE_MAX_ROUNDS", "8"))
+CONVICTION_START = int(os.getenv("CONVICTION_START", "100"))
+
+# Ниже какого значения "убеждённости" персонажа считаем, что игрок победил
+# досрочно (не дожидаясь BATTLE_MAX_ROUNDS раундов).
+CONVICTION_WIN_THRESHOLD = int(os.getenv("CONVICTION_WIN_THRESHOLD", "15"))

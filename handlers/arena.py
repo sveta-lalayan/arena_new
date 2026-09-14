@@ -1,4 +1,5 @@
 import asyncio
+import random
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
@@ -6,15 +7,21 @@ from telegram.ext import ContextTypes
 import ai
 import database as db
 import gamification
-from config import CHECKPOINT_TURNS, BATTLE_DURATION_MINUTES
-from game_data import LANGUAGES, LEVELS, PERSONALITIES, BADGES, ARENA_BEHAVIOURS
+from config import (
+    BATTLE_DURATION_MINUTES, BATTLE_MAX_ROUNDS,
+    CONVICTION_WIN_THRESHOLD,
+)
+from game_data import (
+    LANGUAGES, LEVELS, PERSONALITIES, BADGES, ARENA_BEHAVIOURS,
+    PERSONALITY_TO_SKILL, SKILL_TO_PERSONALITY, BEGINNER_LEVELS,
+)
 from handlers import intro
 
 STATE_KEYS = [
-    "language", "level", "topic", "personality", "mission_weapons", "used_weapons",
-    "mission", "win_condition", "dialogue", "turn",
+    "language", "level", "topic", "personality", "mission_weapons", "mission_tip",
+    "used_weapons", "mission", "win_condition", "dialogue", "turn",
     "awaiting_topic", "awaiting_response", "asked_continue", "battle_type",
-    "arena_analysis",
+    "arena_analysis", "conviction", "quest_done",
 ]
 
 SCORE_LABELS = {
@@ -30,6 +37,18 @@ def _reset_state(context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop(key, None)
 
 
+def _get_weak_areas(context: ContextTypes.DEFAULT_TYPE, telegram_id: int) -> dict:
+    """
+    Достаёт разбор Храма (языковые/коммуникационные слабые места) — сначала
+    из user_data этой сессии, иначе из последнего сохранённого в БД. Всё
+    построение "оружия" и советов опирается именно на эти данные.
+    """
+    analysis = context.user_data.get("arena_analysis")
+    if not analysis:
+        analysis = db.get_latest_arena_analysis(telegram_id)
+    return analysis or {}
+
+
 def format_weapons_status(weapons: str, user_text: str, used_weapons: list) -> tuple:
     if not weapons:
         return "", 0, used_weapons
@@ -43,7 +62,7 @@ def format_weapons_status(weapons: str, user_text: str, used_weapons: list) -> t
         if key in user_lower and key not in new_used:
             new_used.append(key)
 
-    status_lines = ["🗡️ <b>Оружие:</b>"]
+    status_lines = ["🗡️ <b>Арсенал:</b>"]
     for item in items:
         mark = "✅" if item.lower() in user_lower else "⬜"
         status_lines.append(f"  {mark} {item}")
@@ -57,7 +76,6 @@ def _bar(v: int) -> str:
 
 
 def _format_analysis_block(analysis: dict) -> str:
-    """3-слойный разбор для показа после боя. Без RESILIENCE (скрытый)."""
     if not analysis:
         return ""
 
@@ -169,21 +187,32 @@ async def _show_personality_card(update: Update, context: ContextTypes.DEFAULT_T
 
     await query.edit_message_text("🎭 Готовлю персонажа...", parse_mode="HTML")
 
+    # Всё оружие и совет строятся на слабых местах пользователя (разбор Храма),
+    # если он уже есть — иначе просто по теме и уровню.
+    weak_areas = _get_weak_areas(context, update.effective_user.id)
+    weakest_skill = weak_areas.get("weakest_skill")
+
     task = await asyncio.to_thread(ai.generate_mission_task, topic, personality, user_name, language)
-    weapons, _, win_condition = await asyncio.to_thread(
-        ai.generate_weapons_by_level, topic, level, personality, language
+    weapons, tip, win_condition = await asyncio.to_thread(
+        ai.generate_mission_weapons, topic, level, personality, language, weak_areas, weakest_skill
     )
 
     context.user_data["mission"] = task
     context.user_data["mission_weapons"] = weapons
+    context.user_data["mission_tip"] = tip
     context.user_data["win_condition"] = win_condition
     context.user_data["used_weapons"] = []
+
+    is_beginner = level in BEGINNER_LEVELS
+    weapon_label = "🗡️ <b>Твоё оружие (слова):</b>" if is_beginner else "🗡️ <b>Арсенал:</b>"
+    tip_block = f"\n💡 <b>Совет:</b> {tip}\n" if tip else ""
 
     keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("⚔️ НАЧАТЬ", callback_data="debate_start")]])
     await query.edit_message_text(
         f"🎭 <b>{person['name']}</b>\n<i>{person['desc']}</i>\n\n"
         f"🎯 <b>Задание:</b> {task}\n\n"
-        f"🗡️ <b>Оружие:</b> {weapons}\n\n"
+        f"{weapon_label} {weapons}\n"
+        f"{tip_block}\n"
         f"✅ <b>Условие победы:</b>\n{win_condition}\n\n"
         f"⚔️ <i>Нажми «Начать»!</i>",
         reply_markup=keyboard,
@@ -222,14 +251,19 @@ async def start_arena(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["dialogue"] = []
     context.user_data["awaiting_response"] = True
     context.user_data["used_weapons"] = []
+    context.user_data["conviction"] = 100
 
     statement = await asyncio.to_thread(ai.generate_opening_statement, personality, topic, level, language)
     context.user_data["dialogue"].append({"speaker": "AI", "text": statement})
 
+    tip = context.user_data.get("mission_tip", "")
+    tip_line = f"\n💡 <i>{tip}</i>\n" if tip else ""
+
     person = PERSONALITIES.get(personality, {})
     await query.message.reply_text(
-        f"💬 <b>{person.get('name', personality)}:</b>\n<i>{statement}</i>\n\n"
-        f"🎤 Напиши ответ!\n⏰ {BATTLE_DURATION_MINUTES} мин",
+        f"💬 <b>{person.get('name', personality)}:</b>\n<i>{statement}</i>\n"
+        f"{tip_line}\n"
+        f"🎤 Напиши ответ! ({BATTLE_MAX_ROUNDS} раунда)\n⏰ {BATTLE_DURATION_MINUTES} мин",
         parse_mode="HTML",
     )
 
@@ -246,12 +280,23 @@ async def handle_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_turns = sum(1 for d in dialogue if d["speaker"] == "User")
 
-    if context.user_data.get("battle_type") != "free_talk":
-        if user_turns % CHECKPOINT_TURNS == 0 and not context.user_data.get("asked_continue"):
-            await _ask_continue(update, context)
-            return
+    # Автофиниш после BATTLE_MAX_ROUNDS раундов
+    if user_turns >= BATTLE_MAX_ROUNDS:
+        await finish_arena(update, context, via_callback=False)
+        return
 
     await _continue_round(update, context)
+
+    # Досрочная победа: если игрок целенаправленно бил по своим слабым
+    # местам (использовал оружие) и "убедил" персонажа раньше времени —
+    # не заставляем его тянуть до последнего раунда.
+    if (
+        context.user_data.get("battle_type") != "free_talk"
+        and context.user_data.get("dialogue")
+        and context.user_data.get("conviction", 100) <= CONVICTION_WIN_THRESHOLD
+    ):
+        await update.message.reply_text("🏆 Ты убедил его раньше времени! Досрочная победа.")
+        await finish_arena(update, context, via_callback=False)
 
 
 async def _continue_round(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -294,45 +339,28 @@ async def _continue_round(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     weapons_status, used_count, updated_used = format_weapons_status(weapons, user_text_full, used_weapons)
+    new_weapon_used = used_count > len(used_weapons)
     context.user_data["used_weapons"] = updated_used
 
+    # Убеждённость падает быстрее, если игрок использует оружие,
+    # заточенное под его слабые места (см. ai.generate_mission_weapons),
+    # и медленнее — если он просто отвечает без него. Это и есть
+    # "победа за несколько раундов, построенная на слабых местах".
+    conviction = context.user_data.get("conviction", 100)
+    if new_weapon_used:
+        conviction = max(0, conviction - 20)
+    else:
+        conviction = max(0, conviction - 6)
+    context.user_data["conviction"] = conviction
+
+    bar = "█" * int((100 - conviction) / 10) + "░" * int(conviction / 10)
     await update.message.reply_text(
         f"<b>{person.get('name', personality)}:</b>\n<i>{ai_reply}</i>\n\n"
         f"{weapons_status}\n\n"
+        f"🔥 Убеждённость: {bar} {conviction}%\n"
         f"💬 Напиши ответ или /stop",
         parse_mode="HTML",
     )
-
-
-async def _ask_continue(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["asked_continue"] = True
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("▶️ Продолжить", callback_data="continue_yes")],
-        [InlineKeyboardButton("🏁 Завершить", callback_data="continue_no")],
-    ])
-    await update.message.reply_text(f"⏸️ Ты прошёл {CHECKPOINT_TURNS} раундов! Продолжаем?", reply_markup=keyboard)
-
-
-async def continue_yes(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    context.user_data["asked_continue"] = False
-    context.user_data["awaiting_response"] = True
-
-    from bot import start_arena_timer, stop_arena_timer
-    user_id = update.effective_user.id
-    chat_id = update.effective_chat.id
-    stop_arena_timer(context, user_id)
-    start_arena_timer(context, user_id, chat_id, minutes=BATTLE_DURATION_MINUTES)
-
-    await query.edit_message_text("▶️ Продолжаем!")
-
-
-async def continue_no(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    await query.edit_message_text("🏁 Завершаем...")
-    await finish_arena(update, context, via_callback=True)
 
 
 async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -343,7 +371,7 @@ async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await finish_arena(update, context, via_callback=False)
 
 
-async def finish_arena(update: Update, context: ContextTypes.DEFAULT_TYPE, via_callback: bool):
+async def finish_arena(update: Update, context: ContextTypes.DEFAULT_TYPE, via_callback: bool = False):
     from bot import stop_arena_timer
 
     user = update.effective_user
@@ -372,7 +400,7 @@ async def finish_arena(update: Update, context: ContextTypes.DEFAULT_TYPE, via_c
 
     person = PERSONALITIES.get(personality, PERSONALITIES["devil_advocate"])
 
-    # ===== СВОБОДНЫЙ РАЗГОВОР =====
+    # Свободный разговор — без оценки
     if context.user_data.get("battle_type") == "free_talk":
         keyboard_ft = InlineKeyboardMarkup([
             [InlineKeyboardButton("💬 Свободный разговор ещё раз", callback_data="freetalk")],
@@ -386,11 +414,21 @@ async def finish_arena(update: Update, context: ContextTypes.DEFAULT_TYPE, via_c
 
     await send(f"📝 {user_name}, подвожу итоги...")
 
+    # Квест
+    quest = db.get_active_quest(user.id)
+    quest_desc = quest["description"] if quest else ""
+
     analysis = await asyncio.to_thread(
-        ai.analyze_debate, user_responses, dialogue, topic, level, language, personality, weapons
+        ai.analyze_debate, user_responses, dialogue, topic, level, language, personality, weapons, quest_desc
     )
     scores = analysis["scores"]
     rounds_completed = len(user_responses)
+    # Итоговая убеждённость — минимум из живой (по ходу боя) и оценённой в
+    # конце GPT-анализом: игрок не должен "терять" досрочную победу, если
+    # финальный анализ оценит её мягче.
+    live_conviction = context.user_data.get("conviction", 100)
+    conviction = min(live_conviction, analysis.get("conviction", 70))
+    quest_done = analysis.get("quest_done", False)
 
     verdict = await asyncio.to_thread(ai.generate_arena_verdict, user_responses, user_name, language)
 
@@ -404,10 +442,33 @@ async def finish_arena(update: Update, context: ContextTypes.DEFAULT_TYPE, via_c
     if mistakes:
         db.add_vocabulary_mistakes(user.id, mistakes)
 
-    points_earned = gamification.calculate_points(rounds_completed, scores)
+    # Немезида
+    nemesis = db.get_nemesis(user.id)
+    is_nemesis = bool(nemesis and nemesis["personality"] == personality and not nemesis["defeated"])
+    if is_nemesis and conviction <= 30:
+        db.mark_nemesis_fought(user.id, defeated=True)
+
+    # Проверка первого боя дня (упрощённо — последняя сессия >24ч)
+    stats = db.get_user_stats(user.id)
+    is_first_daily = True  # TODO: реализовать проверку по времени последней сессии
+    is_new_character = personality not in stats["unique_personalities"]
+
+    # Баллы
+    points_earned = gamification.calculate_points(
+        rounds_completed, conviction, len(used_weapons), quest_done, len(mistakes),
+        is_first_daily, is_new_character, is_nemesis
+    )
+
+    # Скилл-прогресс — качаем скилл, за который отвечает ЭТОТ персонаж
+    # (PERSONALITY_TO_SKILL), т.к. именно на нём его специально тренировали.
+    skill = PERSONALITY_TO_SKILL.get(personality, "argumentation")
+    skill_delta = gamification.calculate_skill_delta(conviction, len(used_weapons), quest_done, is_nemesis)
+    db.add_skill_progress(user.id, skill, skill_delta)
+
     db.save_game_session(
         user.id, personality, language, level, topic, rounds_completed, scores, points_earned,
         strength=strength_text, growth=growth_text, growth_plan=growth_plan,
+        conviction_final=conviction, quest_done=1 if quest_done else 0,
     )
 
     # Мягкая адаптация уровня
@@ -419,7 +480,16 @@ async def finish_arena(update: Update, context: ContextTypes.DEFAULT_TYPE, via_c
 
     db.add_points(user.id, points_earned)
     db.mark_first_battle_done(user.id)
-    new_badges = gamification.check_and_unlock_achievements(user.id, personality, rounds_completed, scores)
+
+    # Бейджи
+    new_badges = gamification.check_and_unlock_achievements(
+        user.id, personality, rounds_completed, scores, conviction, quest_done, mistakes,
+        is_nemesis=is_nemesis, is_rematch=False, prev_defeated=False,
+    )
+
+    # Квест выполнен?
+    if quest_done and quest:
+        db.complete_quest(user.id)
 
     weapons_status, _, _ = format_weapons_status(weapons, " ".join(user_responses), used_weapons)
 
@@ -428,32 +498,55 @@ async def finish_arena(update: Update, context: ContextTypes.DEFAULT_TYPE, via_c
         mistakes_lines = "\n".join(f"  • {m['wrong']} → <b>{m['correct']}</b>" for m in mistakes[:5])
         mistakes_block = f"\n📚 <b>Слова для заучивания:</b>\n{mistakes_lines}\n"
 
-    # 3-слойный разбор Храма (показываем после боя)
+    stars, result_text = gamification._conviction_stars(conviction)
+
+    analysis_block = ""
     arena_analysis = context.user_data.get("arena_analysis")
     if not arena_analysis:
         arena_analysis = db.get_latest_arena_analysis(user.id)
-    analysis_block = _format_analysis_block(arena_analysis) if arena_analysis else ""
+    if arena_analysis:
+        analysis_block = _format_analysis_block(arena_analysis)
 
     feedback_text = f"""
 🏟️ <b>{verdict}</b>
+
+{stars} <b>{result_text}</b>  (убеждённость перса: {conviction}%)
 {analysis_block}
 {weapons_status}
 {mistakes_block}
-🗺️ <b>План на следующие 10 раундов:</b>
+🗺️ <b>План развития:</b>
 {growth_plan}
 
 ⭐ <b>+{points_earned} баллов</b>
+⚡ <b>+{skill_delta} к скиллу {skill}</b>
 """
+
+    if quest_done and quest:
+        feedback_text += f"\n🎯 <b>Квест выполнен:</b> {quest['description']}\n"
 
     if new_badges:
         names = ", ".join(BADGES.get(b, {}).get("name", b) for b in new_badges if b in BADGES)
         feedback_text += f"\n🎉 Новые достижения: {names}"
 
-    keyboard = InlineKeyboardMarkup([
+    # Кнопки после боя
+    buttons = [
         [InlineKeyboardButton("🔁 Реванш", callback_data=f"rematch_{personality}")],
-        [InlineKeyboardButton("💬 Свободный разговор", callback_data="freetalk")],
-        [InlineKeyboardButton("👤 Профиль", callback_data="menu_profile")],
-    ])
+        [InlineKeyboardButton("💬 Свободный диалог", callback_data="freetalk")],
+    ]
+
+    # Следующий хранитель — если скилл достаточно прокачан
+    skills = db.get_all_skills(user.id)
+    current_skill_data = skills.get(skill, {"points": 0, "rank": 1})
+    if current_skill_data["points"] >= 200:
+        # Найти следующий слабый скилл
+        weakest = min(skills, key=lambda s: skills[s]["points"])
+        next_personality = SKILL_TO_PERSONALITY.get(weakest, "devil_advocate")
+        next_person = PERSONALITIES.get(next_personality, {})
+        buttons.append([InlineKeyboardButton(f"🎯 Следующий хранитель: {next_person.get('name', '')}", callback_data=f"next_guardian_{next_personality}")])
+
+    buttons.append([InlineKeyboardButton("👤 Профиль", callback_data="menu_profile")])
+
+    keyboard = InlineKeyboardMarkup(buttons)
     await send(feedback_text, reply_markup=keyboard, parse_mode="HTML")
     _reset_state(context)
 
@@ -463,6 +556,21 @@ async def rematch(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     personality = query.data.replace("rematch_", "")
     context.user_data["personality"] = personality
+    await _show_personality_card(update, context, personality)
+
+
+async def next_guardian(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    personality = query.data.replace("next_guardian_", "")
+    context.user_data["personality"] = personality
+
+    # Берём тему из интересов пользователя
+    analysis = db.get_latest_arena_analysis(update.effective_user.id)
+    interests = analysis.get("interests", ["интересная тема"]) if analysis else ["интересная тема"]
+    topic = random.choice(interests) if interests else "интересная тема"
+    context.user_data["topic"] = topic
+
     await _show_personality_card(update, context, personality)
 
 

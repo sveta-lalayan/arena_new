@@ -6,8 +6,9 @@ from telegram.ext import ContextTypes
 
 import ai
 import database as db
+import gamification
 from config import FIRST_ENCOUNTER_MOVES, BATTLE_DURATION_MINUTES
-from game_data import LANGUAGES, PERSONALITIES, ARENA_UI_STRINGS
+from game_data import LANGUAGES, PERSONALITIES, ARENA_UI_STRINGS, BEGINNER_LEVELS
 
 logger = logging.getLogger(__name__)
 
@@ -53,9 +54,6 @@ async def select_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_fe_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    ВАЖНО: пользователю НЕ показываем номер хода — только реакцию Храма.
-    """
     user_text = update.message.text.strip()
     if len(user_text) < 1:
         return
@@ -104,7 +102,7 @@ async def _reveal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["user_interests"] = result.get("interests", [])
     context.user_data["topic"] = topic
 
-    context.user_data["arena_analysis"] = {
+    arena_analysis = {
         "language": result.get("language", {}),
         "grammar_weak_areas": result.get("grammar_weak_areas", []),
         "vocabulary_weak_areas": result.get("vocabulary_weak_areas", []),
@@ -118,6 +116,22 @@ async def _reveal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "main_topic": topic,
         "estimated_level": level,
     }
+    context.user_data["arena_analysis"] = arena_analysis
+
+    # --- Инициализация геймификации ---
+    user_id = update.effective_user.id
+    db.init_user_skills(user_id)
+
+    # Квест — персонализирован под слабый скилл/стиль поведения
+    quest = gamification.generate_quest(result)
+    db.set_quest(user_id, quest["type"], quest["description"], quest["target"], quest["skill_bonus"])
+
+    # Немезида
+    db.set_nemesis(user_id, result["behaviour"])
+
+    # Титул
+    title = gamification.get_title(result["behaviour"], 1)
+    db.set_user_behaviour_title(user_id, result["behaviour"], title)
 
     person = PERSONALITIES.get(personality, PERSONALITIES["hr_manager"])
     ui = ARENA_UI_STRINGS.get(language) or ARENA_UI_STRINGS["english"]
@@ -128,11 +142,15 @@ async def _reveal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     pitch = await asyncio.to_thread(ai.generate_character_pitch, personality, topic, language, level)
     opening = await asyncio.to_thread(ai.generate_opening_statement, personality, topic, level, language)
-    weapons, _, win_condition = await asyncio.to_thread(
-        ai.generate_weapons_by_level, topic, level, personality, language
+
+    # Оружие + совет, персонализированные под слабые места, вскрытые Храмом.
+    weapons, tip, win_condition = await asyncio.to_thread(
+        ai.generate_mission_weapons, topic, level, personality, language,
+        arena_analysis, result.get("weakest_skill"),
     )
 
     context.user_data["mission_weapons"] = weapons
+    context.user_data["mission_tip"] = tip
     context.user_data["win_condition"] = win_condition
     context.user_data["used_weapons"] = []
     context.user_data["mission"] = (
@@ -143,7 +161,11 @@ async def _reveal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # --- Сохраняем всё в БД ---
     db.set_push_profile(update.effective_user.id, personality, result.get("interests", [topic]))
     db.add_level_snapshot(update.effective_user.id, level, source="arena_reveal")
-    db.save_arena_analysis(update.effective_user.id, context.user_data["arena_analysis"])
+    db.save_arena_analysis(update.effective_user.id, arena_analysis)
+
+    is_beginner = level in BEGINNER_LEVELS
+    weapon_label = ui["arsenal"] if not is_beginner else f"{ui['arsenal']} ({level})"
+    tip_block = f"\n💡 {tip}\n" if tip else ""
 
     text = (
         f"🏛️ {ui['heard_enough']}\n\n"
@@ -154,8 +176,9 @@ async def _reveal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"{person['short_name']}:\n"
         f"\"{opening}\"\n\n"
         f"{ui['your_move']}\n\n"
-        f"🗡️ {ui['arsenal']}\n"
-        f"{weapons}\n\n"
+        f"🗡️ {weapon_label}\n"
+        f"{weapons}\n"
+        f"{tip_block}\n"
         f"{BATTLE_DURATION_MINUTES} {ui['min']}"
     )
 
@@ -191,6 +214,7 @@ async def start_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["level"] = level
 
     weapons = context.user_data.get("mission_weapons", "")
+    tip = context.user_data.get("mission_tip", "")
     mission = context.user_data.get("mission") or f"Убедить {personality} в теме «{topic}»."
 
     person = PERSONALITIES.get(personality, PERSONALITIES["hr_manager"])
@@ -212,13 +236,17 @@ async def start_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["level"] = level
     context.user_data["topic"] = topic
     context.user_data["mission"] = mission
+    context.user_data["conviction"] = 100
+
+    tip_block = f"\n💡 <i>{tip}</i>\n" if tip else ""
 
     await query.edit_message_text(
         f"⚔️ <b>БИТВА НАЧАЛАСЬ!</b>\n\n"
         f"🎭 <b>{person['full_name']}:</b>\n"
-        f"<i>{opening}</i>\n\n"
+        f"<i>{opening}</i>\n"
+        f"{tip_block}\n"
         f"💬 Напиши свой ответ!\n"
-        f"⏰ <i>У тебя {BATTLE_DURATION_MINUTES} минут!</i>\n\n"
-        f"🗡️ <b>Оружие:</b> {weapons}",
+        f"⏰ <i>У тебя {BATTLE_DURATION_MINUTES} минуты!</i>\n\n"
+        f"🗡️ <b>Твоё оружие:</b> {weapons}",
         parse_mode="HTML"
     )

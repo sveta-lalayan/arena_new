@@ -50,12 +50,9 @@ async def arena_timeout(context):
         del arena_timers[user_id]
 
 
-# ---------- Ежедневный пуш от персонажа (фича 4) ----------
+# ---------- Ежедневный пуш от персонажа ----------
 
 async def send_daily_pushes(context):
-    """Раз в день отправляет каждому пользователю провокационное сообщение
-    от персонажа, которого ему рекомендовала Arena, со ссылкой на темы,
-    которые он уже обсуждал."""
     profiles = await asyncio.to_thread(db.get_all_push_profiles)
     for p in profiles:
         try:
@@ -71,7 +68,6 @@ def main():
     db.init_db()
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # Ежедневный пуш — один раз в сутки, в DAILY_PUSH_HOUR (UTC)
     from datetime import time as dt_time
     app.job_queue.run_daily(send_daily_pushes, time=dt_time(hour=DAILY_PUSH_HOUR, minute=0))
 
@@ -95,10 +91,9 @@ def main():
     app.add_handler(CallbackQueryHandler(arena.select_level, pattern="^debate_level_"))
     app.add_handler(CallbackQueryHandler(arena.select_personality, pattern="^debate_personality_"))
     app.add_handler(CallbackQueryHandler(arena.start_arena, pattern="^debate_start$"))
-    app.add_handler(CallbackQueryHandler(arena.continue_yes, pattern="^continue_yes$"))
-    app.add_handler(CallbackQueryHandler(arena.continue_no, pattern="^continue_no$"))
 
     app.add_handler(CallbackQueryHandler(arena.rematch, pattern="^rematch_"))
+    app.add_handler(CallbackQueryHandler(arena.next_guardian, pattern="^next_guardian_"))
     app.add_handler(CallbackQueryHandler(arena.freetalk_pick, pattern="^freetalk_pick_"))
     app.add_handler(CallbackQueryHandler(arena.freetalk, pattern="^freetalk$"))
 

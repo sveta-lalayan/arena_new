@@ -6,7 +6,7 @@ import requests
 from config import YANDEX_API_KEY, YANDEX_FOLDER_ID
 from game_data import (
     LANGUAGES, PERSONALITIES, LEVEL_DESCRIPTIONS, ROLE_STYLE,
-    SKILL_TO_PERSONALITY, ARENA_RANKS, ARENA_BEHAVIOURS,
+    SKILL_TO_PERSONALITY, ARENA_RANKS, ARENA_BEHAVIOURS, PERSONA_TIP_FALLBACK,
 )
 
 logger = logging.getLogger(__name__)
@@ -35,6 +35,12 @@ def ask_gpt(prompt: str, temperature: float = 0.7, max_tokens: int = 500) -> str
     except Exception as e:
         logger.error(f"GPT error: {e}")
     return None
+
+
+def _normalize_level(level: str) -> str:
+    level_key = (level or "B1").strip().upper()
+    m = re.match(r"(A1|A2|B1|B2|C1|C2)", level_key)
+    return m.group(1) if m else "B1"
 
 
 # ========== ARENA REACTION (Храм шумит, копает глубже) ==========
@@ -81,40 +87,85 @@ def generate_arena_reaction(dialogue_history: str, last_user_response: str, lang
     return response.strip()
 
 
-# ========== ОРУЖИЕ ПО УРОВНЯМ ==========
+# ========== ОРУЖИЕ ПО УРОВНЯМ + ПЕРСОНАЛИЗАЦИЯ ПОД СЛАБЫЕ МЕСТА ==========
 
-def generate_weapons_by_level(topic: str, level: str, personality: str, language: str) -> tuple:
+def generate_mission_weapons(topic: str, level: str, personality: str, language: str,
+                              weak_areas: dict | None = None, weakest_skill: str | None = None) -> tuple:
+    """
+    Генерирует "оружие" (слова/фразы) под тему, уровень и, если есть разбор
+    Храма (weak_areas), — конкретно под слабые места пользователя.
+
+    weak_areas ожидает ключи: grammar_weak_areas (list), vocabulary_weak_areas (list).
+
+    Возвращает (weapons: str, tip: str, win_condition: str).
+    Для A1/A2 win_condition упрощённое и добавляется совет-подсказка (tip) —
+    как именно разговаривать с этим персонажем, привязанный к слабому скиллу.
+    """
+    weak_areas = weak_areas or {}
     lang_name = LANGUAGES.get(language, {}).get("name", language)
+    level_key = _normalize_level(level)
 
-    level_key = (level or "B1").strip().upper()
-    m = re.match(r"(A1|A2|B1|B2|C1|C2)", level_key)
-    level_key = m.group(1) if m else "B1"
+    grammar_weak = weak_areas.get("grammar_weak_areas") or []
+    vocabulary_weak = weak_areas.get("vocabulary_weak_areas") or []
+
+    weak_focus = ""
+    if grammar_weak or vocabulary_weak:
+        weak_focus = (
+            f" Пользователь слабее всего в: словарь — {', '.join(vocabulary_weak) or 'нет данных'}; "
+            f"грамматика — {', '.join(grammar_weak) or 'нет данных'}. "
+            f"Подбирай слова/фразы так, чтобы они закрывали именно ЭТИ пробелы, "
+            f"а не просто были связаны с темой."
+        )
 
     level_config = {
         "A1": {
-            "weapons_prompt": f"Generate 5 simple vocabulary words for debating '{topic}' in {lang_name} for beginner level. Format (separated by · ): word1 · word2 · word3 · word4 · word5",
-            "condition": "Make a claim.\nGive a reason.\nUse 3 weapons."
+            "weapons_prompt": (
+                f"Generate 5 simple vocabulary words for debating '{topic}' in {lang_name} "
+                f"for beginner level.{weak_focus} "
+                f"Format (separated by · ): word1 · word2 · word3 · word4 · word5"
+            ),
+            "condition": "Сделай заявление.\nДай одну причину.\nИспользуй 3 слова из арсенала.",
         },
         "A2": {
-            "weapons_prompt": f"Generate 5 vocabulary words and 2 basic phrases for debating '{topic}' in {lang_name} for elementary level. Format (separated by · ): word1 · word2 · word3 · word4 · word5 · phrase1 · phrase2",
-            "condition": "Make a claim.\nGive a reason.\nSupport it with an example."
+            "weapons_prompt": (
+                f"Generate 5 vocabulary words and 2 basic phrases for debating '{topic}' in {lang_name} "
+                f"for elementary level.{weak_focus} "
+                f"Format (separated by · ): word1 · word2 · word3 · word4 · word5 · phrase1 · phrase2"
+            ),
+            "condition": "Сделай заявление.\nДай причину.\nПодкрепи примером.",
         },
         "B1": {
-            "weapons_prompt": f"Generate 5 collocations and 3 useful phrases for debating '{topic}' in {lang_name} for intermediate level. Format (separated by · ): collocation1 · collocation2 · collocation3 · collocation4 · collocation5 · phrase1 · phrase2 · phrase3",
-            "condition": "Make a claim.\nSupport it with evidence.\nAnswer the objection."
+            "weapons_prompt": (
+                f"Generate 5 collocations and 3 useful phrases for debating '{topic}' in {lang_name} "
+                f"for intermediate level.{weak_focus} "
+                f"Format (separated by · ): collocation1 · collocation2 · collocation3 · collocation4 · collocation5 · phrase1 · phrase2 · phrase3"
+            ),
+            "condition": "Сделай заявление.\nПодкрепи доказательством.\nОтветь на возражение.",
         },
         "B2": {
-            "weapons_prompt": f"Generate 5 collocations and 4 natural expressions for debating '{topic}' in {lang_name} for upper-intermediate level. Format (separated by · ): collocation1 · collocation2 · collocation3 · collocation4 · collocation5 · expression1 · expression2 · expression3 · expression4",
-            "condition": "Challenge the assumption.\nAdapt your argument.\nGet closer to saying yes."
+            "weapons_prompt": (
+                f"Generate 5 collocations and 4 natural expressions for debating '{topic}' in {lang_name} "
+                f"for upper-intermediate level.{weak_focus} "
+                f"Format (separated by · ): collocation1 · collocation2 · collocation3 · collocation4 · collocation5 · expression1 · expression2 · expression3 · expression4"
+            ),
+            "condition": "Оспорь допущение.\nАдаптируй аргумент.\nПриблизь его к согласию.",
         },
         "C1": {
-            "weapons_prompt": f"Generate 3 nuanced phrases, 2 rhetorical devices, and 2 idioms for debating '{topic}' in {lang_name} for advanced level. Format (separated by · ): nuance1 · nuance2 · nuance3 · rhetoric1 · rhetoric2 · idiom1 · idiom2",
-            "condition": "Reframe the objection.\nConcede without giving up position.\nLead toward conclusion."
+            "weapons_prompt": (
+                f"Generate 3 nuanced phrases, 2 rhetorical devices, and 2 idioms for debating '{topic}' in {lang_name} "
+                f"for advanced level.{weak_focus} "
+                f"Format (separated by · ): nuance1 · nuance2 · nuance3 · rhetoric1 · rhetoric2 · idiom1 · idiom2"
+            ),
+            "condition": "Переформулируй возражение.\nУступи, не сдавая позицию.\nПриведи к выводу.",
         },
         "C2": {
-            "weapons_prompt": f"Generate 3 nuanced expressions, 2 register variations, and 2 implied meaning phrases for debating '{topic}' in {lang_name} for expert level. Format (separated by · ): nuance1 · nuance2 · nuance3 · register1 · register2 · implied1 · implied2",
-            "condition": "Control the conversation.\nAdapt to the opponent's style.\nInfluence the outcome."
-        }
+            "weapons_prompt": (
+                f"Generate 3 nuanced expressions, 2 register variations, and 2 implied meaning phrases for "
+                f"debating '{topic}' in {lang_name} for expert level.{weak_focus} "
+                f"Format (separated by · ): nuance1 · nuance2 · nuance3 · register1 · register2 · implied1 · implied2"
+            ),
+            "condition": "Держи разговор под контролем.\nАдаптируйся к стилю оппонента.\nВлияй на исход.",
+        },
     }
 
     config = level_config.get(level_key, level_config["B1"])
@@ -123,7 +174,46 @@ def generate_weapons_by_level(topic: str, level: str, personality: str, language
     if not weapons_response:
         weapons_response = "argue · convince · evidence · logic · debate"
 
-    return weapons_response, "", config["condition"]
+    tip = generate_persona_tip(personality, level_key, weakest_skill, language)
+
+    return weapons_response.strip(), tip, config["condition"]
+
+
+# Обратная совместимость со старым именем функции.
+def generate_weapons_by_level(topic: str, level: str, personality: str, language: str) -> tuple:
+    weapons, _tip, win_condition = generate_mission_weapons(topic, level, personality, language)
+    return weapons, "", win_condition
+
+
+def generate_persona_tip(personality: str, level: str, weakest_skill: str | None, language: str) -> str:
+    """
+    Один конкретный совет: КАК разговаривать именно с этим персонажем, с упором
+    на слабый скилл пользователя. Для начальных уровней (A1/A2) это особенно
+    важно — вместо сложной "победной формулы" человек получает одну понятную
+    подсказку по стилю общения.
+    """
+    person = PERSONALITIES.get(personality, {})
+    role_style = ROLE_STYLE.get(personality, "")
+    lang_name = LANGUAGES.get(language, {}).get("name", language)
+    skill_line = f"Слабое место ученика, на которое стоит опереться в совете: {weakest_skill}." if weakest_skill else ""
+
+    prompt = f"""
+    Дай ОДИН короткий практический совет (1 предложение, на РУССКОМ языке) —
+    как эффективнее всего разговаривать с персонажем {person.get('full_name', personality)}
+    в разговоре на {lang_name}.
+
+    Характер и стиль поведения персонажа: {role_style}
+    {skill_line}
+    Уровень ученика: {level}.
+
+    Совет должен быть КОНКРЕТНЫМ и ПРАКТИЧНЫМ (что говорить, с чего начать,
+    чего избегать), а не общими словами вроде "будь увереннее".
+    Ответь ТОЛЬКО одним предложением, без вступлений и кавычек.
+    """
+    response = ask_gpt(prompt, temperature=0.6, max_tokens=90)
+    if not response:
+        return PERSONA_TIP_FALLBACK.get(personality, "Говори по делу и подкрепляй слова примерами.")
+    return response.strip().strip('"')
 
 
 # ========== ЗАДАНИЕ ПО ТЕМЕ (неприкосновенная тема) ==========
@@ -567,7 +657,7 @@ def generate_character_pitch(personality: str, topic: str, language: str, level:
 # ========== АНАЛИЗ БОЯ (для finish_arena) ==========
 
 def analyze_debate(user_responses: list[str], dialogue: list[dict], topic: str, level: str, language: str,
-                   personality: str, mission_words: str = "") -> dict:
+                   personality: str, mission_words: str = "", quest_description: str = "") -> dict:
     person = PERSONALITIES.get(personality, PERSONALITIES["devil_advocate"])
     lang_name = LANGUAGES.get(language, {}).get("name", "English")
     user_text_full = " ".join(user_responses)
@@ -595,20 +685,34 @@ def analyze_debate(user_responses: list[str], dialogue: list[dict], topic: str, 
     avg_len = sum(len(r.split()) for r in user_responses) / len(user_responses) if user_responses else 0
     fluency_score = max(30, min(100, round(40 + avg_len * 4)))
 
+    quest_block = f"""
+    === КВЕСТ ===
+    Проверь, выполнил ли пользователь квест: {quest_description or "нет квеста"}
+    КВЕСТ_ВЫПОЛНЕН: [да / нет]
+    """ if quest_description else ""
+
     verdict_prompt = f"""
     Проанализируй ответы пользователя с {person['full_name']} на тему "{topic}".
     Язык: {lang_name}.
+    Уровень: {level}.
     Ответы: {user_text_full[:1500]}
 
     Формат:
     СИЛЬНЫЙ_МОМЕНТ: [1 предложение на русском — что было круто]
     ЗОНА_РОСТА: [1 предложение на русском — что доработать]
     ФРАЗА: [одна фраза на {lang_name} длиной 4-10 слов]
+
+    === УБЕЖДЁННОСТЬ ===
+    Оцени, насколько персонаж убеждён аргументами пользователя (0 = полностью убеждён, 100 = не убеждён вообще).
+    УБЕЖДЁННОСТЬ: [число 0-100]
+    {quest_block}
     """
-    verdict_raw = ask_gpt(verdict_prompt, temperature=0.6, max_tokens=250)
+    verdict_raw = ask_gpt(verdict_prompt, temperature=0.6, max_tokens=350)
 
     moment_text = ""
     unique_phrase = "Используй больше связок."
+    conviction_score = 70
+    quest_done = False
 
     if verdict_raw:
         for line in verdict_raw.split("\n"):
@@ -621,6 +725,13 @@ def analyze_debate(user_responses: list[str], dialogue: list[dict], topic: str, 
                     moment_text += f"\n📈 <b>Зона роста:</b> {growth}"
             elif line.startswith("ФРАЗА:"):
                 unique_phrase = line.replace("ФРАЗА:", "").strip()
+            elif "УБЕЖДЁННОСТЬ" in line.upper():
+                nums = re.findall(r"\d+", line)
+                if nums:
+                    conviction_score = max(0, min(100, int(nums[0])))
+            elif "КВЕСТ_ВЫПОЛНЕН" in line.upper():
+                if "да" in line.lower():
+                    quest_done = True
 
     return {
         "scores": {
@@ -631,4 +742,6 @@ def analyze_debate(user_responses: list[str], dialogue: list[dict], topic: str, 
         },
         "unique_phrase": unique_phrase,
         "moment_text": moment_text,
+        "conviction": conviction_score,
+        "quest_done": quest_done,
     }
