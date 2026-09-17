@@ -7,6 +7,7 @@ from telegram.ext import ContextTypes
 import ai
 import database as db
 import gamification
+import voice
 from config import (
     BATTLE_DURATION_MINUTES, BATTLE_MAX_ROUNDS,
     CONVICTION_WIN_THRESHOLD,
@@ -150,7 +151,7 @@ async def select_level(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_topic_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    topic = update.message.text.strip()
+    topic = voice.get_pending_text(update, context)
     if len(topic) < 3:
         await update.message.reply_text("❌ Тема слишком короткая.")
         return
@@ -269,7 +270,7 @@ async def start_arena(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_text = update.message.text.strip()
+    user_text = voice.get_pending_text(update, context)
     if len(user_text) < 2:
         await update.message.reply_text("❌ Слишком коротко.")
         return
@@ -331,6 +332,7 @@ async def _continue_round(update: Update, context: ContextTypes.DEFAULT_TYPE):
     person = PERSONALITIES.get(personality, {})
 
     if context.user_data.get("battle_type") == "free_talk":
+        await voice.maybe_reply_voice(update, context, ai_reply, personality)
         await update.message.reply_text(
             f"<b>{person.get('name', personality)}:</b>\n<i>{ai_reply}</i>\n\n"
             f"💬 Напиши ответ или /stop, чтобы закончить",
@@ -354,6 +356,7 @@ async def _continue_round(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["conviction"] = conviction
 
     bar = "█" * int((100 - conviction) / 10) + "░" * int(conviction / 10)
+    await voice.maybe_reply_voice(update, context, ai_reply, personality)
     await update.message.reply_text(
         f"<b>{person.get('name', personality)}:</b>\n<i>{ai_reply}</i>\n\n"
         f"{weapons_status}\n\n"
@@ -606,7 +609,7 @@ async def freetalk_pick(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_freetalk_topic_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    topic = update.message.text.strip()
+    topic = voice.get_pending_text(update, context)
     if len(topic) < 2:
         await update.message.reply_text("❌ Слишком коротко, напиши тему ещё раз.")
         return
@@ -640,6 +643,12 @@ async def handle_freetalk_topic_input(update: Update, context: ContextTypes.DEFA
 
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Голосовой флаг относится только к ходу, который его выставил (см.
+    # voice.handle_voice_message). Если это обычное текстовое сообщение —
+    # сбрасываем, чтобы бот не начал вдруг отвечать голосом на текст.
+    if update.message.voice is None and update.message.audio is None:
+        context.user_data["last_input_was_voice"] = False
+
     if context.user_data.get("fe_awaiting_response"):
         await intro.handle_fe_response(update, context)
     elif context.user_data.get("awaiting_freetalk_topic"):

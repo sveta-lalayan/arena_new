@@ -1,39 +1,119 @@
 import re
+import os
 import random
 import logging
+import tempfile
 import requests
 
-from config import YANDEX_API_KEY, YANDEX_FOLDER_ID
+from config import (
+    OPENAI_API_KEY, OPENAI_MODEL, OPENAI_TRANSCRIBE_MODEL, OPENAI_TTS_MODEL,
+)
 from game_data import (
     LANGUAGES, PERSONALITIES, LEVEL_DESCRIPTIONS, ROLE_STYLE,
     SKILL_TO_PERSONALITY, ARENA_RANKS, ARENA_BEHAVIOURS, PERSONA_TIP_FALLBACK,
+    MISSION_FORMAT_BY_PERSONALITY, VOICE_BY_PERSONALITY, LANG_TO_ISO,
 )
 
 logger = logging.getLogger(__name__)
 
-GPT_URL = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
+OPENAI_CHAT_URL = "https://api.openai.com/v1/chat/completions"
+OPENAI_TRANSCRIBE_URL = "https://api.openai.com/v1/audio/transcriptions"
+OPENAI_TTS_URL = "https://api.openai.com/v1/audio/speech"
 
 
 def ask_gpt(prompt: str, temperature: float = 0.7, max_tokens: int = 500) -> str | None:
-    if not YANDEX_API_KEY or not YANDEX_FOLDER_ID:
+    """
+    Единая точка входа для текстовой генерации. Раньше здесь был Yandex GPT —
+    теперь везде используется OpenAI (ChatGPT), но сигнатура функции не
+    изменилась, поэтому весь остальной код ai.py трогать не пришлось.
+    """
+    if not OPENAI_API_KEY:
         return None
 
     headers = {
-        "Authorization": f"Api-Key {YANDEX_API_KEY}",
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
         "Content-Type": "application/json",
     }
     payload = {
-        "modelUri": f"gpt://{YANDEX_FOLDER_ID}/yandexgpt-lite",
-        "completionOptions": {"temperature": temperature, "maxTokens": max_tokens},
-        "messages": [{"role": "user", "text": prompt}],
+        "model": OPENAI_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": temperature,
+        "max_tokens": max_tokens,
     }
 
     try:
-        resp = requests.post(GPT_URL, headers=headers, json=payload, timeout=30)
+        resp = requests.post(OPENAI_CHAT_URL, headers=headers, json=payload, timeout=30)
         if resp.status_code == 200:
-            return resp.json()["result"]["alternatives"][0]["message"]["text"]
+            return resp.json()["choices"][0]["message"]["content"]
+        logger.error(f"OpenAI chat error: {resp.status_code} {resp.text[:300]}")
     except Exception as e:
-        logger.error(f"GPT error: {e}")
+        logger.error(f"OpenAI chat exception: {e}")
+    return None
+
+
+# ========== ГОЛОСОВАЯ ПОДДЕРЖКА (Whisper + TTS) ==========
+
+def transcribe_audio(file_path: str, language: str | None = None) -> str | None:
+    """
+    Распознаёт голосовое сообщение пользователя (файл в формате ogg/oga —
+    именно так Telegram присылает voice-сообщения) через OpenAI Whisper.
+    language — ключ из game_data.LANGUAGES (english/german/...), не ISO-код;
+    конвертируется внутри через LANG_TO_ISO для подсказки модели.
+    """
+    if not OPENAI_API_KEY:
+        return None
+
+    iso_lang = LANG_TO_ISO.get(language) if language else None
+    headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"}
+    data = {"model": OPENAI_TRANSCRIBE_MODEL}
+    if iso_lang:
+        data["language"] = iso_lang
+
+    try:
+        with open(file_path, "rb") as f:
+            files = {"file": (os.path.basename(file_path), f, "audio/ogg")}
+            resp = requests.post(OPENAI_TRANSCRIBE_URL, headers=headers, data=data, files=files, timeout=60)
+        if resp.status_code == 200:
+            return (resp.json().get("text") or "").strip()
+        logger.error(f"Whisper error: {resp.status_code} {resp.text[:300]}")
+    except Exception as e:
+        logger.error(f"Whisper exception: {e}")
+    return None
+
+
+def synthesize_speech(text: str, personality: str | None = None) -> str | None:
+    """
+    Озвучивает реплику персонажа через OpenAI TTS и возвращает путь к
+    временному .ogg (opus) файлу — этот формат Telegram принимает
+    напрямую как голосовое сообщение (reply_voice), без перекодирования.
+    Каждый персонаж говорит своим голосом (VOICE_BY_PERSONALITY).
+    Вызывающая сторона отвечает за удаление файла после отправки.
+    """
+    if not OPENAI_API_KEY or not text:
+        return None
+
+    voice_name = VOICE_BY_PERSONALITY.get(personality, "alloy")
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": OPENAI_TTS_MODEL,
+        "input": text[:4000],
+        "voice": voice_name,
+        "response_format": "opus",
+    }
+
+    try:
+        resp = requests.post(OPENAI_TTS_URL, headers=headers, json=payload, timeout=60)
+        if resp.status_code == 200:
+            fd, path = tempfile.mkstemp(suffix=".ogg")
+            with os.fdopen(fd, "wb") as f:
+                f.write(resp.content)
+            return path
+        logger.error(f"TTS error: {resp.status_code} {resp.text[:300]}")
+    except Exception as e:
+        logger.error(f"TTS exception: {e}")
     return None
 
 
@@ -216,33 +296,119 @@ def generate_persona_tip(personality: str, level: str, weakest_skill: str | None
     return response.strip().strip('"')
 
 
+# ========== ЖИВОЕ ОПИСАНИЕ НАЗНАЧЕННОГО ПЕРСОНАЖА (после Храма) ==========
+
+def generate_persona_intro(personality: str, topic: str, weakest_skill: str, language: str, level: str) -> str:
+    """
+    Каждый раз новое (не шаблонное) короткое представление персонажа,
+    которого ARENA назначила человеку в пару. Обязательно опирается на
+    конкретную тему, которую человек обсуждал с Храмом, и объясняет, почему
+    именно этот персонаж сейчас — без общих фраз вроде "он интересный".
+    Пишем на РУССКОМ (это "досье" от Храма, а не реплика персонажа).
+    """
+    person = PERSONALITIES.get(personality, {})
+    role_style = ROLE_STYLE.get(personality, "")
+
+    prompt = f"""
+    Ты — ARENA. Ты только что решил, что человеку сейчас нужно поговорить
+    именно с {person.get('full_name', personality)} ({person.get('role', '')}).
+
+    Тема, которую человек обсуждал с тобой (Храмом): "{topic}"
+    Слабое место человека, которое должен прокачать этот персонаж: {weakest_skill or 'аргументация'}
+    Характер персонажа: {role_style}
+
+    Напиши 3-4 КОРОТКИЕ рубленые строки на РУССКОМ языке (каждая — новая
+    мысль, максимум 8-10 слов), которые:
+    - представляют персонажа живо и с юмором, НЕ повторяя одни и те же
+      штампы каждый раз — придумай новый ракурс
+    - явно связывают персонажа с темой "{topic}", а не говорят общими словами
+    - объясняют, почему разговор с ним/ней прокачает именно {weakest_skill or 'аргументацию'}
+    - не используют слово "пользователь"
+
+    Не используй markdown-разметку (**жирный** и т.д.), не добавляй заголовков.
+    Ответь ТОЛЬКО этими строками.
+    """
+    response = ask_gpt(prompt, temperature=0.95, max_tokens=160)
+    if not response:
+        return f"{person.get('full_name', personality)} ждёт разговора о «{topic}»."
+    return response.strip()
+
+
 # ========== ЗАДАНИЕ ПО ТЕМЕ (неприкосновенная тема) ==========
 
-def generate_mission_task(topic: str, personality: str, user_name: str, language: str) -> str:
+def generate_mission_task(topic: str, personality: str, user_name: str, language: str, level: str = "B1") -> str:
+    """
+    Короткая (1 предложение) мини-миссия — вопрос, утверждение или кейс,
+    в зависимости от характера персонажа (MISSION_FORMAT_BY_PERSONALITY),
+    без изменения темы, поднятой в Храме.
+    """
     person = PERSONALITIES.get(personality, {})
+    format_hint = MISSION_FORMAT_BY_PERSONALITY.get(personality, "вызов, который нужно принять")
+
     prompt = f"""
-    Придумай конкретное задание для {user_name} в разговоре с {person.get('name', 'персонажем')}.
+    Придумай КОРОТКУЮ (1 предложение, максимум 20 слов) мини-миссию для {user_name}
+    в разговоре с {person.get('name', 'персонажем')}.
 
     ТЕМА (НЕ МЕНЯЙ ЕЁ, НЕ ОБОБЩАЙ, НЕ ЗАМЕНЯЙ НА ДРУГУЮ):
     "{topic}"
 
-    Задание должно:
-    - быть конкретным
+    ФОРМАТ миссии (обязательно используй именно этот формат, он соответствует
+    характеру персонажа): {format_hint}.
+
+    Миссия должна:
     - напрямую касаться темы "{topic}"
-    - звучать как вызов
-    - на РУССКОМ языке
+    - звучать как конкретный, но короткий вызов — не лонгрид
+    - быть на РУССКОМ языке
     - уложиться в 1 предложение
 
-    Примеры формата (не копируй дословно):
+    Примеры формата (не копируй дословно, ориентируйся только на длину и тон):
     "Убеди его, что эта идея стоит инвестиций."
-    "Заставь его признать, что ты прав."
-    "Докажи ей, что твой подход более эффективен."
+    "Ответь: что для тебя важнее — свобода или стабильность, и почему?"
+    "Разбери кейс: клиент недоволен результатом, хотя всё сделано по плану."
 
-    Напиши 1 предложение на РУССКОМ языке:
+    Напиши 1 короткое предложение на РУССКОМ языке, без пояснений:
     """
-    response = ask_gpt(prompt, temperature=0.6, max_tokens=100)
+    response = ask_gpt(prompt, temperature=0.6, max_tokens=80)
     if not response:
         return f"Убеди {person.get('name', 'собеседника')} в своей правоте по теме «{topic}»."
+    return response.strip()
+
+
+# ========== НАТИВНЫЙ "КРЮЧОК" ПО ТЕМЕ ИНТЕРЕСА (после 8 раундов Храма) ==========
+
+def generate_topic_hook(user_responses: list[str], main_topic: str, language: str, level: str) -> str:
+    """
+    Короткая, "цепляющая" реплика Храма о теме, которая реально задела
+    человека в разговоре — чтобы человеку самому стало интересно
+    развить эту тему с одним из персонажей. 2-3 коротких строки,
+    строго на языке обучения (иммерсивно, как и остальная часть Храма).
+    """
+    lang_name = LANGUAGES.get(language, {}).get("name", language)
+    level_desc = LEVEL_DESCRIPTIONS.get(level, "")
+    user_text = " ".join(user_responses)[:1200]
+
+    prompt = f"""
+    Ты — ARENA. Ты только что слушал человека 8 реплик и заметил, что его
+    реально зацепила тема: "{main_topic}".
+
+    Что он говорил: {user_text}
+
+    Напиши 2-3 КОРОТКИЕ рубленые строки (каждая — своя мысль, максимум
+    6-8 слов), СТРОГО на языке {lang_name}, сложность речи — уровень {level}
+    ({level_desc}), которые:
+    - называют именно эту тему ({main_topic}), без общих слов
+    - звучат как наблюдение проницательного собеседника, а не комплимент
+    - создают лёгкую интригу — будто это стоит развить дальше
+
+    Стиль (не копируй дословно, только длину и тон):
+    "You keep coming back to this.
+    There's something unfinished there."
+
+    Обращайся на "ты"/"you". Ответь ТОЛЬКО этими строками, без заголовков.
+    """
+    response = ask_gpt(prompt, temperature=0.8, max_tokens=120)
+    if not response:
+        return f"You keep coming back to one thing: {main_topic}."
     return response.strip()
 
 

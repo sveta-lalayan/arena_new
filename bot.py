@@ -6,6 +6,7 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Mess
 from config import BOT_TOKEN, DAILY_PUSH_HOUR
 import ai
 import database as db
+import voice
 from handlers import start, profile, arena, intro
 
 logging.basicConfig(
@@ -98,6 +99,7 @@ def main():
     app.add_handler(CallbackQueryHandler(arena.freetalk, pattern="^freetalk$"))
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, arena.handle_text))
+    app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, voice.handle_voice_message))
 
     logger.info("Arena запущена")
     app.run_polling()

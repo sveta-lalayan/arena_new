@@ -7,8 +7,11 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN не задан")
 
-YANDEX_API_KEY = os.getenv("YANDEX_API_KEY", "")
-YANDEX_FOLDER_ID = os.getenv("YANDEX_FOLDER_ID", "")
+# --- OpenAI (заменяет Yandex GPT везде: текст, распознавание и синтез речи) ---
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_TRANSCRIBE_MODEL = os.getenv("OPENAI_TRANSCRIBE_MODEL", "whisper-1")
+OPENAI_TTS_MODEL = os.getenv("OPENAI_TTS_MODEL", "tts-1")
 
 DB_PATH = os.getenv("DB_PATH", "arena2.db")
 CHECKPOINT_TURNS = int(os.getenv("CHECKPOINT_TURNS", "6"))
