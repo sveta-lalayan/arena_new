@@ -1,13 +1,15 @@
 """
-БД ARENA: профиль, баллы, история, достижения, словарь ошибок,
-история уровня, разбор Храма, прогресс скиллов, квесты, немезида.
+БД ARENA: профиль, баллы, история боёв, 10 критериев, достижения, словарь ошибок,
+история уровня, разбор Храма, скиллы, квесты, немезида, свободные разговоры,
+память Арены (интересы/темы), история пушей.
 """
 import sqlite3
 import json
 from contextlib import contextmanager
 from datetime import datetime, timezone, timedelta
 
-from config import DB_PATH
+from config import DB_PATH, BATTLE_COOLDOWN_HOURS
+from game_data import ALL_CRITERIA
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
@@ -16,11 +18,15 @@ CREATE TABLE IF NOT EXISTS users (
     first_name       TEXT,
     total_points     INTEGER NOT NULL DEFAULT 0,
     first_battle_done INTEGER NOT NULL DEFAULT 0,
+    temple_done      INTEGER NOT NULL DEFAULT 0,
+    language         TEXT,
     push_personality TEXT,
     push_topics      TEXT,
+    last_push_topic  TEXT,
     behaviour        TEXT,
     title            TEXT,
     nemesis_defeated INTEGER NOT NULL DEFAULT 0,
+    last_push_at     TEXT,
     created_at       TEXT NOT NULL,
     updated_at       TEXT NOT NULL
 );
@@ -43,6 +49,9 @@ CREATE TABLE IF NOT EXISTS game_sessions (
     growth_plan         TEXT,
     conviction_final    INTEGER,
     quest_done          INTEGER NOT NULL DEFAULT 0,
+    won                 INTEGER NOT NULL DEFAULT 0,
+    overall             INTEGER,
+    criteria            TEXT,
     created_at          TEXT NOT NULL,
     FOREIGN KEY (telegram_id) REFERENCES users (telegram_id)
 );
@@ -90,35 +99,55 @@ CREATE TABLE IF NOT EXISTS arena_analyses (
     interests        TEXT,
     main_topic       TEXT,
     level            TEXT,
+    recommended_personality TEXT,
     created_at       TEXT NOT NULL
 );
 
--- Прогресс по 6 communication-скиллам (0-1000)
+CREATE TABLE IF NOT EXISTS freetalk_sessions (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_id   INTEGER NOT NULL,
+    personality   TEXT NOT NULL,
+    language      TEXT NOT NULL,
+    level         TEXT,
+    topic         TEXT,
+    messages      TEXT,
+    analysis      TEXT,
+    created_at    TEXT NOT NULL
+);
+
+-- Накопленная шкала по 10 критериям (скользящее среднее по всем разговорам)
+CREATE TABLE IF NOT EXISTS user_criteria (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_id   INTEGER NOT NULL,
+    criterion     TEXT NOT NULL,
+    value         INTEGER NOT NULL,
+    updated_at    TEXT NOT NULL,
+    UNIQUE (telegram_id, criterion)
+);
+
 CREATE TABLE IF NOT EXISTS user_skills (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     telegram_id   INTEGER NOT NULL,
-    skill         TEXT NOT NULL,  -- clarity | argumentation | evidence | persuasion | adaptability | control
+    skill         TEXT NOT NULL,
     points        INTEGER NOT NULL DEFAULT 0,
     battles       INTEGER NOT NULL DEFAULT 0,
-    rank          INTEGER NOT NULL DEFAULT 1,  -- 1..5 (подранги), 6 = мастер
+    rank          INTEGER NOT NULL DEFAULT 1,
     UNIQUE (telegram_id, skill)
 );
 
--- Активный квест игрока (1 штука)
 CREATE TABLE IF NOT EXISTS user_quests (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     telegram_id   INTEGER NOT NULL,
-    quest_type    TEXT NOT NULL,  -- weapon | clean | skill | behaviour
+    quest_type    TEXT NOT NULL,
     description   TEXT NOT NULL,
     target        INTEGER NOT NULL DEFAULT 1,
     current       INTEGER NOT NULL DEFAULT 0,
     completed     INTEGER NOT NULL DEFAULT 0,
-    skill_bonus   TEXT,           -- какой скилл качает при выполнении
+    skill_bonus   TEXT,
     created_at    TEXT NOT NULL,
     expires_at    TEXT
 );
 
--- Немезида: противоположный перс, раз в неделю
 CREATE TABLE IF NOT EXISTS user_nemesis (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
     telegram_id       INTEGER NOT NULL,
@@ -133,7 +162,7 @@ CREATE TABLE IF NOT EXISTS user_nemesis (
 
 @contextmanager
 def get_conn():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=15)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     try:
@@ -145,9 +174,9 @@ def get_conn():
 
 def init_db():
     with get_conn() as conn:
+        conn.execute("PRAGMA journal_mode = WAL")
         conn.executescript(SCHEMA)
 
-        # Миграции: добавляем колонки, которых может не быть
         def _add_col(table, col, ddl):
             existing = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
             if col not in existing:
@@ -156,29 +185,32 @@ def init_db():
                 except sqlite3.OperationalError:
                     pass
 
-        _add_col("users", "first_battle_done",
-                 "ALTER TABLE users ADD COLUMN first_battle_done INTEGER NOT NULL DEFAULT 0")
-        _add_col("users", "push_personality",
-                 "ALTER TABLE users ADD COLUMN push_personality TEXT")
-        _add_col("users", "push_topics",
-                 "ALTER TABLE users ADD COLUMN push_topics TEXT")
-        _add_col("users", "behaviour",
-                 "ALTER TABLE users ADD COLUMN behaviour TEXT")
-        _add_col("users", "title",
-                 "ALTER TABLE users ADD COLUMN title TEXT")
-        _add_col("users", "nemesis_defeated",
-                 "ALTER TABLE users ADD COLUMN nemesis_defeated INTEGER NOT NULL DEFAULT 0")
+        for col, ddl in [
+            ("first_battle_done", "INTEGER NOT NULL DEFAULT 0"),
+            ("temple_done", "INTEGER NOT NULL DEFAULT 0"),
+            ("language", "TEXT"),
+            ("push_personality", "TEXT"),
+            ("push_topics", "TEXT"),
+            ("last_push_topic", "TEXT"),
+            ("behaviour", "TEXT"),
+            ("title", "TEXT"),
+            ("nemesis_defeated", "INTEGER NOT NULL DEFAULT 0"),
+            ("last_push_at", "TEXT"),
+        ]:
+            _add_col("users", col, f"ALTER TABLE users ADD COLUMN {col} {ddl}")
 
-        _add_col("game_sessions", "strength",
-                 "ALTER TABLE game_sessions ADD COLUMN strength TEXT")
-        _add_col("game_sessions", "growth",
-                 "ALTER TABLE game_sessions ADD COLUMN growth TEXT")
-        _add_col("game_sessions", "growth_plan",
-                 "ALTER TABLE game_sessions ADD COLUMN growth_plan TEXT")
-        _add_col("game_sessions", "conviction_final",
-                 "ALTER TABLE game_sessions ADD COLUMN conviction_final INTEGER")
-        _add_col("game_sessions", "quest_done",
-                 "ALTER TABLE game_sessions ADD COLUMN quest_done INTEGER NOT NULL DEFAULT 0")
+        for col, ddl in [
+            ("strength", "TEXT"), ("growth", "TEXT"), ("growth_plan", "TEXT"),
+            ("conviction_final", "INTEGER"), ("quest_done", "INTEGER NOT NULL DEFAULT 0"),
+            ("won", "INTEGER NOT NULL DEFAULT 0"), ("overall", "INTEGER"), ("criteria", "TEXT"),
+        ]:
+            _add_col("game_sessions", col, f"ALTER TABLE game_sessions ADD COLUMN {col} {ddl}")
+
+        _add_col("arena_analyses", "recommended_personality",
+                 "ALTER TABLE arena_analyses ADD COLUMN recommended_personality TEXT")
+
+        # Пользователи, уже игравшие бой, точно прошли Храм.
+        conn.execute("UPDATE users SET temple_done = 1 WHERE first_battle_done = 1 AND temple_done = 0")
 
 
 def _now() -> str:
@@ -203,8 +235,8 @@ def get_or_create_user(telegram_id: int, username: str | None, first_name: str |
 
         now = _now()
         conn.execute(
-            "INSERT INTO users (telegram_id, username, first_name, total_points, first_battle_done, created_at, updated_at) "
-            "VALUES (?, ?, ?, 0, 0, ?, ?)",
+            "INSERT INTO users (telegram_id, username, first_name, total_points, first_battle_done, "
+            "created_at, updated_at) VALUES (?, ?, ?, 0, 0, ?, ?)",
             (telegram_id, username, first_name, now, now),
         )
         return conn.execute("SELECT * FROM users WHERE telegram_id = ?", (telegram_id,)).fetchone()
@@ -224,6 +256,42 @@ def mark_first_battle_done(telegram_id: int):
         )
 
 
+def has_completed_temple(telegram_id: int) -> bool:
+    """Храм (первые 8 реплик) пройден — можно показывать полное меню."""
+    with get_conn() as conn:
+        row = conn.execute("SELECT temple_done FROM users WHERE telegram_id = ?", (telegram_id,)).fetchone()
+    return bool(row and row["temple_done"])
+
+
+def mark_temple_done(telegram_id: int):
+    with get_conn() as conn:
+        conn.execute("UPDATE users SET temple_done = 1, updated_at = ? WHERE telegram_id = ?",
+                     (_now(), telegram_id))
+
+
+def set_user_language(telegram_id: int, language: str):
+    with get_conn() as conn:
+        conn.execute("UPDATE users SET language = ?, updated_at = ? WHERE telegram_id = ?",
+                     (language, _now(), telegram_id))
+
+
+def get_user_language(telegram_id: int) -> str | None:
+    """Язык, который человек выбрал в Храме. Запасной вариант — язык последнего боя."""
+    with get_conn() as conn:
+        row = conn.execute("SELECT language FROM users WHERE telegram_id = ?", (telegram_id,)).fetchone()
+        if row and row["language"]:
+            return row["language"]
+        row = conn.execute(
+            "SELECT language FROM game_sessions WHERE telegram_id = ? ORDER BY id DESC LIMIT 1",
+            (telegram_id,),
+        ).fetchone()
+    return row["language"] if row else None
+
+
+# Старое имя — оставлено для совместимости
+get_last_language = get_user_language
+
+
 def set_user_behaviour_title(telegram_id: int, behaviour: str, title: str):
     with get_conn() as conn:
         conn.execute(
@@ -240,6 +308,18 @@ def add_points(telegram_id: int, points: int):
         )
 
 
+def reset_user_data(telegram_id: int):
+    """Полный сброс — только для админов (config.is_admin)."""
+    with get_conn() as conn:
+        for table in (
+            "game_sessions", "achievements", "vocabulary_mistakes",
+            "user_level_history", "arena_analyses", "freetalk_sessions",
+            "user_criteria", "user_skills", "user_quests", "user_nemesis",
+        ):
+            conn.execute(f"DELETE FROM {table} WHERE telegram_id = ?", (telegram_id,))
+        conn.execute("DELETE FROM users WHERE telegram_id = ?", (telegram_id,))
+
+
 # ---------- Push ----------
 
 def set_push_profile(telegram_id: int, personality: str, topics: list):
@@ -253,8 +333,8 @@ def set_push_profile(telegram_id: int, personality: str, topics: list):
 def get_all_push_profiles() -> list[dict]:
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT telegram_id, push_personality, push_topics, first_name FROM users "
-            "WHERE push_personality IS NOT NULL"
+            "SELECT telegram_id, push_personality, push_topics, first_name, last_push_at, language "
+            "FROM users WHERE push_personality IS NOT NULL AND temple_done = 1"
         ).fetchall()
     result = []
     for row in rows:
@@ -264,8 +344,91 @@ def get_all_push_profiles() -> list[dict]:
             "personality": row["push_personality"],
             "topics": topics,
             "first_name": row["first_name"] or "",
+            "last_push_at": row["last_push_at"],
+            "language": row["language"],
         })
     return result
+
+
+def mark_push_sent(telegram_id: int, topic: str = ""):
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE users SET last_push_at = ?, last_push_topic = ? WHERE telegram_id = ?",
+            (_now(), topic, telegram_id),
+        )
+
+
+def pop_push_topic(telegram_id: int) -> str | None:
+    """Тема последнего пуша (если он был не старше 36 ч) — бой по кнопке пуша идёт именно на неё."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT last_push_topic, last_push_at FROM users WHERE telegram_id = ?", (telegram_id,)
+        ).fetchone()
+        if not row or not row["last_push_topic"] or not row["last_push_at"]:
+            return None
+        conn.execute("UPDATE users SET last_push_topic = NULL WHERE telegram_id = ?", (telegram_id,))
+    try:
+        age = datetime.now(timezone.utc) - datetime.fromisoformat(row["last_push_at"])
+    except ValueError:
+        return None
+    return row["last_push_topic"] if age < timedelta(hours=36) else None
+
+
+# ---------- Interests / memory ----------
+
+def get_interests(telegram_id: int) -> list[str]:
+    with get_conn() as conn:
+        row = conn.execute("SELECT push_topics FROM users WHERE telegram_id = ?", (telegram_id,)).fetchone()
+    if not row or not row["push_topics"]:
+        return []
+    try:
+        return [t for t in json.loads(row["push_topics"]) if isinstance(t, str) and t.strip()]
+    except ValueError:
+        return []
+
+
+def add_interests(telegram_id: int, new_topics: list[str], limit: int = 8):
+    """Новые интересы — вперёд списка, дубликаты убираем, список ограничен."""
+    fresh = [t.strip() for t in (new_topics or []) if isinstance(t, str) and t.strip()]
+    if not fresh:
+        return
+    merged, seen = [], set()
+    for t in fresh + get_interests(telegram_id):
+        if t.lower() not in seen:
+            seen.add(t.lower())
+            merged.append(t)
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE users SET push_topics = ?, updated_at = ? WHERE telegram_id = ?",
+            (json.dumps(merged[:limit], ensure_ascii=False), _now(), telegram_id),
+        )
+
+
+def get_memory(telegram_id: int) -> dict:
+    """Что Арена помнит о человеке: интересы, недавние темы, последние его реплики."""
+    interests = get_interests(telegram_id)
+    with get_conn() as conn:
+        ft_topics = [r["topic"] for r in conn.execute(
+            "SELECT topic FROM freetalk_sessions WHERE telegram_id = ? AND topic != '' ORDER BY id DESC LIMIT 5",
+            (telegram_id,))]
+        battle_topics = [r["topic"] for r in conn.execute(
+            "SELECT topic FROM game_sessions WHERE telegram_id = ? ORDER BY id DESC LIMIT 3", (telegram_id,))]
+        last_ft = conn.execute(
+            "SELECT messages FROM freetalk_sessions WHERE telegram_id = ? ORDER BY id DESC LIMIT 1",
+            (telegram_id,)).fetchone()
+    recent, seen = [], set()
+    for t in ft_topics + battle_topics:
+        if t and t.lower() not in seen:
+            seen.add(t.lower())
+            recent.append(t)
+    said = []
+    if last_ft and last_ft["messages"]:
+        try:
+            msgs = json.loads(last_ft["messages"])
+            said = [m["text"][:140] for m in msgs if m.get("speaker") == "User"][-3:]
+        except (ValueError, KeyError, TypeError):
+            pass
+    return {"interests": interests, "recent_topics": recent, "last_said": said}
 
 
 # ---------- Sessions ----------
@@ -274,20 +437,22 @@ def save_game_session(
         telegram_id: int, personality: str, language: str, level: str, topic: str,
         rounds_completed: int, scores: dict, points_earned: int,
         strength: str = "", growth: str = "", growth_plan: str = "",
-        conviction_final: int = 0, quest_done: int = 0,
+        conviction_final: int = 0, quest_done: int = 0, won: int = 0, overall: int | None = None,
 ) -> int:
     with get_conn() as conn:
         cur = conn.execute(
             """INSERT INTO game_sessions
                (telegram_id, personality, language, level, topic, rounds_completed,
                 argumentation_score, vocabulary_score, grammar_score, fluency_score,
-                points_earned, strength, growth, growth_plan, conviction_final, quest_done, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                points_earned, strength, growth, growth_plan, conviction_final, quest_done,
+                won, overall, criteria, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 telegram_id, personality, language, level, topic, rounds_completed,
                 scores.get("argumentation"), scores.get("vocabulary"),
                 scores.get("grammar"), scores.get("fluency"),
-                points_earned, strength, growth, growth_plan, conviction_final, quest_done, _now(),
+                points_earned, strength, growth, growth_plan, conviction_final, quest_done,
+                won, overall, json.dumps(scores, ensure_ascii=False), _now(),
             ),
         )
         return cur.lastrowid
@@ -297,35 +462,22 @@ def get_user_stats(telegram_id: int) -> dict:
     with get_conn() as conn:
         user = conn.execute("SELECT * FROM users WHERE telegram_id = ?", (telegram_id,)).fetchone()
         sessions = conn.execute(
-            "SELECT * FROM game_sessions WHERE telegram_id = ? ORDER BY created_at DESC", (telegram_id,)
+            "SELECT * FROM game_sessions WHERE telegram_id = ? ORDER BY id DESC", (telegram_id,)
         ).fetchall()
         achievements = conn.execute(
             "SELECT badge_key FROM achievements WHERE telegram_id = ?", (telegram_id,)
         ).fetchall()
 
     total_points = user["total_points"] if user else 0
-    games_played = len(sessions)
     unique_personalities = {s["personality"] for s in sessions}
-    avg_score = None
-    if sessions:
-        scored = [
-            s for s in sessions
-            if s["argumentation_score"] is not None and s["grammar_score"] is not None
-               and s["vocabulary_score"] is not None and s["fluency_score"] is not None
-        ]
-        if scored:
-            avg_score = round(
-                sum(
-                    (s["argumentation_score"] + s["vocabulary_score"] + s["grammar_score"] + s["fluency_score"]) / 4
-                    for s in scored
-                ) / len(scored)
-            )
-
+    overalls = [s["overall"] for s in sessions if s["overall"] is not None]
+    avg_score = round(sum(overalls) / len(overalls)) if overalls else None
     latest = sessions[0] if sessions else None
 
     return {
         "total_points": total_points,
-        "games_played": games_played,
+        "games_played": len(sessions),
+        "wins": sum(1 for s in sessions if s["won"]),
         "unique_personalities": unique_personalities,
         "avg_score": avg_score,
         "achievements": [a["badge_key"] for a in achievements],
@@ -337,6 +489,127 @@ def get_user_stats(telegram_id: int) -> dict:
         "title": user["title"] if user else "",
         "nemesis_defeated": user["nemesis_defeated"] if user else 0,
     }
+
+
+def count_battles(telegram_id: int) -> int:
+    with get_conn() as conn:
+        row = conn.execute("SELECT COUNT(*) AS c FROM game_sessions WHERE telegram_id = ?",
+                           (telegram_id,)).fetchone()
+    return row["c"] if row else 0
+
+
+def get_last_personality(telegram_id: int) -> str | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT personality FROM game_sessions WHERE telegram_id = ? ORDER BY id DESC LIMIT 1",
+            (telegram_id,)).fetchone()
+    return row["personality"] if row else None
+
+
+def get_hours_since_last_battle(telegram_id: int) -> float | None:
+    """Сколько часов прошло с последнего боя. None — боёв не было."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT created_at FROM game_sessions WHERE telegram_id = ? ORDER BY id DESC LIMIT 1",
+            (telegram_id,),
+        ).fetchone()
+    if not row or not row["created_at"]:
+        return None
+    try:
+        last_dt = datetime.fromisoformat(row["created_at"])
+    except ValueError:
+        return None
+    return (datetime.now(timezone.utc) - last_dt).total_seconds() / 3600
+
+
+def has_battled_today(telegram_id: int) -> bool:
+    """Правило «один бой в 24 часа» (BATTLE_COOLDOWN_HOURS). Админов обходят handlers."""
+    hours = get_hours_since_last_battle(telegram_id)
+    return hours is not None and hours < BATTLE_COOLDOWN_HOURS
+
+
+def cooldown_hours_left(telegram_id: int) -> float:
+    hours = get_hours_since_last_battle(telegram_id)
+    if hours is None:
+        return 0.0
+    return max(0.0, BATTLE_COOLDOWN_HOURS - hours)
+
+
+def get_recent_avg_scores(telegram_id: int, n: int = 3, level: str | None = None) -> float | None:
+    """
+    Средний общий балл (по 10 критериям) за последние n боёв.
+    Если задан level — учитываются только бои на этом уровне и нужно ровно n таких боёв
+    (иначе None): так уровень не прыгает после каждого боя.
+    """
+    query = ("SELECT overall, argumentation_score, vocabulary_score, grammar_score, fluency_score "
+             "FROM game_sessions WHERE telegram_id = ? ")
+    params: list = [telegram_id]
+    if level:
+        query += "AND level = ? "
+        params.append(level)
+    query += "ORDER BY id DESC LIMIT ?"
+    params.append(n)
+    with get_conn() as conn:
+        rows = conn.execute(query, params).fetchall()
+    if level and len(rows) < n:
+        return None
+    vals = []
+    for r in rows:
+        if r["overall"] is not None:
+            vals.append(r["overall"])
+            continue
+        s = [v for v in (r["argumentation_score"], r["vocabulary_score"],
+                         r["grammar_score"], r["fluency_score"]) if v is not None]
+        if s:
+            vals.append(sum(s) / len(s))
+    return sum(vals) / len(vals) if vals else None
+
+
+# ---------- Free talk ----------
+
+def save_freetalk_session(telegram_id: int, personality: str, language: str,
+                          level: str, topic: str, messages: list, analysis: dict):
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO freetalk_sessions
+               (telegram_id, personality, language, level, topic, messages, analysis, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (telegram_id, personality, language, level, topic,
+             json.dumps(messages, ensure_ascii=False),
+             json.dumps(analysis or {}, ensure_ascii=False), _now()),
+        )
+
+
+# ---------- Criteria (10 критериев) ----------
+
+def update_criteria(telegram_id: int, scores: dict, weight: float = 0.4):
+    """
+    Скользящее среднее: new = old*(1-weight) + score*weight.
+    Храм: weight=1 (первичная оценка), бой: 0.4, free talk: 0.2.
+    """
+    with get_conn() as conn:
+        for key, val in scores.items():
+            if key not in ALL_CRITERIA or not isinstance(val, (int, float)):
+                continue
+            val = int(max(0, min(100, val)))
+            row = conn.execute(
+                "SELECT value FROM user_criteria WHERE telegram_id = ? AND criterion = ?",
+                (telegram_id, key)).fetchone()
+            new = val if row is None else round(row["value"] * (1 - weight) + val * weight)
+            conn.execute(
+                """INSERT INTO user_criteria (telegram_id, criterion, value, updated_at)
+                   VALUES (?, ?, ?, ?)
+                   ON CONFLICT(telegram_id, criterion) DO UPDATE SET
+                       value = excluded.value, updated_at = excluded.updated_at""",
+                (telegram_id, key, new, _now()),
+            )
+
+
+def get_criteria(telegram_id: int) -> dict[str, int]:
+    with get_conn() as conn:
+        rows = conn.execute("SELECT criterion, value FROM user_criteria WHERE telegram_id = ?",
+                            (telegram_id,)).fetchall()
+    return {r["criterion"]: r["value"] for r in rows}
 
 
 # ---------- Achievements ----------
@@ -361,14 +634,12 @@ def add_vocabulary_mistakes(telegram_id: int, mistakes: list[dict]):
     with get_conn() as conn:
         for m in mistakes:
             existing = conn.execute(
-                "SELECT id, times_seen FROM vocabulary_mistakes WHERE telegram_id = ? AND wrong = ?",
+                "SELECT id FROM vocabulary_mistakes WHERE telegram_id = ? AND wrong = ?",
                 (telegram_id, m["wrong"]),
             ).fetchone()
             if existing:
-                conn.execute(
-                    "UPDATE vocabulary_mistakes SET times_seen = times_seen + 1 WHERE id = ?",
-                    (existing["id"],),
-                )
+                conn.execute("UPDATE vocabulary_mistakes SET times_seen = times_seen + 1 WHERE id = ?",
+                             (existing["id"],))
             else:
                 conn.execute(
                     "INSERT INTO vocabulary_mistakes (telegram_id, wrong, correct, times_seen, learned, created_at) "
@@ -381,7 +652,7 @@ def get_vocabulary_to_learn(telegram_id: int, limit: int = 10) -> list[dict]:
     with get_conn() as conn:
         rows = conn.execute(
             "SELECT wrong, correct, times_seen FROM vocabulary_mistakes "
-            "WHERE telegram_id = ? AND learned = 0 ORDER BY times_seen DESC LIMIT ?",
+            "WHERE telegram_id = ? AND learned = 0 ORDER BY times_seen DESC, id DESC LIMIT ?",
             (telegram_id, limit),
         ).fetchall()
     return [{"wrong": r["wrong"], "correct": r["correct"], "times_seen": r["times_seen"]} for r in rows]
@@ -389,18 +660,15 @@ def get_vocabulary_to_learn(telegram_id: int, limit: int = 10) -> list[dict]:
 
 def mark_word_learned(telegram_id: int, wrong: str):
     with get_conn() as conn:
-        conn.execute(
-            "UPDATE vocabulary_mistakes SET learned = 1 WHERE telegram_id = ? AND wrong = ?",
-            (telegram_id, wrong),
-        )
+        conn.execute("UPDATE vocabulary_mistakes SET learned = 1 WHERE telegram_id = ? AND wrong = ?",
+                     (telegram_id, wrong))
 
 
 def count_learned_words(telegram_id: int) -> int:
     with get_conn() as conn:
         row = conn.execute(
             "SELECT COUNT(*) AS cnt FROM vocabulary_mistakes WHERE telegram_id = ? AND learned = 1",
-            (telegram_id,),
-        ).fetchone()
+            (telegram_id,)).fetchone()
     return row["cnt"] if row else 0
 
 
@@ -424,25 +692,7 @@ def get_current_level(telegram_id: int) -> str | None:
     return row["level"] if row else None
 
 
-def get_recent_avg_scores(telegram_id: int, n: int = 3) -> float | None:
-    with get_conn() as conn:
-        rows = conn.execute(
-            "SELECT argumentation_score, vocabulary_score, grammar_score, fluency_score "
-            "FROM game_sessions WHERE telegram_id = ? ORDER BY id DESC LIMIT ?",
-            (telegram_id, n),
-        ).fetchall()
-    if not rows:
-        return None
-    vals = []
-    for r in rows:
-        s = [r["argumentation_score"], r["vocabulary_score"], r["grammar_score"], r["fluency_score"]]
-        s = [v for v in s if v is not None]
-        if s:
-            vals.append(sum(s) / len(s))
-    return sum(vals) / len(vals) if vals else None
-
-
-# ---------- Arena analysis ----------
+# ---------- Arena analysis (разбор Храма) ----------
 
 def save_arena_analysis(telegram_id: int, analysis: dict):
     with get_conn() as conn:
@@ -450,8 +700,9 @@ def save_arena_analysis(telegram_id: int, analysis: dict):
             """INSERT INTO arena_analyses
                (telegram_id, language_metrics, communication, hidden_metrics,
                 grammar_weak, vocabulary_weak, behaviour, weakest_skill,
-                strongest_skill, arena_rank, interests, main_topic, level, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                strongest_skill, arena_rank, interests, main_topic, level,
+                recommended_personality, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 telegram_id,
                 json.dumps(analysis.get("language", {}), ensure_ascii=False),
@@ -466,6 +717,7 @@ def save_arena_analysis(telegram_id: int, analysis: dict):
                 json.dumps(analysis.get("interests", []), ensure_ascii=False),
                 analysis.get("main_topic", ""),
                 analysis.get("estimated_level", ""),
+                analysis.get("recommended_personality", ""),
                 _now(),
             ),
         )
@@ -492,35 +744,32 @@ def get_latest_arena_analysis(telegram_id: int) -> dict | None:
         "interests": json.loads(row["interests"] or "[]"),
         "main_topic": row["main_topic"] or "",
         "estimated_level": row["level"] or "",
+        "recommended_personality": row["recommended_personality"] or "",
     }
 
 
-# ---------- Skills ----------
+# ---------- Skills (XP за тренировку с персонажами) ----------
 
 SKILL_NAMES = ["clarity", "argumentation", "evidence", "persuasion", "adaptability", "control"]
 
 
 def init_user_skills(telegram_id: int):
-    """Создаёт 6 пустых скиллов, если их ещё нет."""
     with get_conn() as conn:
         for sk in SKILL_NAMES:
             conn.execute(
-                """INSERT OR IGNORE INTO user_skills (telegram_id, skill, points, battles, rank)
-                   VALUES (?, ?, 0, 0, 1)""",
-                (telegram_id, sk),
-            )
+                "INSERT OR IGNORE INTO user_skills (telegram_id, skill, points, battles, rank) "
+                "VALUES (?, ?, 0, 0, 1)", (telegram_id, sk))
 
 
 def get_skill_points(telegram_id: int, skill: str) -> int:
     with get_conn() as conn:
-        row = conn.execute(
-            "SELECT points FROM user_skills WHERE telegram_id = ? AND skill = ?",
-            (telegram_id, skill),
-        ).fetchone()
+        row = conn.execute("SELECT points FROM user_skills WHERE telegram_id = ? AND skill = ?",
+                           (telegram_id, skill)).fetchone()
     return row["points"] if row else 0
 
 
 def add_skill_progress(telegram_id: int, skill: str, delta: int, battles: int = 1):
+    init_user_skills(telegram_id)
     with get_conn() as conn:
         conn.execute(
             """UPDATE user_skills
@@ -542,8 +791,7 @@ def add_skill_progress(telegram_id: int, skill: str, delta: int, battles: int = 
 def get_all_skills(telegram_id: int) -> dict[str, dict]:
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT skill, points, battles, rank FROM user_skills WHERE telegram_id = ?",
-            (telegram_id,),
+            "SELECT skill, points, battles, rank FROM user_skills WHERE telegram_id = ?", (telegram_id,)
         ).fetchall()
     return {r["skill"]: {"points": r["points"], "battles": r["battles"], "rank": r["rank"]} for r in rows}
 
@@ -554,13 +802,15 @@ def set_quest(telegram_id: int, quest_type: str, description: str, target: int =
     with get_conn() as conn:
         conn.execute("DELETE FROM user_quests WHERE telegram_id = ?", (telegram_id,))
         conn.execute(
-            """INSERT INTO user_quests (telegram_id, quest_type, description, target, current, completed, skill_bonus, created_at, expires_at)
+            """INSERT INTO user_quests (telegram_id, quest_type, description, target, current, completed,
+                                        skill_bonus, created_at, expires_at)
                VALUES (?, ?, ?, ?, 0, 0, ?, ?, ?)""",
             (telegram_id, quest_type, description, target, skill_bonus, _now(), _week_later()),
         )
 
 
 def get_active_quest(telegram_id: int) -> dict | None:
+    """Активный (не выполненный и не просроченный) квест."""
     with get_conn() as conn:
         row = conn.execute(
             "SELECT * FROM user_quests WHERE telegram_id = ? AND completed = 0 ORDER BY id DESC LIMIT 1",
@@ -568,22 +818,22 @@ def get_active_quest(telegram_id: int) -> dict | None:
         ).fetchone()
     if not row:
         return None
+    if row["expires_at"]:
+        try:
+            if datetime.fromisoformat(row["expires_at"]) < datetime.now(timezone.utc):
+                return None
+        except ValueError:
+            pass
     return {
-        "id": row["id"],
-        "type": row["quest_type"],
-        "description": row["description"],
-        "target": row["target"],
-        "current": row["current"],
-        "skill_bonus": row["skill_bonus"],
+        "id": row["id"], "type": row["quest_type"], "description": row["description"],
+        "target": row["target"], "current": row["current"], "skill_bonus": row["skill_bonus"],
     }
 
 
 def complete_quest(telegram_id: int):
     with get_conn() as conn:
-        conn.execute(
-            "UPDATE user_quests SET completed = 1 WHERE telegram_id = ? AND completed = 0",
-            (telegram_id,),
-        )
+        conn.execute("UPDATE user_quests SET completed = 1 WHERE telegram_id = ? AND completed = 0",
+                     (telegram_id,))
 
 
 def delete_quest(telegram_id: int):
@@ -618,9 +868,7 @@ def set_nemesis(telegram_id: int, behaviour: str):
 
 def get_nemesis(telegram_id: int) -> dict | None:
     with get_conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM user_nemesis WHERE telegram_id = ?", (telegram_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM user_nemesis WHERE telegram_id = ?", (telegram_id,)).fetchone()
     if not row:
         return None
     return {
@@ -641,3 +889,8 @@ def mark_nemesis_fought(telegram_id: int, defeated: bool = False):
                 "UPDATE users SET nemesis_defeated = nemesis_defeated + 1 WHERE telegram_id = ?",
                 (telegram_id,),
             )
+
+def get_user_first_name(telegram_id: int) -> str:
+    with get_conn() as conn:
+        row = conn.execute("SELECT first_name FROM users WHERE telegram_id = ?", (telegram_id,)).fetchone()
+    return row["first_name"] if row and row["first_name"] else ""

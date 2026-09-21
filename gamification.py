@@ -1,16 +1,20 @@
 """
-Геймификация ARENA: баллы, игровые уровни, скилл-прогресс, квесты, титулы,
-достижения, профиль, мягкая адаптация уровня персонажей под участника.
+Геймификация ARENA: баллы, игровые уровни, победа/поражение по 10 критериям,
+подбор персонажа, скилл-прогресс, квесты, титулы, достижения, профиль.
 
-Всё завязано на персонализацию: чем точнее игрок бьёт по своим слабым
-местам (использует "оружие", выполняет квест, побеждает немезиду), тем
-больше баллов и скилл-прогресса он получает — а не просто за количество
-раундов.
+Победа в бою = 50% «насколько персонаж убеждён» + 50% средний балл по 10 критериям
+(языковые критерии оцениваются ОТНОСИТЕЛЬНО уровня игрока — сильный игрок любого
+уровня может выиграть).
 """
 import random
+from html import escape
 
 import database as db
-from game_data import BADGES, PERSONALITIES, ARENA_BEHAVIOURS
+from config import WIN_SCORE_THRESHOLD, MIN_ROUNDS_TO_WIN
+from game_data import (
+    BADGES, PERSONALITIES, ARENA_BEHAVIOURS, ALL_CRITERIA, LANGUAGE_CRITERIA,
+    COMMUNICATION_SKILLS, CRITERIA_LABELS_RU, SKILL_TO_PERSONALITY, SKILL_LABELS_RU,
+)
 
 PLAYER_LEVELS = [
     {"name": "🌱 Новичок", "min_points": 0},
@@ -20,104 +24,134 @@ PLAYER_LEVELS = [
     {"name": "🏆 Легенда", "min_points": 1000},
 ]
 
+# ---------- Победа / поражение ----------
+
+def battle_result(criteria: dict, conviction: int, rounds: int, early_win: bool = False) -> dict:
+    """
+    criteria: 10 оценок 0..100. conviction: 0 = персонаж убеждён, 100 = не убеждён.
+    """
+    vals = [max(0, min(100, int(criteria.get(k, 50)))) for k in ALL_CRITERIA]
+    overall = round(sum(vals) / len(vals))
+    convinced = max(0, min(100, 100 - conviction))
+    win_score = round(0.5 * convinced + 0.5 * overall)
+    won = early_win or (win_score >= WIN_SCORE_THRESHOLD and rounds >= MIN_ROUNDS_TO_WIN)
+    return {"overall": overall, "win_score": win_score, "won": bool(won), "convinced": convinced}
+
+
+def result_stars(win_score: int) -> str:
+    n = 5 if win_score >= 85 else 4 if win_score >= 70 else 3 if win_score >= 55 else 2 if win_score >= 40 else 1
+    return "⭐" * n
+
+
 # ---------- Баллы за бой ----------
 
-POINTS_PER_ROUND = 6            # база за каждый раунд диалога
-CONVICTION_BONUS_MAX = 40       # максимум баллов за то, что персонаж "сдался"
-POINTS_PER_WEAPON = 6           # за каждое использованное оружие из арсенала
+POINTS_PER_ROUND = 6
+CONVICTION_BONUS_MAX = 40
+POINTS_PER_WEAPON = 6
 QUEST_BONUS = 25
 FIRST_DAILY_BONUS = 10
 NEW_CHARACTER_BONUS = 15
 NEMESIS_BONUS = 30
-MAX_POINTS_PER_BATTLE = 220
+WIN_BONUS = 30
+MAX_POINTS_PER_BATTLE = 250
 
 
 def calculate_points(
-    rounds_completed: int,
-    conviction: int,
-    weapons_used: int,
-    quest_done: bool,
-    mistakes_count: int,
-    is_first_daily: bool = False,
-    is_new_character: bool = False,
-    is_nemesis: bool = False,
+    rounds_completed: int, conviction: int, weapons_used: int, quest_done: bool,
+    mistakes_count: int, is_first_daily: bool = False, is_new_character: bool = False,
+    is_nemesis: bool = False, won: bool = False,
 ) -> int:
-    """
-    conviction: 0 = персонаж полностью убеждён (лучший результат),
-                100 = совсем не убеждён.
-    Баллы построены так, чтобы САМЫМ весомым фактором было именно то,
-    насколько убедительно и целенаправленно (через оружие) прошёл бой,
-    а не просто число раундов.
-    """
     points = rounds_completed * POINTS_PER_ROUND
-
-    convinced_pct = max(0, min(100, 100 - conviction))
-    points += round(convinced_pct * (CONVICTION_BONUS_MAX / 100))
-
+    points += round(max(0, min(100, 100 - conviction)) * (CONVICTION_BONUS_MAX / 100))
     points += weapons_used * POINTS_PER_WEAPON
-
+    if won:
+        points += WIN_BONUS
     if quest_done:
         points += QUEST_BONUS
     if is_first_daily:
         points += FIRST_DAILY_BONUS
     if is_new_character:
         points += NEW_CHARACTER_BONUS
-    if is_nemesis and conviction <= 30:
+    if is_nemesis and won:
         points += NEMESIS_BONUS
-
-    # Ошибки не наказываем баллами (мы их и так собираем в словарь для
-    # заучивания) — штрафовать за попытки использовать язык контрпродуктивно.
+    # Ошибки баллами не наказываем — они идут в словарь для заучивания.
     return max(0, min(points, MAX_POINTS_PER_BATTLE))
 
 
-def calculate_skill_delta(conviction: int, weapons_used: int, quest_done: bool, is_nemesis: bool = False) -> int:
-    """
-    Прирост очков скилла (0..1000 шкала на скилл), который качается у
-    персонажа, отвечающего за слабый навык игрока (PERSONALITY_TO_SKILL).
-    """
-    convinced_pct = max(0, min(100, 100 - conviction))
-    delta = round(convinced_pct / 4)          # 0..25
-    delta += weapons_used * 3                 # использование оружия = целевая тренировка слабого места
+def calculate_skill_delta(conviction: int, weapons_used: int, quest_done: bool,
+                          is_nemesis: bool = False, won: bool = False) -> int:
+    delta = round(max(0, min(100, 100 - conviction)) / 4)
+    delta += weapons_used * 3
+    if won:
+        delta += 10
     if quest_done:
         delta += 15
     if is_nemesis:
         delta = round(delta * 1.5)
-    return max(3, min(delta, 60))
+    return max(3, min(delta, 70))
 
 
 def get_player_level(total_points: int) -> dict:
-    current = PLAYER_LEVELS[0]
-    next_level = None
+    current, next_level = PLAYER_LEVELS[0], None
     for i, lvl in enumerate(PLAYER_LEVELS):
         if total_points >= lvl["min_points"]:
             current = lvl
-            if i < len(PLAYER_LEVELS) - 1:
-                next_level = PLAYER_LEVELS[i + 1]
+            next_level = PLAYER_LEVELS[i + 1] if i < len(PLAYER_LEVELS) - 1 else None
     return {
         "current": current,
         "next": next_level,
+        "index": PLAYER_LEVELS.index(current),
         "points_to_next": next_level["min_points"] - total_points if next_level else None,
     }
 
 
-# ---------- Квесты (персонализированные под слабый скилл/поведение) ----------
+# ---------- Подбор персонажа на день ----------
+
+def weakest_criterion(criteria: dict, keys=None) -> str | None:
+    keys = keys or ALL_CRITERIA
+    known = {k: criteria[k] for k in keys if k in criteria}
+    return min(known, key=known.get) if known else None
+
+
+def pick_next_personality(user_id: int) -> str:
+    """
+    Персонаж следующего боя — тот, кто качает СЕЙЧАС самый слабый communication-скилл.
+    Каждый 4-й бой — немезида (если ещё не побеждена). Одного и того же
+    персонажа два дня подряд не даём, если второй по слабости навык почти так же слаб.
+    """
+    criteria = db.get_criteria(user_id)
+    games = db.count_battles(user_id)
+    nemesis = db.get_nemesis(user_id)
+    if nemesis and not nemesis["defeated"] and games > 0 and games % 4 == 3:
+        return nemesis["personality"]
+
+    ranked = sorted(COMMUNICATION_SKILLS, key=lambda s: criteria.get(s, 50))
+    first, second = ranked[0], ranked[1]
+    last = db.get_last_personality(user_id)
+    if (SKILL_TO_PERSONALITY[first] == last
+            and criteria.get(second, 50) - criteria.get(first, 50) <= 10):
+        return SKILL_TO_PERSONALITY[second]
+    return SKILL_TO_PERSONALITY[first]
+
+
+# ---------- Квесты ----------
 
 QUEST_BUILDERS = {
     "weapon": lambda skill, behaviour: {
         "type": "weapon",
-        "description": "Используй минимум 3 предмета из арсенала за один бой.",
+        "description": "Используй минимум 3 слова из арсенала за один бой.",
         "target": 3,
         "skill_bonus": skill,
     },
     "clean": lambda skill, behaviour: {
         "type": "clean",
-        "description": "Заверши бой, набрав не больше 1 ошибки в словаре/грамматике.",
+        "description": "Заверши бой, допустив не больше 1 языковой ошибки.",
         "target": 1,
         "skill_bonus": skill,
     },
     "skill": lambda skill, behaviour: {
         "type": "skill",
-        "description": f"Победи персонажа, который качает твой слабый навык ({skill}) — доведи убеждённость ниже 30%.",
+        "description": f"Победи персонажа, который качает твой слабый навык ({SKILL_LABELS_RU.get(skill, skill)}).",
         "target": 1,
         "skill_bonus": skill,
     },
@@ -131,171 +165,175 @@ QUEST_BUILDERS = {
 
 
 def generate_quest(analysis: dict) -> dict:
-    """
-    Генерирует персональный еженедельный квест на основе разбора Храма
-    (analyze_first_encounter): опирается на слабый скилл и поведенческий стиль.
-    """
-    weakest_skill = analysis.get("weakest_skill", "argumentation")
-    behaviour = analysis.get("behaviour", "explorer")
-    quest_type = random.choice(list(QUEST_BUILDERS.keys()))
-    return QUEST_BUILDERS[quest_type](weakest_skill, behaviour)
+    weakest = analysis.get("weakest_skill") or "argumentation"
+    behaviour = analysis.get("behaviour") or "explorer"
+    return QUEST_BUILDERS[random.choice(list(QUEST_BUILDERS))](weakest, behaviour)
 
 
-# ---------- Титулы по поведенческому стилю ----------
+def ensure_quest(user_id: int):
+    """Если активного квеста нет (выполнен или истёк) — выдаём новый."""
+    if db.get_active_quest(user_id):
+        return
+    analysis = dict(db.get_latest_arena_analysis(user_id) or {})
+    weakest = weakest_criterion(db.get_criteria(user_id), COMMUNICATION_SKILLS)
+    if weakest:
+        analysis["weakest_skill"] = weakest
+    q = generate_quest(analysis)
+    db.set_quest(user_id, q["type"], q["description"], q["target"], q["skill_bonus"])
+
+
+def evaluate_quest(quest: dict | None, used_weapons: int, personality: str, won: bool,
+                   mistakes_count: int, judged_by_ai: bool) -> bool:
+    if not quest:
+        return False
+    qtype = quest["type"]
+    if qtype == "weapon":
+        return used_weapons >= max(1, quest.get("target", 3))
+    if qtype == "clean":
+        return mistakes_count <= 1
+    if qtype == "skill":
+        return won and personality == SKILL_TO_PERSONALITY.get(quest.get("skill_bonus"))
+    return bool(judged_by_ai)
+
+
+# ---------- Титулы ----------
 
 BEHAVIOUR_TITLES = {
-    "analyst":   ["Начинающий аналитик", "Логик", "Стратег", "Мастер логики", "Архитектор мысли"],
+    "analyst": ["Начинающий аналитик", "Логик", "Стратег", "Мастер логики", "Архитектор мысли"],
     "challenger": ["Спорщик", "Боец", "Провокатор", "Несгибаемый", "Разрушитель аргументов"],
-    "explorer":  ["Собеседник", "Искатель", "Дипломат", "Проводник разговора", "Мастер контакта"],
-    "precise":   ["Лаконичный", "Точный", "Снайпер слова", "Хирург аргумента", "Мастер краткости"],
-    "defender":  ["Щит", "Оборонец", "Несокрушимый", "Крепость", "Непробиваемый"],
+    "explorer": ["Собеседник", "Искатель", "Дипломат", "Проводник разговора", "Мастер контакта"],
+    "precise": ["Лаконичный", "Точный", "Снайпер слова", "Хирург аргумента", "Мастер краткости"],
+    "defender": ["Щит", "Оборонец", "Несокрушимый", "Крепость", "Непробиваемый"],
 }
 
 
 def get_title(behaviour: str, rank: int = 1) -> str:
     titles = BEHAVIOUR_TITLES.get(behaviour, ["Игрок ARENA"])
-    idx = max(0, min(rank - 1, len(titles) - 1))
-    return titles[idx]
-
-
-# ---------- Оценка результата боя (для UI) ----------
-
-def _conviction_stars(conviction: int) -> tuple[str, str]:
-    """
-    conviction: 0 = персонаж полностью убеждён, 100 = совсем не убеждён.
-    Возвращает (звёзды, короткий текст результата).
-    """
-    convinced_pct = max(0, min(100, 100 - conviction))
-    if convinced_pct >= 80:
-        return "⭐⭐⭐⭐⭐", "Полная победа! Ты его переубедил."
-    if convinced_pct >= 60:
-        return "⭐⭐⭐⭐", "Убедительная победа."
-    if convinced_pct >= 40:
-        return "⭐⭐⭐", "Небольшой перевес в твою пользу."
-    if convinced_pct >= 20:
-        return "⭐⭐", "Ты сдвинул его с места, но немного."
-    return "⭐", "Он остался при своём мнении. Попробуй ещё раз."
+    return titles[max(0, min(rank - 1, len(titles) - 1))]
 
 
 # ---------- Достижения ----------
 
 def check_and_unlock_achievements(
-    telegram_id: int,
-    personality: str,
-    rounds: int,
-    scores: dict,
-    conviction: int = 70,
-    quest_done: bool = False,
-    mistakes: list | None = None,
-    is_nemesis: bool = False,
-    is_rematch: bool = False,
-    prev_defeated: bool = False,
+    telegram_id: int, personality: str, rounds: int, scores: dict,
+    conviction: int = 70, quest_done: bool = False, mistakes: list | None = None,
+    is_nemesis: bool = False, is_rematch: bool = False, prev_defeated: bool = False,
+    won: bool = False,
 ) -> list[str]:
     unlocked = []
-    mistakes = mistakes or []
 
-    if db.unlock_achievement(telegram_id, "first_debate"):
-        unlocked.append("first_debate")
+    def _try(key, cond=True):
+        if cond and db.unlock_achievement(telegram_id, key):
+            unlocked.append(key)
 
-    if scores.get("grammar", 0) >= 90 and db.unlock_achievement(telegram_id, "grammar_master"):
-        unlocked.append("grammar_master")
-
-    if scores.get("vocabulary", 0) >= 90 and db.unlock_achievement(telegram_id, "wordsmith"):
-        unlocked.append("wordsmith")
-
-    if rounds >= 10 and db.unlock_achievement(telegram_id, "marathoner"):
-        unlocked.append("marathoner")
-
-    if quest_done and db.unlock_achievement(telegram_id, "quest_master"):
-        unlocked.append("quest_master")
-
-    if is_nemesis and conviction <= 30 and db.unlock_achievement(telegram_id, "nemesis_slayer"):
-        unlocked.append("nemesis_slayer")
-
-    if conviction <= 5 and db.unlock_achievement(telegram_id, "full_convince"):
-        unlocked.append("full_convince")
+    _try("first_debate")
+    _try("first_victory", won)
+    _try("grammar_master", scores.get("grammar", 0) >= 90)
+    _try("wordsmith", scores.get("vocabulary", 0) >= 90)
+    _try("marathoner", rounds >= 10)
+    _try("quest_master", quest_done)
+    _try("nemesis_slayer", is_nemesis and won)
+    _try("full_convince", conviction <= 5)
 
     stats = db.get_user_stats(telegram_id)
-    if len(stats["unique_personalities"]) >= len(PERSONALITIES) and db.unlock_achievement(telegram_id, "all_characters"):
-        unlocked.append("all_characters")
-
-    if stats.get("avg_score") and stats["avg_score"] >= 85 and db.unlock_achievement(telegram_id, "high_scorer"):
-        unlocked.append("high_scorer")
-
+    _try("all_characters", len(stats["unique_personalities"]) >= len(PERSONALITIES))
+    _try("high_scorer", bool(stats.get("avg_score")) and stats["avg_score"] >= 85)
     return unlocked
+
+
+# ---------- Шкала и профиль ----------
+
+def bar(value: int) -> str:
+    filled = int(round(max(0, min(100, value)) / 10))
+    return "█" * filled + "░" * (10 - filled)
+
+
+def format_criteria_block(criteria: dict) -> str:
+    """Шкала по 10 критериям (для итогов боя и профиля)."""
+    def rows(keys):
+        return [f"  {CRITERIA_LABELS_RU[k]:<16} {bar(criteria[k])} {criteria[k]}" for k in keys if k in criteria]
+    lines = ["<b>ЯЗЫК</b>"] + rows(LANGUAGE_CRITERIA) + ["<b>КОММУНИКАЦИЯ</b>"] + rows(COMMUNICATION_SKILLS)
+    return "<pre>" + "\n".join(l.replace("<b>", "").replace("</b>", "") for l in lines) + "</pre>"
 
 
 def format_profile(telegram_id: int, first_name: str) -> str:
     stats = db.get_user_stats(telegram_id)
     level_info = get_player_level(stats["total_points"])
+    criteria = db.get_criteria(telegram_id)
     skills = db.get_all_skills(telegram_id)
+    cefr = db.get_current_level(telegram_id)
 
-    text = f"""
-👤 <b>{first_name}</b>
-"""
+    text = f"🏛️ <b>Моя арена</b> — {escape(first_name or '')}\n"
     if stats.get("title"):
-        text += f"🎖️ {stats['title']}\n"
+        text += f"🎖️ {escape(stats['title'])}\n"
 
-    text += (
-        f"\n📊 Баллы: {stats['total_points']}\n"
-        f"🏅 Уровень: {level_info['current']['name']}\n"
-    )
+    text += f"\n📊 Баллы: {stats['total_points']} · {level_info['current']['name']}\n"
     if level_info["next"]:
-        text += f"До {level_info['next']['name']}: {level_info['points_to_next']} баллов\n"
+        text += f"До {level_info['next']['name']}: {level_info['points_to_next']}\n"
+    if cefr:
+        text += f"🗣️ Уровень языка: <b>{cefr}</b>\n"
 
+    games, wins = stats["games_played"], stats["wins"]
     text += (
-        f"\n🎮 Боёв сыграно: {stats['games_played']}\n"
+        f"\n🎮 Боёв: {games} (🏆 {wins} / 💀 {games - wins})\n"
         f"🎭 Персонажей встречено: {len(stats['unique_personalities'])} из {len(PERSONALITIES)}\n"
-        f"📈 Средний балл: {stats['avg_score'] or '—'}%\n"
+        f"📈 Средний балл боя: {stats['avg_score'] if stats['avg_score'] is not None else '—'}\n"
         f"🏆 Достижения: {len(stats['achievements'])} / {len(BADGES)}\n"
         f"⚡ Побед над немезидой: {stats.get('nemesis_defeated', 0)}\n"
     )
 
-    if skills:
-        text += "\n🧩 <b>Скиллы:</b>\n"
-        for skill, data in sorted(skills.items(), key=lambda kv: -kv[1]["points"]):
-            text += f"  • {skill}: {data['points']} очк. (ранг {data['rank']})\n"
+    if criteria:
+        text += "\n📐 <b>Твоя шкала (10 критериев)</b>\n" + format_criteria_block(criteria)
+        best, worst = max(criteria, key=criteria.get), weakest_criterion(criteria)
+        text += f"✅ <b>Круто:</b> {CRITERIA_LABELS_RU[best]} ({criteria[best]})\n"
+        text += f"🎯 <b>Над чем работать:</b> {CRITERIA_LABELS_RU[worst]} ({criteria[worst]})"
+        if worst in SKILL_TO_PERSONALITY:
+            person = PERSONALITIES[SKILL_TO_PERSONALITY[worst]]
+            text += f" — качает {escape(person['short_name'])}"
+        text += "\n"
 
-    if stats.get("latest_strength") or stats.get("latest_growth"):
-        text += (
-            f"\n✅ <b>Сильная сторона:</b> {stats.get('latest_strength', '—')}\n"
-            f"🎯 <b>Зона роста:</b> {stats.get('latest_growth', '—')}\n"
-        )
+    text += "\n🎭 <b>Кто что тренирует</b>\n"
+    for skill in COMMUNICATION_SKILLS:
+        person = PERSONALITIES[SKILL_TO_PERSONALITY[skill]]
+        data = skills.get(skill, {"points": 0, "rank": 1})
+        text += f"  {escape(person['name'])} — {CRITERIA_LABELS_RU[skill].lower()} · {data['points']} XP (ранг {data['rank']})\n"
 
     if stats.get("latest_growth_plan"):
-        text += f"\n🗺️ <b>План на следующие 10 раундов:</b>\n{stats['latest_growth_plan']}\n"
+        text += f"\n💬 <b>Последний совет персонажа:</b>\n<i>{escape(stats['latest_growth_plan'])}</i>\n"
 
     quest = db.get_active_quest(telegram_id)
     if quest:
-        text += f"\n🎯 <b>Текущий квест:</b> {quest['description']}\n"
+        text += f"\n🎯 <b>Квест недели:</b> {escape(quest['description'])}\n"
 
-    vocab = db.get_vocabulary_to_learn(telegram_id, limit=8)
+    vocab = db.get_vocabulary_to_learn(telegram_id, limit=5)
     if vocab:
-        text += "\n📚 <b>Слова для заучивания</b> (были использованы неправильно):\n"
+        text += "\n📚 <b>Слова для заучивания:</b>\n"
         for v in vocab:
-            text += f"  • {v['wrong']} → <b>{v['correct']}</b>\n"
+            text += f"  • {escape(v['wrong'])} → <b>{escape(v['correct'])}</b>\n"
 
+    if db.has_battled_today(telegram_id):
+        text += f"\n🗓️ Следующий бой через ~{int(db.cooldown_hours_left(telegram_id)) + 1} ч."
+    else:
+        text += "\n⚔️ Бой доступен прямо сейчас."
     return text
 
 
 def format_achievements(telegram_id: int) -> str:
     stats = db.get_user_stats(telegram_id)
     unlocked = set(stats["achievements"])
-    if not unlocked:
-        return "🏆 <b>Достижения</b>\n\nПока нет разблокированных достижений. Сыграй несколько игр, чтобы открыть их!"
     lines = ["🏆 <b>Достижения</b>\n"]
     for key, badge in BADGES.items():
-        status = "✅" if key in unlocked else "⬜"
-        lines.append(f"{status} {badge['name']} — {badge['description']}")
+        lines.append(f"{'✅' if key in unlocked else '⬜'} {badge['name']} — {badge['description']}")
     return "\n".join(lines)
 
 
-# ---------- Мягкая адаптация уровня персонажей под участника ----------
+# ---------- Мягкая адаптация CEFR-уровня ----------
 
 LEVEL_ORDER = ["A1", "A2", "B1", "B2", "C1", "C2"]
 
 
 def adapt_level(current_level: str, avg_score: float | None) -> str:
+    """Общий балл считается ОТНОСИТЕЛЬНО уровня: стабильно ≥82 → уровень выше, ≤45 → ниже."""
     if avg_score is None or current_level not in LEVEL_ORDER:
         return current_level
     idx = LEVEL_ORDER.index(current_level)

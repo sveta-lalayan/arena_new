@@ -2,23 +2,37 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
 import database as db
+from config import is_admin
+
+
+def post_battle_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("💬 Free talk", callback_data="freetalk")],
+        [InlineKeyboardButton("🏛️ Моя арена", callback_data="menu_profile")],
+    ])
 
 
 def _build_menu(telegram_id: int) -> InlineKeyboardMarkup:
-    """До первого завершённого боя — только один вход в ARENA.
-    После первого боя — полное меню: новая встреча, свободный разговор,
-    профиль, достижения."""
-    if not db.has_completed_first_battle(telegram_id):
+    # Админ всегда видит Храм — чтобы можно было проходить сколько угодно раз.
+    if is_admin(telegram_id):
         return InlineKeyboardMarkup([
-            [InlineKeyboardButton("🏛️ ENTER ARENA", callback_data="menu_enter_arena")],
+            [InlineKeyboardButton("🏛️ Арена", callback_data="menu_enter_arena")],
+            [InlineKeyboardButton("⚔️ Battle", callback_data="menu_play")],
+            [InlineKeyboardButton("💬 Free talk", callback_data="freetalk")],
+            [InlineKeyboardButton("🏛️ Моя арена", callback_data="menu_profile")],
         ])
 
+    # Новичок — одна кнопка.
+    if not db.has_completed_first_battle(telegram_id):
+        return InlineKeyboardMarkup([
+            [InlineKeyboardButton("🏛️ Арена", callback_data="menu_enter_arena")],
+        ])
+
+    # После первого боя — полное меню.
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🏛️ ENTER ARENA", callback_data="menu_enter_arena")],
         [InlineKeyboardButton("⚔️ Battle", callback_data="menu_play")],
         [InlineKeyboardButton("💬 Free talk", callback_data="freetalk")],
-        [InlineKeyboardButton("👤 Profile", callback_data="menu_profile")],
-        [InlineKeyboardButton("🏆 Achievements", callback_data="menu_achievements")],
+        [InlineKeyboardButton("🏛️ Моя арена", callback_data="menu_profile")],
     ])
 
 
@@ -27,17 +41,21 @@ def _welcome_text(user, first_time: bool) -> str:
         return (
             f"👋 {user.first_name}\n"
             f"Welcome to <b>ARENA</b>.\n\n"
-            f"🏛️ <b>ENTER ARENA</b>\n"
-            f"Let Arena listen to you and decide who you meet."
+            f"🏛️ <b>Арена ждёт тебя.</b>\n"
+            f"Она послушает — и решит, кого ты встретишь."
         )
     return (
         f"👋 {user.first_name}\n"
-        f"Welcome back to <b>ARENA</b>."
+        f"Арена наблюдает. Бой — раз в 24 часа, свободный разговор — всегда."
     )
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    if is_admin(user.id):
+        db.reset_user_data(user.id)
+        context.user_data.clear()
+
     db.get_or_create_user(user.id, user.username, user.first_name)
     first_time = not db.has_completed_first_battle(user.id)
 
