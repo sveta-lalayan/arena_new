@@ -1,33 +1,60 @@
 """
-Игровые данные ARENA: языки, уровни CEFR, персонажи, 10 критериев оценки,
-переводы сцен боя на 6 языков, бейджи.
+game_data.py — данные ARENA: языки, уровни, персонажи, 10 критериев,
+бейджи, шаблоны миссий, голоса, вспомогательные мапы.
+
+Ключевое изменение по сравнению со старой версией:
+  • Языки теперь адресуются короткими ISO-кодами (en/ru/de/es/it/ko/zh) —
+    это те же значения, что в interface_language и learning_language в БД.
+  • Внутренний ключ промпта (english/russian/...) доступен через
+    config.ISO_TO_LANG_KEY. game_data использует ISO везде, где можно.
 """
 
+# ============================================================
+# ЯЗЫКИ
+# ============================================================
+# Основной словарь для UI: ISO-код → флаг + название на самом себе.
 LANGUAGES = {
-    "english": {"flag": "🇬🇧", "name": "English"},
-    "german": {"flag": "🇩🇪", "name": "Deutsch"},
-    "italian": {"flag": "🇮🇹", "name": "Italiano"},
-    "spanish": {"flag": "🇪🇸", "name": "Español"},
-    "korean": {"flag": "🇰🇷", "name": "한국어"},
-    "chinese": {"flag": "🇨🇳", "name": "中文"},
+    "en": {"flag": "🇬🇧", "name": "English"},
+    "ru": {"flag": "🇷🇺", "name": "Русский"},
+    "de": {"flag": "🇩🇪", "name": "Deutsch"},
+    "es": {"flag": "🇪🇸", "name": "Español"},
+    "it": {"flag": "🇮🇹", "name": "Italiano"},
+    "ko": {"flag": "🇰🇷", "name": "한국어"},
+    "zh": {"flag": "🇨🇳", "name": "中文"},
 }
 
-# Название языка для промптов GPT (всегда по-английски)
+# Название языка для промптов GPT — всегда по-английски.
 LANG_PROMPT_NAME = {
-    "english": "English",
-    "german": "German",
-    "italian": "Italian",
-    "spanish": "Spanish",
-    "korean": "Korean",
-    "chinese": "Simplified Chinese",
+    "en": "English",
+    "ru": "Russian",
+    "de": "German",
+    "es": "Spanish",
+    "it": "Italian",
+    "ko": "Korean",
+    "zh": "Simplified Chinese",
 }
+
+# ISO для подсказки Whisper (совпадает со стандартным ISO-639-1).
+LANG_TO_ISO = {
+    "en": "en",
+    "ru": "ru",
+    "de": "de",
+    "es": "es",
+    "it": "it",
+    "ko": "ko",
+    "zh": "zh",
+}
+
+
+# ============================================================
+# УРОВНИ CEFR
+# ============================================================
 
 LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"]
 
-# Языконезависимые правила сложности речи персонажей и Арены (для промптов).
 LEVEL_PROMPTS = {
     "A1": "Use ONLY very short, simple sentences (max ~8 words), the most common ~500 words, "
-          "present tense only. One idea per message. Speak slowly and clearly.",
+          "present tense only. One idea per message.",
     "A2": "Use short, simple sentences, basic everyday vocabulary (~1000 words), simple past and "
           "future, basic connectors (and, but, because).",
     "B1": "Use medium-complexity sentences, everyday and some abstract vocabulary (~2000 words), "
@@ -39,30 +66,34 @@ LEVEL_PROMPTS = {
     "C2": "Use native-like, richly nuanced language, advanced idioms and stylistic devices, "
           "subtle rhetoric.",
 }
-# Старое имя оставлено для совместимости с другими модулями.
+# Совместимость со старым именем.
 LEVEL_DESCRIPTIONS = LEVEL_PROMPTS
 
-GUIDE_PERSONALITY = {
-    "name": "Alex",
-    "desc": "Твой дружелюбный проводник в мире Arena 2.0. Помогу освоиться и подобрать идеального собеседника!",
-}
+BEGINNER_LEVELS = {"A1", "A2"}
+
+
+# ============================================================
+# ПЕРСОНАЖИ
+# ============================================================
+# character personality ≠ language difficulty.
+# Персонаж остаётся собой на любом CEFR-уровне — меняется только сложность речи.
 
 ROLE_STYLE = {
-    "ceo": "спрашивай про стратегию, риски, деньги, лидерство; требуй цифры и структуру",
-    "journalist": "задавай провокационные вопросы, ищи противоречия, проси доказательства",
-    "professor": "проси объяснять подробнее, исправляй неточности, требуй тезис-аргумент-вывод",
-    "hr_manager": "задавай поведенческие вопросы, проси примеры из опыта по STAR-методу",
-    "philosopher": "задавай глубокие вопросы, отвечай вопросом на вопрос, уводи к глобальным смыслам",
-    "devil_advocate": "всегда смотри на проблему с ДРУГОЙ стороны и спорь; находи слабые места в аргументах",
+    "ceo": "ask about strategy, risk, money, leadership; demand numbers and structure",
+    "journalist": "ask provocative questions, hunt for contradictions, demand evidence",
+    "professor": "ask to elaborate, correct imprecision, require thesis → argument → conclusion",
+    "hr_manager": "ask behavioural questions, ask for real examples (STAR method)",
+    "philosopher": "ask deep questions, answer questions with questions, pull toward meaning",
+    "devil_advocate": "always look at the opposite side and argue, find weak spots in arguments",
 }
 
-# Описание характера для GPT — по-английски, чтобы не провоцировать русский в ответах.
+# Описание характера для GPT — по-английски, чтобы модель не уходила в другой язык.
 PERSONA_BRIEFS = {
     "ceo": "Richard, a blunt CEO who built three international companies. Hates fluff and long "
            "intros, demands numbers, structure and a clear benefit. Short, dry sentences. Never gushes.",
     "journalist": "Kate, a sharp investigative journalist. Hunts for contradictions and weak spots, "
                   "asks uncomfortable follow-ups, never accepts the first answer, loves a surprising honest angle.",
-    "professor": "Professor Adams, a strict academic. Demands thesis -> argument -> conclusion, "
+    "professor": "Professor Adams, a strict academic. Demands thesis → argument → conclusion, "
                  "corrects imprecision, keeps asking to elaborate.",
     "hr_manager": "Sarah, an HR director. Turns any topic into behavioural questions and wants "
                   "concrete personal examples (STAR: situation, task, action, result).",
@@ -78,75 +109,74 @@ PERSONALITIES = {
         "full_name": "Richard — CEO",
         "short_name": "Richard",
         "role": "CEO",
-        "desc": "Построил три международные компании. Ненавидит воду, длинные "
-                "вступления и отсутствие цифр. Любит факты, уверенность и структуру.",
-        "style": "Любит короткие ответы. Не любит эмоции. Лучше работает логика.",
+        "desc": "Built three international companies. Hates fluff, long intros, no numbers.",
+        "style": "Short answers, no emotion, pure logic.",
         "phrase": "Convince me.",
         "photo": "assets/characters/ceo_richard.jpg",
-        "psychology": "👑 Ричард оценивает три вещи: ФАКТЫ, ВЫГОДУ и СТРУКТУРУ.",
+        "psychology": "👑 Richard weighs three things: FACTS, BENEFIT, STRUCTURE.",
     },
     "journalist": {
         "name": "📰 Kate the Journalist",
         "full_name": "Kate — Journalist",
         "short_name": "Kate",
         "role": "JOURNALIST",
-        "desc": "Ищет слабые места. Любит задавать неудобные вопросы. Никогда не "
-                "принимает ответ сразу.",
-        "style": "Любит неожиданные ответы. Не любит общие слова.",
+        "desc": "Looks for weak spots. Asks uncomfortable questions. Never accepts the first answer.",
+        "style": "Loves surprising answers, hates vague words.",
         "phrase": "Are you sure?",
         "photo": "assets/characters/journalist_kate.jpg",
-        "psychology": "📰 Кейт оценивает три вещи: НЕОЖИДАННОСТЬ, ПРОВОКАЦИЮ и ЧЕСТНОСТЬ.",
+        "psychology": "📰 Kate weighs three things: SURPRISE, PROVOCATION, HONESTY.",
     },
     "professor": {
         "name": "🎓 Professor Adams",
         "full_name": "Professor Adams",
         "short_name": "Professor Adams",
         "role": "PROFESSOR",
-        "desc": "Академик. Требует точности и доказательств. Исправляет ошибки.",
-        "style": "Любит структуру и аргументы. Не любит неточности.",
+        "desc": "Academic. Demands precision and evidence. Corrects imprecision.",
+        "style": "Structure and arguments. Hates inexactness.",
         "phrase": "Can you elaborate?",
         "photo": "assets/characters/professor_adams.jpg",
-        "psychology": "🎓 Профессор оценивает: ТЕЗИС, АРГУМЕНТ, ВЫВОД.",
+        "psychology": "🎓 The Professor weighs: THESIS, ARGUMENT, CONCLUSION.",
     },
     "hr_manager": {
         "name": "💼 Sarah the HR Director",
         "full_name": "Sarah — HR Director",
         "short_name": "Sarah",
         "role": "HR DIRECTOR",
-        "desc": "Проводит собеседования. Любую тему переводит в вопросы о работе, "
-                "опыте, навыках.",
-        "style": "Любит реальные примеры. Истории. STAR-метод.",
-        "phrase": "Tell me about a time when...",
+        "desc": "Runs interviews. Turns any topic into questions about work, experience, skills.",
+        "style": "Real examples. Stories. STAR method.",
+        "phrase": "Tell me about a time when…",
         "photo": "assets/characters/hr_sarah.jpg",
-        "psychology": "💼 Сара оценивает: КОНКРЕТИКУ, ОТВЕТСТВЕННОСТЬ, РЕЗУЛЬТАТ.",
+        "psychology": "💼 Sarah weighs: SPECIFICS, OWNERSHIP, RESULT.",
     },
     "philosopher": {
         "name": "🧙 Leo the Sage",
         "full_name": "Leo — The Sage",
         "short_name": "Leo",
         "role": "THE SAGE",
-        "desc": "Почти никогда не говорит прямо. Отвечает вопросом. Заставляет думать.",
-        "style": "Любит философию. Не любит ответы да/нет.",
+        "desc": "Almost never answers directly. Answers with a question. Makes you think.",
+        "style": "Philosophy. No yes/no answers.",
         "phrase": "What makes a good life?",
         "photo": "assets/characters/philosopher_leo.jpg",
-        "psychology": "🧙 Лео оценивает: ГЛУБИНУ, ЧЕСТНОСТЬ, СВЯЗЬ С ЖИЗНЬЮ.",
+        "psychology": "🧙 Leo weighs: DEPTH, HONESTY, LINK TO LIFE.",
     },
     "devil_advocate": {
         "name": "😈 Victor the Advocate",
         "full_name": "Victor — Devil's Advocate",
         "short_name": "Victor",
         "role": "DEVIL'S ADVOCATE",
-        "desc": "Всегда спорит. Даже если согласен. Учит защищать свою позицию.",
-        "style": "Любит провокации и споры. Не любит уступчивость.",
+        "desc": "Always argues. Even when he agrees. Teaches you to defend your position.",
+        "style": "Provocation and arguments. Hates easy agreement.",
         "phrase": "What if you're wrong?",
         "photo": "assets/characters/devil_victor.jpg",
-        "psychology": "😈 Виктор оценивает: УВЕРЕННОСТЬ, КОНТРАРГУМЕНТЫ, СИЛУ ВОЛИ.",
+        "psychology": "😈 Victor weighs: CONFIDENCE, COUNTER-ARGUMENTS, WILL.",
     },
 }
 
-# ========== 10 КРИТЕРИЕВ ОЦЕНКИ ==========
-# 4 языковых + 6 коммуникационных = 10. По ним считается победа в бою
-# и рисуется шкала в «Моей арене».
+
+# ============================================================
+# 10 КРИТЕРИЕВ ОЦЕНКИ
+# ============================================================
+# 4 языковых + 6 коммуникационных = 10.
 
 LANGUAGE_CRITERIA = ["grammar", "vocabulary", "fluency", "naturalness"]
 
@@ -160,7 +190,7 @@ COMMUNICATION_SKILLS = [
 ]
 HIDDEN_SKILLS = ["resilience"]
 
-ALL_CRITERIA = LANGUAGE_CRITERIA + COMMUNICATION_SKILLS  # ровно 10
+ALL_CRITERIA = LANGUAGE_CRITERIA + COMMUNICATION_SKILLS
 
 CRITERIA_LABELS_RU = {
     "grammar": "Грамматика",
@@ -175,7 +205,7 @@ CRITERIA_LABELS_RU = {
     "control": "Контроль разговора",
 }
 
-# Какой персонаж прокачивает какой communication-скилл
+# Какой персонаж прокачивает какой communication-скилл.
 SKILL_TO_PERSONALITY = {
     "clarity": "journalist",
     "argumentation": "devil_advocate",
@@ -187,37 +217,36 @@ SKILL_TO_PERSONALITY = {
 PERSONALITY_TO_SKILL = {person: skill for skill, person in SKILL_TO_PERSONALITY.items()}
 SKILL_TO_PERSONALITY_REVERSE = SKILL_TO_PERSONALITY
 
-PERSONA_TIP_FALLBACK = {
-    "ceo": "Start with a number or a concrete result — no intro.",
-    "journalist": "Give her something unexpected in your first sentence.",
-    "professor": "Structure: thesis -> argument -> conclusion.",
-    "hr_manager": "Give one concrete example from your own experience.",
-    "philosopher": "Explain WHY you think so before you answer.",
-    "devil_advocate": "Prepare a counter-argument in advance.",
-}
+
+# ============================================================
+# ARENA RANKS / BEHAVIOURS
+# ============================================================
 
 ARENA_RANKS = {
-    "clarity": {"rank": "I", "name": "SPEAK", "goal": "state your opinion", "tools": "words"},
-    "argumentation": {"rank": "II", "name": "BUILD", "goal": "explain your position",
-                      "tools": "basic phrases + connectors"},
-    "evidence": {"rank": "III", "name": "DEFEND", "goal": "answer objections",
-                 "tools": "collocations + argument structures"},
-    "persuasion": {"rank": "IV", "name": "PERSUADE", "goal": "change their mind",
-                   "tools": "persuasive language + natural expressions"},
-    "adaptability": {"rank": "V", "name": "ADAPT", "goal": "respond when your first approach fails",
+    "clarity": {"rank": "I", "name": "SPEAK",
+                "goal": "state your opinion", "tools": "words"},
+    "argumentation": {"rank": "II", "name": "BUILD",
+                      "goal": "explain your position", "tools": "phrases + connectors"},
+    "evidence": {"rank": "III", "name": "DEFEND",
+                 "goal": "answer objections", "tools": "collocations + argument structures"},
+    "persuasion": {"rank": "IV", "name": "PERSUADE",
+                   "goal": "change their mind", "tools": "persuasive language + natural expressions"},
+    "adaptability": {"rank": "V", "name": "ADAPT",
+                     "goal": "respond when your first approach fails",
                      "tools": "nuanced language + reframing"},
-    "control": {"rank": "VI", "name": "CONTROL", "goal": "lead the conversation toward an outcome",
+    "control": {"rank": "VI", "name": "CONTROL",
+                "goal": "lead the conversation toward an outcome",
                 "tools": "register + rhetoric + precision"},
 }
 
 ARENA_BEHAVIOURS = {
-    "analyst": "🧠 The Analyst — много объясняет, любит логику, может быть сухим.",
-    "challenger": "🔥 The Challenger — сразу спорит, уверенный, иногда не слушает.",
-    "explorer": "🌊 The Explorer — легко поддерживает разговор, задаёт вопросы, но может не иметь чёткой позиции.",
-    "precise": "🎯 The Precise One — краткий и точный, но недостаточно развивает мысль.",
-    "defender": "🛡️ The Defender — хорошо защищается, но плохо начинает собственную стратегию.",
+    "analyst": "🧠 The Analyst — explains a lot, loves logic, can be dry.",
+    "challenger": "🔥 The Challenger — argues immediately, confident, sometimes doesn't listen.",
+    "explorer": "🌊 The Explorer — keeps conversation flowing, asks questions, may lack a firm position.",
+    "precise": "🎯 The Precise One — brief and exact, but doesn't develop the thought enough.",
+    "defender": "🛡️ The Defender — defends well, weak at opening with their own strategy.",
 }
-# То же для GPT (по-английски)
+
 BEHAVIOUR_BRIEFS = {
     "analyst": "explains a lot, loves logic, can be dry",
     "challenger": "argues immediately, confident, sometimes doesn't listen",
@@ -226,133 +255,63 @@ BEHAVIOUR_BRIEFS = {
     "defender": "defends well but is weak at opening with their own strategy",
 }
 
-# ========== СЦЕНЫ АРЕНЫ НА 6 ЯЗЫКАХ ==========
-# Всё, что «говорят» Арена и персонажи в сцене боя, — на языке пользователя.
-# Порядок переводов: en, de, it, es, ko, zh.
-_LANG_ORDER = ["english", "german", "italian", "spanish", "korean", "chinese"]
 
-_T = {
-    "listening": ("ARENA IS LISTENING.", "ARENA HÖRT ZU.", "ARENA TI ASCOLTA.", "ARENA ESTÁ ESCUCHANDO.",
-                  "ARENA가 듣고 있어.", "ARENA 正在倾听。"),
-    "your_move": ("Your move.", "Du bist dran.", "Tocca a te.", "Tu turno.", "네 차례야.", "轮到你了。"),
-    "listen_hint": ("what I do · what I love · what I think · anything",
-                    "was ich tue · was ich liebe · was ich denke · irgendwas",
-                    "cosa faccio · cosa amo · cosa penso · qualsiasi cosa",
-                    "lo que hago · lo que amo · lo que pienso · lo que sea",
-                    "내가 하는 일 · 내가 좋아하는 것 · 내 생각 · 뭐든지",
-                    "我做什么 · 我爱什么 · 我怎么想 · 随便什么"),
-    "heard_enough": ("I'VE HEARD ENOUGH.", "ICH HABE GENUG GEHÖRT.", "HO SENTITO ABBASTANZA.",
-                     "YA HE OÍDO SUFICIENTE.", "충분히 들었어.", "我听够了。"),
-    "enter_battle": ("ENTER BATTLE", "KAMPF BEGINNEN", "INIZIA LA SFIDA", "ENTRAR EN BATALLA",
-                     "전투 시작", "开始对战"),
-    "thinking": ("ARENA is thinking…", "ARENA denkt nach …", "ARENA sta pensando…", "ARENA está pensando…",
-                 "ARENA가 생각 중이야…", "ARENA 正在思考……"),
-    "go_on": ("Go on.", "Weiter.", "Continua.", "Sigue.", "계속해.", "继续。"),
-    "arena_returns": ("The Arena is watching again.", "Die Arena beobachtet dich wieder.",
-                      "L'Arena ti osserva di nuovo.", "La Arena vuelve a observarte.",
-                      "아레나가 다시 지켜보고 있어.", "竞技场再次注视着你。"),
-    "battle_begins": ("THE BATTLE BEGINS!", "DER KAMPF BEGINNT!", "LA SFIDA INIZIA!", "¡COMIENZA LA BATALLA!",
-                      "전투 시작!", "战斗开始！"),
-    "mission": ("Mission", "Mission", "Missione", "Misión", "미션", "任务"),
-    "how_to_win": ("How to win", "So gewinnst du", "Come vincere", "Cómo ganar", "이기는 방법", "获胜条件"),
-    "weapons": ("Arsenal", "Arsenal", "Arsenale", "Arsenal", "무기", "武器"),
-    "weapons_easy": ("Your weapons (words)", "Deine Waffen (Wörter)", "Le tue armi (parole)",
-                     "Tus armas (palabras)", "네 무기(단어)", "你的武器（词语）"),
-    "tip": ("Tip", "Tipp", "Consiglio", "Consejo", "팁", "提示"),
-    "write_reply": ("Write your reply!", "Schreib deine Antwort!", "Scrivi la tua risposta!",
-                    "¡Escribe tu respuesta!", "답장을 써 봐!", "写下你的回答！"),
-    "time_limit": ("You have {n} min.", "Du hast {n} Min.", "Hai {n} min.", "Tienes {n} min.",
-                   "{n}분 있어.", "你有 {n} 分钟。"),
-    "persuaded": ("Persuaded", "Überzeugt", "Convinto", "Convencido", "설득도", "说服度"),
-    "reply_or_stop": ("Your move — or /stop to finish.", "Du bist dran — oder /stop zum Beenden.",
-                      "Tocca a te — oppure /stop per finire.", "Tu turno — o /stop para terminar.",
-                      "네 차례야 — 끝내려면 /stop", "轮到你了——或用 /stop 结束。"),
-    "time_up": ("Time's up.", "Die Zeit ist um.", "Tempo scaduto.", "Se acabó el tiempo.", "시간 끝.", "时间到。"),
-    "early_win": ("You broke them early. Victory!", "Du hast ihn früh geknackt. Sieg!",
-                  "L'hai convinto in anticipo. Vittoria!", "Lo convenciste antes de tiempo. ¡Victoria!",
-                  "일찍 설득했어. 승리!", "你提前说服了对方。胜利！"),
-    "judging": ("ARENA is judging…", "ARENA urteilt …", "ARENA sta giudicando…", "ARENA está juzgando…",
-                "ARENA가 판단 중이야…", "ARENA 正在评判……"),
-    "victory": ("VICTORY", "SIEG", "VITTORIA", "VICTORIA", "승리", "胜利"),
-    "defeat": ("DEFEAT", "NIEDERLAGE", "SCONFITTA", "DERROTA", "패배", "失败"),
-    "worked": ("What worked", "Was funktioniert hat", "Cosa ha funzionato", "Lo que funcionó",
-               "잘한 점", "做得好的地方"),
-    "why_won": ("Why you won", "Warum du gewonnen hast", "Perché hai vinto", "Por qué ganaste",
-                "이긴 이유", "获胜原因"),
-    "why_lost": ("Why you lost", "Warum du verloren hast", "Perché hai perso", "Por qué perdiste",
-                 "진 이유", "失败原因"),
-    "language_check": ("Language check", "Sprach-Check", "Controllo linguistico", "Revisión del idioma",
-                       "언어 점검", "语言检查"),
-    "steal": ("Steal from {name}", "Klau von {name}", "Ruba da {name}", "Róbale a {name}",
-              "{name}에게서 훔칠 표현", "向{name}偷师"),
-    "ft_start": ("Free talk with {name}. No timer, no grade. /stop to finish.",
-                 "Freies Gespräch mit {name}. Kein Timer, keine Note. /stop zum Beenden.",
-                 "Chiacchierata libera con {name}. Niente timer, niente voto. /stop per finire.",
-                 "Charla libre con {name}. Sin temporizador ni nota. /stop para terminar.",
-                 "{name}와 자유 대화. 타이머도 평가도 없어. 끝내려면 /stop",
-                 "与{name}自由交谈。没有计时，没有评分。用 /stop 结束。"),
-    "ft_done": ("Conversation over, {name}. ARENA remembers.", "Gespräch beendet, {name}. ARENA merkt sich alles.",
-                "Conversazione finita, {name}. ARENA ricorda.", "Conversación terminada, {name}. ARENA lo recuerda.",
-                "대화 끝, {name}. ARENA가 기억할게.", "对话结束，{name}。ARENA 会记住。"),
-}
+# ============================================================
+# ПЕРСОНАЛЬНЫЕ ПОДСКАЗКИ
+# ============================================================
 
-ARENA_UI_STRINGS = {
-    lang: {key: values[i] for key, values in _T.items()}
-    for i, lang in enumerate(_LANG_ORDER)
-}
-
-PERSONALITY_COMMENTS = {
-    "ceo": "Ты пришла с фактами — уже плюс. В следующий раз добавь конкретные цифры.",
-    "journalist": "Было интересно, но я всё ещё жду того самого неожиданного поворота.",
-    "professor": "Мысль есть. В следующий раз выстрой её в цепочку: тезис → аргумент → вывод.",
-    "hr_manager": "Хороший разговор. Добавь больше конкретных примеров из жизни — и будет отлично.",
-    "philosopher": "Ты дал ответ. В следующий раз попробуй дать вопрос — это интереснее.",
-    "devil_advocate": "Ты держался неплохо. Продолжай защищать позицию даже под давлением.",
-}
-
-BADGES = {
-    "first_debate": {"name": "🏆 Первый бой", "description": "Завершил первый бой с персонажем"},
-    "first_victory": {"name": "🥇 Первая победа", "description": "Выиграл свой первый бой"},
-    "grammar_master": {"name": "📚 Грамматический мастер", "description": "Грамматика выше 90"},
-    "wordsmith": {"name": "🗣️ Мастер слова", "description": "Словарный запас выше 90"},
-    "marathoner": {"name": "🏃 Марафонец", "description": "10+ ответов за один бой"},
-    "all_characters": {"name": "🎭 Коллекционер", "description": "Сыграл со всеми персонажами"},
-    "high_scorer": {"name": "🔥 На вершине", "description": "Средний балл за бой выше 85"},
-    "quest_master": {"name": "🎯 Охотник за квестами", "description": "Выполнил еженедельный квест"},
-    "nemesis_slayer": {"name": "⚡ Победитель немезиды", "description": "Победил своего персонажа-немезиду"},
-    "full_convince": {"name": "💯 Полное убеждение", "description": "Полностью переубедил персонажа за один бой"},
-}
-
-BEGINNER_LEVELS = {"A1", "A2"}
-
-SKILL_LABELS_RU = {
-    "clarity": "ясность речи",
-    "argumentation": "аргументацию",
-    "evidence": "доказательность",
-    "persuasion": "убедительность",
-    "adaptability": "гибкость в споре",
-    "control": "контроль разговора",
-}
-
-DISCUSSION_RULES = {
-    "A1": "Говори короткими фразами, но всегда добавляй ПОЧЕМУ ты так думаешь.",
-    "A2": "К любому заявлению добавляй причину и один пример.",
-    "B1": "Строй ответ по схеме: заявление → причина → пример.",
-    "B2": "Не соглашайся сразу — сначала оспорь, потом уступай по чуть-чуть.",
-    "C1": "Управляй разговором: переформулируй возражения, уступай выборочно.",
-    "C2": "Держи инициативу и подстраивай регистр речи под собеседника.",
+PERSONA_TIP_FALLBACK = {
+    "ceo": "Start with a number or a concrete result — no intro.",
+    "journalist": "Give her something unexpected in your first sentence.",
+    "professor": "Structure: thesis → argument → conclusion.",
+    "hr_manager": "Give one concrete example from your own experience.",
+    "philosopher": "Explain WHY you think so before you answer.",
+    "devil_advocate": "Prepare a counter-argument in advance.",
 }
 
 MISSION_FORMAT_BY_PERSONALITY = {
     "ceo": "a claim with a concrete benefit/number that the learner must defend",
     "journalist": "a provocative situation the learner must talk their way out of",
-    "professor": "a case the learner must analyse as thesis -> argument -> conclusion",
+    "professor": "a case the learner must analyse as thesis → argument → conclusion",
     "hr_manager": "a practical case from experience (STAR style) the learner must unpack",
     "philosopher": "a deep question that needs a personal, non-trivial answer",
     "devil_advocate": "a provocative statement the learner must defend under pressure",
 }
 
-# --- Голосовая поддержка (OpenAI TTS) ---
+
+# ============================================================
+# БЕЙДЖИ
+# ============================================================
+
+BADGES = {
+    "first_debate": {"name": "🏆 First battle", "description": "Completed your first battle"},
+    "first_victory": {"name": "🥇 First victory", "description": "Won your first battle"},
+    "grammar_master": {"name": "📚 Grammar Master", "description": "Grammar above 90"},
+    "wordsmith": {"name": "🗣️ Wordsmith", "description": "Vocabulary above 90"},
+    "marathoner": {"name": "🏃 Marathoner", "description": "10+ turns in a single battle"},
+    "all_characters": {"name": "🎭 Collector", "description": "Met every character"},
+    "high_scorer": {"name": "🔥 Top of the Arena", "description": "Average battle score above 85"},
+    "nemesis_slayer": {"name": "⚡ Nemesis Slayer", "description": "Defeated your nemesis"},
+    "full_convince": {"name": "💯 Full Conviction", "description": "Fully convinced a character in one battle"},
+}
+
+
+# ============================================================
+# UI-СТРОКИ
+# ============================================================
+# Всё, что видит пользователь как интерфейс, теперь живёт в locales/*.json.
+# Здесь — только те строки, которые нужны AI-слою (названия фаз и т.п.).
+
+ARENA_UI_STRINGS = {
+    "en": {"heard_enough": "I'VE HEARD ENOUGH.", "enter_battle": "⚔️ ENTER BATTLE →"},
+    "ru": {"heard_enough": "Я УСЛЫШАЛА ДОСТАТОЧНО.", "enter_battle": "⚔️ ВОЙТИ В БОЙ →"},
+}
+
+
+# ============================================================
+# VOICE (TTS)
+# ============================================================
+# У каждого персонажа свой голос. Храм говорит своим.
 VOICE_BY_PERSONALITY = {
     "ceo": "onyx",
     "journalist": "nova",
@@ -364,11 +323,66 @@ VOICE_BY_PERSONALITY = {
 }
 TEMPLE_VOICE = "onyx"
 
-LANG_TO_ISO = {
-    "english": "en",
-    "german": "de",
-    "italian": "it",
-    "spanish": "es",
-    "korean": "ko",
-    "chinese": "zh",
+
+# ============================================================
+# ДИСКУССИОННЫЕ ПРАВИЛА ПО УРОВНЮ
+# ============================================================
+
+DISCUSSION_RULES = {
+    "A1": "Speak in short sentences, but always add WHY you think so.",
+    "A2": "Add a reason and one example to every statement.",
+    "B1": "Structure your reply: statement → reason → example.",
+    "B2": "Don't agree immediately — challenge first, then concede a little.",
+    "C1": "Drive the conversation: reframe objections, concede selectively.",
+    "C2": "Hold the initiative and adjust your register to your opponent.",
+}
+
+
+# ============================================================
+# НЕМЕЗИДА
+# ============================================================
+
+NEMESIS_MAP = {
+    "analyst": "philosopher",
+    "challenger": "philosopher",
+    "explorer": "devil_advocate",
+    "precise": "hr_manager",
+    "defender": "ceo",
+}
+
+# ============================================================
+# СОВМЕСТИМОСТЬ: словари, которые ждёт gamification.py
+# ============================================================
+
+# Русские названия коммуникационных скиллов — для внутренних подписей.
+SKILL_LABELS_RU = {
+    "clarity": "ясность речи",
+    "argumentation": "аргументацию",
+    "evidence": "доказательность",
+    "persuasion": "убедительность",
+    "adaptability": "гибкость в споре",
+    "control": "контроль разговора",
+}
+
+# Английские названия — на будущее (gamification может использовать
+# их для не-русского интерфейса, но пока он берёт только русские).
+SKILL_LABELS_EN = {
+    "clarity": "clarity",
+    "argumentation": "argumentation",
+    "evidence": "evidence",
+    "persuasion": "persuasion",
+    "adaptability": "adaptability",
+    "control": "conversation control",
+}
+
+# Комментарии персонажей (используются старым gamification.format_profile).
+# Оставляем на английском — это не UI, а внутренний текст, который сейчас
+# нигде активно не показывается.
+PERSONALITY_COMMENTS = {
+    "ceo": "You came with facts — good. Next time add concrete numbers.",
+    "journalist": "Interesting, but I'm still waiting for that unexpected angle.",
+    "professor": "The idea is there. Next time: thesis → argument → conclusion.",
+    "hr_manager": "Good talk. Add more concrete examples and it'll be excellent.",
+    "philosopher": "You gave an answer. Next time try giving a question — more interesting.",
+    "devil_advocate": "You held up. Keep defending your position under pressure.",
 }

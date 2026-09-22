@@ -1,3 +1,14 @@
+"""
+handlers/intro.py — Храм (первое знакомство) и вход в бой следующего дня.
+
+Правила:
+  • Храм работает на learning_language (то, что человек реально выбрал практиковать).
+  • Interface_language в этом файле НЕ используется — все интерфейсные строки
+    берём через i18n.t(il, ...), где il — язык интерфейса пользователя.
+  • Никаких оценок, очков, обратной связи во время Храма. 8 реплик — синтез.
+  • Персонаж и тема назначаются ARENA, а не пользователем.
+  • Админ может проходить Храм сколько угодно раз.
+"""
 import asyncio
 import logging
 import os
@@ -9,11 +20,19 @@ from telegram.ext import ContextTypes
 import ai
 import database as db
 import gamification
+import i18n
 import voice
-from config import FIRST_ENCOUNTER_MOVES, is_admin
-from game_data import LANGUAGES, PERSONALITIES, ARENA_UI_STRINGS, COMMUNICATION_SKILLS
+from config import (
+    FIRST_ENCOUNTER_MOVES,
+    ISO_TO_LANG_KEY,
+    SUPPORTED_LANGUAGES,
+    LANGUAGE_DISPLAY,
+    LANGUAGE_FLAGS,
+    is_admin,
+)
+from game_data import PERSONALITIES, COMMUNICATION_SKILLS
 from handlers import start
-from handlers.ui import esc, send_or_edit
+from handlers.ui import send_or_edit, esc
 
 logger = logging.getLogger(__name__)
 
@@ -27,18 +46,6 @@ def _reset_fe_state(context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop(key, None)
 
 
-def _ui(language: str) -> dict:
-    return ARENA_UI_STRINGS.get(language) or ARENA_UI_STRINGS["english"]
-
-
-def cooldown_message(user_id: int) -> str:
-    hours = int(db.cooldown_hours_left(user_id)) + 1
-    return (
-        f"⚔️ Следующий бой будет через ~{hours} ч.\n"
-        f"Арена даёт время всё обдумать. А пока можно просто поговорить."
-    )
-
-
 def _read_photo(path: str | None) -> bytes | None:
     if not path:
         return None
@@ -49,58 +56,83 @@ def _read_photo(path: str | None) -> bytes | None:
     return None
 
 
-# ------------------------------------------------------------------
-# ХРАМ: язык → 8 реплик → «я услышала достаточно» → персонаж
-# ------------------------------------------------------------------
+def _lang_key(iso: str) -> str:
+    """en → english. Нужен для промптов GPT."""
+    return ISO_TO_LANG_KEY.get(iso, "english")
+
+
+# ==================================================================
+# ВХОД В ХРАМ
+# ==================================================================
 
 async def enter_arena_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Вход в Храм. Первый раз — выбор языка + 8 реплик. Админ может проходить сколько угодно раз."""
+    """
+    Вход в Храм.
+    Новичок — выбор learning_language и 8 реплик.
+    Прошёл Храм и не админ — короткое сообщение и меню.
+    Админ — всегда может пройти заново.
+    """
     user_id = update.effective_user.id
+    il = db.get_interface_language(user_id)
+
     if db.has_completed_temple(user_id) and not is_admin(user_id):
-        text = (
-            "🏛️ Ты уже прошёл знакомство с Храмом — второй раз оно не нужно.\n"
-            "Дальше Арена сама решает, когда пришло время для боя."
-        )
-        await send_or_edit(update, text, reply_markup=start.post_battle_keyboard())
+        text = i18n.t(il, "TEMPLE.ALREADY_DONE")
+        await send_or_edit(update, text, reply_markup=start._menu_keyboard(user_id, il))
         return
 
     _reset_fe_state(context)
-    keyboard = [
-        [InlineKeyboardButton(f"{data['flag']} {data['name']}", callback_data=f"fe_lang_{key}")]
-        for key, data in LANGUAGES.items()
-    ]
-    keyboard.append([InlineKeyboardButton("🔙 В меню", callback_data="back_to_main")])
-    await send_or_edit(update, "🏛️ <b>ARENA</b>\n\nВыбери язык.",
-                       reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
+
+    rows = []
+    for iso in SUPPORTED_LANGUAGES:
+        label = f"{LANGUAGE_FLAGS.get(iso, '')} {LANGUAGE_DISPLAY.get(iso, iso)}".strip()
+        rows.append([InlineKeyboardButton(label, callback_data=f"fe_lang_{iso}")])
+    rows.append([InlineKeyboardButton(i18n.t(il, "MENU.BACK"), callback_data="back_to_main")])
+
+    text = (
+        f"🏛 <b>{esc(i18n.t(il, 'TEMPLE.LISTENING'))}</b>\n\n"
+        f"{esc(i18n.t(il, 'TEMPLE.SELECT_LEARNING_LANGUAGE'))}"
+    )
+    await send_or_edit(update, text,
+                       reply_markup=InlineKeyboardMarkup(rows),
+                       parse_mode="HTML")
 
 
 async def select_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """После выбора языка — СРАЗУ начинаем слушать. Уровень не спрашиваем."""
+    """
+    Выбор learning_language.
+    С этого момента и до конца Храма все реплики Арены — на выбранном языке.
+    Interface_language остаётся неизменным.
+    """
     query = update.callback_query
     await query.answer()
-    language = query.data.replace("fe_lang_", "")
-    if language not in LANGUAGES:
+    iso = query.data.replace("fe_lang_", "")
+    if iso not in SUPPORTED_LANGUAGES:
         return
-    user = update.effective_user
-    db.get_or_create_user(user.id, user.username, user.first_name)
-    db.set_user_language(user.id, language)
 
-    context.user_data["fe_language"] = language
+    user_id = update.effective_user.id
+    db.set_learning_language(user_id, iso)
+
+    context.user_data["fe_language"] = iso
     context.user_data["fe_dialogue"] = []
     context.user_data["fe_awaiting_response"] = True
 
-    ui = _ui(language)
-    await query.edit_message_text(
-        f"🏛️ <b>{esc(ui['listening'])}</b>\n\n"
-        f"<b>{esc(ui['your_move'])}</b>\n\n"
-        f"<i>{esc(ui['listen_hint'])}</i>",
-        parse_mode="HTML",
+    il = db.get_interface_language(user_id)
+    text = (
+        f"🏛 <b>{esc(i18n.t(il, 'TEMPLE.LISTENING'))}</b>\n\n"
+        f"<b>{esc(i18n.t(il, 'TEMPLE.YOUR_MOVE'))}</b>\n\n"
+        f"<i>{esc(i18n.t(il, 'TEMPLE.HINT'))}</i>"
     )
+    await query.edit_message_text(text, parse_mode="HTML")
 
+
+# ==================================================================
+# 8 РЕПЛИК ХРАМА
+# ==================================================================
 
 async def handle_fe_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Один ход Храма. Никаких оценок, очков, шкал — только живая реакция."""
     user_text = await voice.get_pending_text(update, context)
-    if len(user_text) < 1:
+    if not user_text:
         return
 
     ud = context.user_data
@@ -113,8 +145,11 @@ async def handle_fe_response(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await _reveal(update, context)
         return
 
-    language = ud.get("fe_language") or "english"
-    history = "\n".join(f"{'User' if d['speaker'] == 'User' else 'ARENA'}: {d['text']}" for d in dialogue)
+    language_iso = ud.get("fe_language") or db.get_learning_language(update.effective_user.id)
+    language = _lang_key(language_iso)
+    history = "\n".join(
+        f"{'User' if d['speaker'] == 'User' else 'ARENA'}: {d['text']}" for d in dialogue
+    )
 
     chat_action = "record_voice" if ud.get("last_input_was_voice") else "typing"
     try:
@@ -122,10 +157,15 @@ async def handle_fe_response(update: Update, context: ContextTypes.DEFAULT_TYPE)
     except Exception:
         pass
 
-    reaction = await asyncio.to_thread(ai.generate_arena_reaction, history, user_text, language, user_turns + 1)
-    reaction = reaction or _ui(language)["go_on"]
-    if "fe_dialogue" not in ud:  # /stop во время ожидания ответа GPT
+    reaction = await asyncio.to_thread(
+        ai.generate_arena_reaction, history, user_text, language, user_turns + 1
+    )
+    if "fe_dialogue" not in ud:  # пользователь успел нажать /stop
         return
+
+    if not reaction:
+        reaction = "…"
+
     dialogue.append({"speaker": "AI", "text": reaction})
     ud["fe_awaiting_response"] = True
 
@@ -133,84 +173,113 @@ async def handle_fe_response(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await update.message.reply_text(reaction)
 
 
+# ==================================================================
+# СИНТЕЗ ПОСЛЕ ХРАМА
+# ==================================================================
+
 async def _reveal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Конец Храма. ARENA сама назначает уровень, персонажа и тему, сохраняет разбор по 10 критериям
-    и запоминает интересы — на них потом строятся бои, free talk и пуши.
+    Конец Храма.
+    ARENA:
+      • делает разбор по 10 критериям (языковому и коммуникационному);
+      • определяет один конкретный паттерн поведения;
+      • выбирает персонажа, тему и миссию;
+      • сохраняет всё это, а не «случайный вердикт».
     """
     ud = context.user_data
     user = update.effective_user
     user_id = user.id
-    language = ud.get("fe_language") or db.get_user_language(user_id) or "english"
-    ui = _ui(language)
+    il = db.get_interface_language(user_id)
+    language_iso = ud.get("fe_language") or db.get_learning_language(user_id)
+    language = _lang_key(language_iso)
+
     dialogue = ud.get("fe_dialogue", [])
     user_responses = [d["text"] for d in dialogue if d["speaker"] == "User"]
 
     try:
-        await update.message.reply_text(f"🏛️ {ui['thinking']}")
+        await update.message.reply_text(f"🏛 {esc(i18n.t(il, 'TEMPLE.THINKING'))}")
     except Exception:
         pass
 
-    result = await asyncio.to_thread(ai.analyze_first_encounter, user_responses, language)
+    # 1) Разбор Храма (язык + коммуникация + паттерн + интересы)
+    analysis = await asyncio.to_thread(
+        ai.analyze_first_encounter, user_responses, language
+    )
 
-    level = result["estimated_level"]
-    personality = result["recommended_personality"]
-    topic = result["main_topic"] or FALLBACK_TOPIC
-    weakest = result["weakest_skill"]
+    level = analysis["estimated_level"]
+    personality = analysis["recommended_personality"]
+    topic = analysis["main_topic"] or FALLBACK_TOPIC
+    weakest = analysis["weakest_skill"]
+    pattern = analysis.get("pattern", "")
+    pattern_evidence = analysis.get("pattern_evidence", [])
 
     arena_analysis = {
-        "language": result["language"],
-        "grammar_weak_areas": result["grammar_weak_areas"],
-        "vocabulary_weak_areas": result["vocabulary_weak_areas"],
-        "communication": result["communication"],
-        "hidden": result["hidden"],
-        "behaviour": result["behaviour"],
+        "language": analysis["language"],
+        "grammar_weak_areas": analysis["grammar_weak_areas"],
+        "vocabulary_weak_areas": analysis["vocabulary_weak_areas"],
+        "communication": analysis["communication"],
+        "hidden": analysis["hidden"],
+        "behaviour": analysis["behaviour"],
         "weakest_skill": weakest,
-        "strongest_skill": result["strongest_skill"],
-        "arena_rank": result["arena_rank"],
-        "interests": result["interests"],
+        "strongest_skill": analysis["strongest_skill"],
+        "arena_rank": analysis["arena_rank"],
+        "interests": analysis["interests"],
         "main_topic": topic,
         "estimated_level": level,
         "recommended_personality": personality,
+        "pattern": pattern,
+        "pattern_evidence": pattern_evidence,
     }
 
     ud.update({
-        "level": level, "personality": personality, "language": language,
-        "topic": topic, "arena_analysis": arena_analysis,
+        "level": level,
+        "personality": personality,
+        "language": language,
+        "language_iso": language_iso,
+        "topic": topic,
+        "arena_analysis": arena_analysis,
     })
 
+    # 2) Сохранения в БД
     db.get_or_create_user(user_id, user.username, user.first_name)
-    db.set_user_language(user_id, language)
-    db.init_user_skills(user_id)
+    db.set_learning_language(user_id, language_iso)
     db.save_arena_analysis(user_id, arena_analysis)
-    db.update_criteria(user_id, {**result["language"], **result["communication"]}, weight=1.0)
+    db.update_criteria(user_id, {**analysis["language"], **analysis["communication"]}, weight=1.0)
     db.add_level_snapshot(user_id, level, source="arena_reveal")
-
-    quest = gamification.generate_quest(result)
-    db.set_quest(user_id, quest["type"], quest["description"], quest["target"], quest["skill_bonus"])
-    db.set_nemesis(user_id, result["behaviour"])
-    db.set_user_behaviour_title(user_id, result["behaviour"], gamification.get_title(result["behaviour"], 1))
-    db.set_push_profile(user_id, personality, result["interests"] or [topic])
+    db.add_interests(user_id, analysis["interests"] or [topic])
+    db.set_push_profile(user_id, personality, analysis["interests"] or [topic])
+    db.set_nemesis(user_id, analysis["behaviour"])
+    db.set_user_behaviour_title(
+        user_id, analysis["behaviour"], gamification.get_title(analysis["behaviour"], 1)
+    )
     db.mark_temple_done(user_id)
 
+    # 3) Наблюдение + питч персонажа (без общих фраз)
     person = PERSONALITIES.get(personality, PERSONALITIES["hr_manager"])
     observation, pitch = await asyncio.gather(
-        asyncio.to_thread(ai.generate_arena_observation, user.first_name or "", user_responses,
-                          language, level, topic, personality, weakest),
-        asyncio.to_thread(ai.generate_character_pitch, personality, topic, language, level,
-                          user.first_name or "", weakest),
+        asyncio.to_thread(
+            ai.generate_arena_observation,
+            user.first_name or "", user_responses, language, level,
+            topic, personality, weakest, pattern,
+        ),
+        asyncio.to_thread(
+            ai.generate_character_pitch,
+            personality, topic, language, level, user.first_name or "", weakest,
+        ),
     )
 
     parts = [
-        f"🏛️ <b>{esc(ui['heard_enough'])}</b>",
+        f"🏛 <b>{esc(i18n.t(il, 'TEMPLE.HEARD_ENOUGH'))}</b>",
         esc(observation),
         f"🎭 <b>{esc(person['name'])}</b> — <i>{esc(person['role'])}</i>",
         esc(pitch),
         f"<i>«{esc(person['phrase'])}»</i>",
     ]
     text = "\n\n".join(p for p in parts if p)
+
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton(f"⚔️ {ui['enter_battle']} →", callback_data="fe_start_battle")]
+        [InlineKeyboardButton(i18n.t(il, "TEMPLE.ENTER_BATTLE"),
+                              callback_data="fe_start_battle")]
     ])
 
     photo = _read_photo(person.get("photo"))
@@ -219,23 +288,26 @@ async def _reveal(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_photo(photo=photo, caption=f"🎭 {person['name']}")
         except Exception:
             logger.warning("Не удалось отправить фото персонажа %s", personality)
-    await update.message.reply_text(text, reply_markup=keyboard, parse_mode="HTML")
 
+    await update.message.reply_text(text, reply_markup=keyboard, parse_mode="HTML")
     _reset_fe_state(context)
 
 
-# ------------------------------------------------------------------
-# БОЙ СЛЕДУЮЩЕГО ДНЯ: питч персонажа → кнопка → arena.start_battle
-# ------------------------------------------------------------------
+# ==================================================================
+# БОЙ СЛЕДУЮЩЕГО ДНЯ
+# ==================================================================
 
 async def daily_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Храм заново НЕ проходят. Персонаж подбирается под ТЕКУЩИЙ слабый скилл (шкала из БД),
-    каждый 4-й бой — немезида. Тема — из интересов (или из сегодняшнего пуша).
-    Уровень и язык — из БД.
+    Бой следующего дня. Храм заново НЕ проходят.
+    Персонаж подбирается по текущему слабому коммуникационному скиллу.
+    Тема — из интересов (или из последнего пуша).
+    Язык и уровень — из БД.
     """
     user = update.effective_user
     user_id = user.id
+    il = db.get_interface_language(user_id)
+
     if update.callback_query:
         try:
             await update.callback_query.answer()
@@ -243,39 +315,61 @@ async def daily_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
 
     if db.has_battled_today(user_id) and not is_admin(user_id):
-        await send_or_edit(update, cooldown_message(user_id), reply_markup=start.post_battle_keyboard())
+        hours = int(db.cooldown_hours_left(user_id)) + 1
+        text = i18n.t(il, "BATTLE.COOLDOWN", hours=hours)
+        await send_or_edit(update, text, reply_markup=start._menu_keyboard(user_id, il))
         return
 
-    gamification.ensure_quest(user_id)
+    # Персонаж по слабому скиллу (fallback — по разбору Храма)
     analysis = db.get_latest_arena_analysis(user_id) or {}
-    personality = gamification.pick_next_personality(user_id)
+    criteria = db.get_criteria(user_id)
+    communication = {k: v for k, v in criteria.items() if k in COMMUNICATION_SKILLS}
+    if communication:
+        weakest = min(communication, key=communication.get)
+        from game_data import SKILL_TO_PERSONALITY
+        personality = SKILL_TO_PERSONALITY.get(weakest, analysis.get("recommended_personality", "hr_manager"))
+    else:
+        personality = analysis.get("recommended_personality", "hr_manager")
+
     interests = db.get_interests(user_id) or ([analysis["main_topic"]] if analysis.get("main_topic") else [])
     topic = db.pop_push_topic(user_id) or (random.choice(interests) if interests else FALLBACK_TOPIC)
+
     level = db.get_current_level(user_id) or analysis.get("estimated_level") or "B1"
-    language = db.get_user_language(user_id) or "english"
-    ui = _ui(language)
+    language_iso = db.get_learning_language(user_id)
+    language = _lang_key(language_iso)
 
     context.user_data.update({
-        "level": level, "language": language, "topic": topic,
-        "personality": personality, "arena_analysis": analysis,
+        "level": level,
+        "language": language,
+        "language_iso": language_iso,
+        "topic": topic,
+        "personality": personality,
+        "arena_analysis": analysis,
     })
+
     person = PERSONALITIES.get(personality, PERSONALITIES["hr_manager"])
 
-    msg = await send_or_edit(update, f"🎭 {ui['thinking']}")
-    weakest = gamification.weakest_criterion(db.get_criteria(user_id), COMMUNICATION_SKILLS) or ""
-    pitch = await asyncio.to_thread(ai.generate_character_pitch, personality, topic, language, level,
-                                    user.first_name or "", weakest)
+    msg = await send_or_edit(update, f"🎭 {esc(i18n.t(il, 'TEMPLE.THINKING'))}")
+    weakest_skill = communication and min(communication, key=communication.get) or ""
+    pitch = await asyncio.to_thread(
+        ai.generate_character_pitch, personality, topic, language, level,
+        user.first_name or "", weakest_skill,
+    )
 
     text = "\n\n".join(p for p in [
-        f"🏛️ {esc(ui['arena_returns'])}",
+        f"🏛 {esc(i18n.t(il, 'TEMPLE.HEARD_ENOUGH'))}",
         f"🎭 <b>{esc(person['full_name'])}</b>\n<i>{esc(person['role'])}</i>",
         esc(pitch),
         f"<i>«{esc(person['phrase'])}»</i>",
     ] if p)
+
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton(f"⚔️ {ui['enter_battle']}", callback_data="fe_start_battle")]
+        [InlineKeyboardButton(i18n.t(il, "TEMPLE.ENTER_BATTLE"),
+                              callback_data="fe_start_battle")]
     ])
+
     try:
         await msg.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
     except Exception:
-        await context.bot.send_message(update.effective_chat.id, text, reply_markup=keyboard, parse_mode="HTML")
+        await context.bot.send_message(update.effective_chat.id, text,
+                                       reply_markup=keyboard, parse_mode="HTML")

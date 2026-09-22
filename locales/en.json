@@ -1,0 +1,89 @@
+{
+  "MENU": {
+    "BATTLE": "⚔️ BATTLE",
+    "FREE_TALK": "💬 FREE TALK",
+    "MY_ARENA": "🏛 MY ARENA",
+    "MY_ARSENAL": "🧰 MY ARSENAL",
+    "SETTINGS": "⚙️ SETTINGS",
+    "ENTER_ARENA": "🏛 ENTER ARENA",
+    "BACK": "🔙 Back to menu"
+  },
+  "START": {
+    "WELCOME_FIRST": "👋 {name}\nWelcome to ARENA.\n\n🏛 ENTER ARENA\nLet ARENA listen and decide who you meet.",
+    "WELCOME_BACK": "👋 {name}\nThe Arena is watching. One battle per day. Free talk — any time."
+  },
+  "TEMPLE": {
+    "SELECT_LEARNING_LANGUAGE": "Which language will you speak?",
+    "LISTENING": "ARENA IS LISTENING.",
+    "YOUR_MOVE": "Your move.",
+    "HINT": "what I do · what I love · what I think · anything",
+    "THINKING": "ARENA is thinking…",
+    "HEARD_ENOUGH": "I'VE HEARD ENOUGH.",
+    "ENTER_BATTLE": "⚔️ ENTER BATTLE →"
+  },
+  "BATTLE": {
+    "BEGINS": "THE BATTLE BEGINS!",
+    "MISSION": "Mission",
+    "ARSENAL": "Arsenal",
+    "TIP": "Tip",
+    "HOW_TO_WIN": "How to win",
+    "TIME_LIMIT": "You have {n} min.",
+    "PERSUADED": "Persuaded",
+    "TIME_UP": "Time's up.",
+    "EARLY_WIN": "You broke them early. Victory!",
+    "COOLDOWN": "Next battle in about {hours} h."
+  },
+  "DEBRIEF": {
+    "TITLE": "BATTLE DEBRIEF",
+    "RESULT": "Result",
+    "VICTORY": "VICTORY",
+    "ALMOST": "ALMOST",
+    "DEFEATED": "DEFEATED",
+    "OUTPLAYED": "OUTPLAYED",
+    "WHAT_WORKED": "WHAT WORKED",
+    "WHAT_COST_YOU": "WHAT COST YOU",
+    "STEAL_THIS": "STEAL THIS",
+    "ADD_TO_ARSENAL": "🎒 ADD TO MY ARSENAL",
+    "OPPONENT_ADVICE": "OPPONENT'S ADVICE",
+    "NEXT_TARGET": "NEXT TARGET"
+  },
+  "FT": {
+    "SELECT_LANGUAGE": "💬 Free Talk — which language will you practise?",
+    "SELECT_CHARACTER": "Who do you want to talk to?",
+    "START": "Free talk with {name}. No timer, no score. Type anything.",
+    "DONE": "Conversation over, {name}. ARENA remembers."
+  },
+  "SETTINGS": {
+    "TITLE": "⚙️ SETTINGS",
+    "INTERFACE_LANGUAGE": "Interface language",
+    "LEARNING_LANGUAGE": "Learning language",
+    "CHANGE_INTERFACE": "Change interface language",
+    "CHANGE_LEARNING": "Change learning language",
+    "SAVED": "Saved."
+  },
+  "MY_ARENA": {
+    "TITLE": "MY ARENA",
+    "PROFILE": "PROFILE",
+    "NAME": "Name",
+    "INTERFACE_LANGUAGE": "Interface",
+    "LEARNING_LANGUAGE": "Practising",
+    "LEVEL": "Level",
+    "BATTLES": "Battles",
+    "VICTORIES": "Victories",
+    "CHARACTERS": "Characters met",
+    "WHAT_ARENA_KNOWS": "WHAT ARENA KNOWS",
+    "CURRENT_CHALLENGE": "CURRENT CHALLENGE",
+    "HOW_WE_TRAIN": "HOW ARENA IS TRAINING IT",
+    "YOUR_STRENGTH": "YOUR STRENGTH",
+    "ARSENAL_SHORTCUT": "🧰 My Arsenal",
+    "BATTLE_HISTORY": "BATTLE HISTORY"
+  },
+  "ARSENAL": {
+    "TITLE": "🧰 MY ARSENAL",
+    "EMPTY": "Your arsenal is empty. Win a battle to steal your first weapon.",
+    "WORD": "Word",
+    "PHRASE": "Phrase",
+    "MOVE": "Communication move",
+    "STRATEGY": "Strategy"
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "MENU": {
+    "BATTLE": "⚔️ BATTLE",
+    "FREE_TALK": "💬 FREE TALK",
+    "MY_ARENA": "🏛 МОЯ АРЕНА",
+    "MY_ARSENAL": "🧰 МОЙ АРСЕНАЛ",
+    "SETTINGS": "⚙️ НАСТРОЙКИ",
+    "ENTER_ARENA": "🏛 ВОЙТИ В АРЕНУ",
+    "BACK": "🔙 В меню"
+  },
+  "START": {
+    "WELCOME_FIRST": "👋 {name}\nДобро пожаловать в ARENA.\n\n🏛 ВОЙТИ В АРЕНУ\nАрена послушает и решит, кого ты встретишь.",
+    "WELCOME_BACK": "👋 {name}\nАрена наблюдает. Один бой в день. Свободный разговор — всегда."
+  },
+  "TEMPLE": {
+    "SELECT_LEARNING_LANGUAGE": "На каком языке будешь говорить?",
+    "LISTENING": "ARENA СЛУШАЕТ.",
+    "YOUR_MOVE": "Твой ход.",
+    "HINT": "что я делаю · что люблю · что думаю · что угодно",
+    "THINKING": "ARENA думает…",
+    "HEARD_ENOUGH": "Я УСЛЫШАЛА ДОСТАТОЧНО.",
+    "ENTER_BATTLE": "⚔️ ВОЙТИ В БОЙ →"
+  },
+  "BATTLE": {
+    "BEGINS": "БОЙ НАЧИНАЕТСЯ!",
+    "MISSION": "Миссия",
+    "ARSENAL": "Арсенал",
+    "TIP": "Совет",
+    "HOW_TO_WIN": "Как победить",
+    "TIME_LIMIT": "У тебя {n} мин.",
+    "PERSUADED": "Убеждённость",
+    "TIME_UP": "Время вышло.",
+    "EARLY_WIN": "Ты убедил его раньше времени. Победа!",
+    "COOLDOWN": "Следующий бой примерно через {hours} ч."
+  },
+  "DEBRIEF": {
+    "TITLE": "РАЗБОР БОЯ",
+    "RESULT": "Результат",
+    "VICTORY": "ПОБЕДА",
+    "ALMOST": "ПОЧТИ",
+    "DEFEATED": "ПОРАЖЕНИЕ",
+    "OUTPLAYED": "ПЕРЕИГРАН",
+    "WHAT_WORKED": "ЧТО СРАБОТАЛО",
+    "WHAT_COST_YOU": "ЧТО СТОИЛО ТЕБЕ",
+    "STEAL_THIS": "УКРАДИ ЭТО",
+    "ADD_TO_ARSENAL": "🎒 В МОЙ АРСЕНАЛ",
+    "OPPONENT_ADVICE": "СОВЕТ ОТ ПЕРСОНАЖА",
+    "NEXT_TARGET": "СЛЕДУЮЩАЯ ЦЕЛЬ"
+  },
+  "FT": {
+    "SELECT_LANGUAGE": "💬 Свободный разговор — на каком языке практикуемся?",
+    "SELECT_CHARACTER": "С кем хочешь поговорить?",
+    "START": "Свободный разговор с {name}. Без таймера и без оценки. Пиши что хочешь.",
+    "DONE": "Разговор закончен, {name}. ARENA запомнила."
+  },
+  "SETTINGS": {
+    "TITLE": "⚙️ НАСТРОЙКИ",
+    "INTERFACE_LANGUAGE": "Язык интерфейса",
+    "LEARNING_LANGUAGE": "Язык обучения",
+    "CHANGE_INTERFACE": "Сменить язык интерфейса",
+    "CHANGE_LEARNING": "Сменить язык обучения",
+    "SAVED": "Сохранено."
+  },
+  "MY_ARENA": {
+    "TITLE": "МОЯ АРЕНА",
+    "PROFILE": "ПРОФИЛЬ",
+    "NAME": "Имя",
+    "INTERFACE_LANGUAGE": "Интерфейс",
+    "LEARNING_LANGUAGE": "Практикую",
+    "LEVEL": "Уровень",
+    "BATTLES": "Боёв",
+    "VICTORIES": "Побед",
+    "CHARACTERS": "Персонажей встречено",
+    "WHAT_ARENA_KNOWS": "ЧТО ARENA О ТЕБЕ ЗНАЕТ",
+    "CURRENT_CHALLENGE": "ТЕКУЩИЙ ВЫЗОВ",
+    "HOW_WE_TRAIN": "КАК ARENA ЭТО ТРЕНИРУЕТ",
+    "YOUR_STRENGTH": "ТВОЯ СИЛЬНАЯ СТОРОНА",
+    "ARSENAL_SHORTCUT": "🧰 Мой арсенал",
+    "BATTLE_HISTORY": "ИСТОРИЯ БОЁВ"
+  },
+  "ARSENAL": {
+    "TITLE": "🧰 МОЙ АРСЕНАЛ",
+    "EMPTY": "Арсенал пуст. Победи в бою — и укради первое оружие.",
+    "WORD": "Слово",
+    "PHRASE": "Фраза",
+    "MOVE": "Приём",
+    "STRATEGY": "Стратегия"
+  }
+}

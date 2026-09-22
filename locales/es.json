@@ -1,0 +1,96 @@
+{
+  "MENU": {
+    "BATTLE": "⚔️ BATTLE",
+    "FREE_TALK": "💬 CHARLA LIBRE",
+    "MY_ARENA": "🏛 MI ARENA",
+    "MY_ARSENAL": "🧰 MI ARSENAL",
+    "SETTINGS": "⚙️ AJUSTES",
+    "ENTER_ARENA": "🏛 ENTRAR EN LA ARENA",
+    "BACK": "🔙 Al menú",
+    "ACHIEVEMENTS": "🏆 Logros",
+    "NO_ACTIVE": "No hay partida activa. Pulsa BATTLE o CHARLA LIBRE."
+  },
+  "START": {
+    "WELCOME_FIRST": "👋 {name}\nBienvenido a ARENA.\n\n🏛 ENTRAR EN LA ARENA\nDeja que ARENA escuche y decida a quién conoces.",
+    "WELCOME_BACK": "👋 {name}\nLa Arena observa. Una batalla al día. Charla libre — siempre."
+  },
+  "TEMPLE": {
+    "SELECT_LEARNING_LANGUAGE": "¿En qué idioma vas a hablar?",
+    "LISTENING": "ARENA ESTÁ ESCUCHANDO.",
+    "YOUR_MOVE": "Tu turno.",
+    "HINT": "lo que hago · lo que amo · lo que pienso · lo que sea",
+    "THINKING": "ARENA está pensando…",
+    "HEARD_ENOUGH": "YA HE OÍDO SUFICIENTE.",
+    "ENTER_BATTLE": "⚔️ ENTRAR EN BATALLA →",
+    "ALREADY_DONE": "🏛 Ya conociste el Templo. La Arena decidirá cuándo llega la próxima batalla."
+  },
+  "BATTLE": {
+    "BEGINS": "¡COMIENZA LA BATALLA!",
+    "MISSION": "Misión",
+    "ARSENAL": "Arsenal",
+    "TIP": "Consejo",
+    "HOW_TO_WIN": "Cómo ganar",
+    "TIME_LIMIT": "Tienes {n} min.",
+    "PERSUADED": "Convencido",
+    "TIME_UP": "Se acabó el tiempo.",
+    "EARLY_WIN": "Lo convenciste antes de tiempo. ¡Victoria!",
+    "COOLDOWN": "Próxima batalla en unas {hours} h."
+  },
+  "DEBRIEF": {
+    "TITLE": "INFORME DE BATALLA",
+    "RESULT": "Resultado",
+    "VICTORY": "VICTORIA",
+    "ALMOST": "CASI",
+    "DEFEATED": "DERROTA",
+    "OUTPLAYED": "SUPERADO",
+    "WHAT_WORKED": "LO QUE FUNCIONÓ",
+    "WHAT_COST_YOU": "LO QUE TE COSTÓ",
+    "STEAL_THIS": "ROBA ESTO",
+    "ADD_TO_ARSENAL": "🎒 AÑADIR A MI ARSENAL",
+    "OPPONENT_ADVICE": "CONSEJO DEL OPONENTE",
+    "NEXT_TARGET": "PRÓXIMO OBJETIVO",
+    "LANGUAGE_CHECK": "REVISIÓN DEL IDIOMA"
+  },
+  "FT": {
+    "SELECT_LANGUAGE": "💬 Charla libre — ¿en qué idioma practicamos?",
+    "SELECT_CHARACTER": "¿Con quién quieres hablar?",
+    "START": "Charla libre con {name}. Sin temporizador, sin nota. Escribe lo que quieras.",
+    "DONE": "Conversación terminada, {name}. ARENA lo recuerda.",
+    "BUSY": "Termina la conversación actual primero."
+  },
+  "SETTINGS": {
+    "TITLE": "⚙️ AJUSTES",
+    "INTERFACE_LANGUAGE": "Idioma de la interfaz",
+    "LEARNING_LANGUAGE": "Idioma de aprendizaje",
+    "CHANGE_INTERFACE": "Cambiar idioma de la interfaz",
+    "CHANGE_LEARNING": "Cambiar idioma de aprendizaje",
+    "SAVED": "Guardado."
+  },
+  "MY_ARENA": {
+    "TITLE": "MI ARENA",
+    "PROFILE": "PERFIL",
+    "NAME": "Nombre",
+    "INTERFACE_LANGUAGE": "Interfaz",
+    "LEARNING_LANGUAGE": "Practicando",
+    "LEVEL": "Nivel",
+    "BATTLES": "Batallas",
+    "VICTORIES": "Victorias",
+    "CHARACTERS": "Personajes conocidos",
+    "WHAT_ARENA_KNOWS": "LO QUE ARENA SABE",
+    "CURRENT_CHALLENGE": "RETO ACTUAL",
+    "HOW_WE_TRAIN": "CÓMO LO ENTRENA ARENA",
+    "YOUR_STRENGTH": "TU FORTALEZA",
+    "ARSENAL_SHORTCUT": "🧰 Mi Arsenal",
+    "BATTLE_HISTORY": "HISTORIAL DE BATALLAS"
+  },
+  "ARSENAL": {
+    "TITLE": "🧰 MI ARSENAL",
+    "EMPTY": "Tu arsenal está vacío. Gana una batalla para robar tu primera arma.",
+    "EMPTY_ADD": "Esta vez no hay nada que añadir.",
+    "SAVED": "Guardado en tu arsenal.",
+    "WORD": "Palabra",
+    "PHRASE": "Frase",
+    "MOVE": "Jugada comunicativa",
+    "STRATEGY": "Estrategia"
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "MENU": {
+    "BATTLE": "⚔️ BATTLE",
+    "FREE_TALK": "💬 自由交谈",
+    "MY_ARENA": "🏛 我的竞技场",
+    "MY_ARSENAL": "🧰 我的武器库",
+    "SETTINGS": "⚙️ 设置",
+    "ENTER_ARENA": "🏛 进入竞技场",
+    "BACK": "🔙 返回菜单",
+    "ACHIEVEMENTS": "🏆 成就",
+    "NO_ACTIVE": "当前没有进行中的游戏。选择 BATTLE 或 自由交谈。"
+  },
+  "START": {
+    "WELCOME_FIRST": "👋 {name}\n欢迎来到 ARENA。\n\n🏛 进入竞技场\n让 ARENA 聆听，并决定你要遇见谁。",
+    "WELCOME_BACK": "👋 {name}\n竞技场在注视着你。每天一场对战，自由交谈随时可用。"
+  },
+  "TEMPLE": {
+    "SELECT_LEARNING_LANGUAGE": "你想用哪种语言说话？",
+    "LISTENING": "ARENA 正在倾听。",
+    "YOUR_MOVE": "轮到你了。",
+    "HINT": "我做什么 · 我爱什么 · 我怎么想 · 随便什么",
+    "THINKING": "ARENA 正在思考……",
+    "HEARD_ENOUGH": "我听够了。",
+    "ENTER_BATTLE": "⚔️ 开始对战 →",
+    "ALREADY_DONE": "🏛 你已经历过神殿。竞技场会决定下一场对战何时到来。"
+  },
+  "BATTLE": {
+    "BEGINS": "战斗开始！",
+    "MISSION": "任务",
+    "ARSENAL": "武器",
+    "TIP": "提示",
+    "HOW_TO_WIN": "获胜条件",
+    "TIME_LIMIT": "你有 {n} 分钟。",
+    "PERSUADED": "说服度",
+    "TIME_UP": "时间到。",
+    "EARLY_WIN": "你提前说服了对方。胜利！",
+    "COOLDOWN": "下一场战斗大约 {hours} 小时后。"
+  },
+  "DEBRIEF": {
+    "TITLE": "战斗复盘",
+    "RESULT": "结果",
+    "VICTORY": "胜利",
+    "ALMOST": "接近",
+    "DEFEATED": "失败",
+    "OUTPLAYED": "完胜",
+    "WHAT_WORKED": "奏效的地方",
+    "WHAT_COST_YOU": "让你付出代价的地方",
+    "STEAL_THIS": "偷走这招",
+    "ADD_TO_ARSENAL": "🎒 加入我的武器库",
+    "OPPONENT_ADVICE": "对手的建议",
+    "NEXT_TARGET": "下一个目标",
+    "LANGUAGE_CHECK": "语言检查"
+  },
+  "FT": {
+    "SELECT_LANGUAGE": "💬 自由交谈 — 用哪种语言练习？",
+    "SELECT_CHARACTER": "你想和谁交谈？",
+    "START": "与 {name} 的自由交谈。没有计时，没有评分。随便说吧。",
+    "DONE": "对话结束，{name}。ARENA 会记住。",
+    "BUSY": "请先结束当前的对话。"
+  },
+  "SETTINGS": {
+    "TITLE": "⚙️ 设置",
+    "INTERFACE_LANGUAGE": "界面语言",
+    "LEARNING_LANGUAGE": "学习语言",
+    "CHANGE_INTERFACE": "更换界面语言",
+    "CHANGE_LEARNING": "更换学习语言",
+    "SAVED": "已保存。"
+  },
+  "MY_ARENA": {
+    "TITLE": "我的竞技场",
+    "PROFILE": "档案",
+    "NAME": "名字",
+    "INTERFACE_LANGUAGE": "界面",
+    "LEARNING_LANGUAGE": "正在练习",
+    "LEVEL": "等级",
+    "BATTLES": "对战",
+    "VICTORIES": "胜利",
+    "CHARACTERS": "已遇见角色",
+    "WHAT_ARENA_KNOWS": "ARENA 知道你什么",
+    "CURRENT_CHALLENGE": "当前挑战",
+    "HOW_WE_TRAIN": "ARENA 如何训练它",
+    "YOUR_STRENGTH": "你的强项",
+    "ARSENAL_SHORTCUT": "🧰 我的武器库",
+    "BATTLE_HISTORY": "对战记录"
+  },
+  "ARSENAL": {
+    "TITLE": "🧰 我的武器库",
+    "EMPTY": "你的武器库是空的。赢下一场对战，偷走你的第一件武器。",
+    "EMPTY_ADD": "这次没有可添加的内容。",
+    "SAVED": "已保存到你的武器库。",
+    "WORD": "词",
+    "PHRASE": "短语",
+    "MOVE": "沟通招式",
+    "STRATEGY": "策略"
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "MENU": {
+    "BATTLE": "⚔️ BATTLE",
+    "FREE_TALK": "💬 FREE TALK",
+    "MY_ARENA": "🏛 MEINE ARENA",
+    "MY_ARSENAL": "🧰 MEIN ARSENAL",
+    "SETTINGS": "⚙️ EINSTELLUNGEN",
+    "ENTER_ARENA": "🏛 ARENA BETRETEN",
+    "BACK": "🔙 Zum Menü"
+  },
+  "START": {
+    "WELCOME_FIRST": "👋 {name}\nWillkommen in ARENA.\n\n🏛 ARENA BETRETEN\nLass ARENA zuhören und entscheiden, wen du triffst.",
+    "WELCOME_BACK": "👋 {name}\nDie Arena beobachtet. Ein Kampf pro Tag. Freies Gespräch — jederzeit."
+  },
+  "TEMPLE": {
+    "SELECT_LEARNING_LANGUAGE": "In welcher Sprache sprichst du?",
+    "LISTENING": "ARENA HÖRT ZU.",
+    "YOUR_MOVE": "Du bist dran.",
+    "HINT": "was ich tue · was ich liebe · was ich denke · irgendwas",
+    "THINKING": "ARENA denkt nach …",
+    "HEARD_ENOUGH": "ICH HABE GENUG GEHÖRT.",
+    "ENTER_BATTLE": "⚔️ KAMPF BEGINNEN →"
+  },
+  "BATTLE": {
+    "BEGINS": "DER KAMPF BEGINNT!",
+    "MISSION": "Mission",
+    "ARSENAL": "Arsenal",
+    "TIP": "Tipp",
+    "HOW_TO_WIN": "So gewinnst du",
+    "TIME_LIMIT": "Du hast {n} Min.",
+    "PERSUADED": "Überzeugt",
+    "TIME_UP": "Die Zeit ist um.",
+    "EARLY_WIN": "Du hast ihn früh geknackt. Sieg!",
+    "COOLDOWN": "Nächster Kampf in etwa {hours} Std."
+  },
+  "DEBRIEF": {
+    "TITLE": "KAMPF-AUSWERTUNG",
+    "RESULT": "Ergebnis",
+    "VICTORY": "SIEG",
+    "ALMOST": "FAST",
+    "DEFEATED": "NIEDERLAGE",
+    "OUTPLAYED": "AUSGESPIELT",
+    "WHAT_WORKED": "WAS FUNKTIONIERT HAT",
+    "WHAT_COST_YOU": "WAS DICH GEKOSTET HAT",
+    "STEAL_THIS": "KLAU DAS",
+    "ADD_TO_ARSENAL": "🎒 ZU MEINEM ARSENAL",
+    "OPPONENT_ADVICE": "RAT DES GEGNERS",
+    "NEXT_TARGET": "NÄCHSTES ZIEL"
+  },
+  "FT": {
+    "SELECT_LANGUAGE": "💬 Freies Gespräch — in welcher Sprache üben wir?",
+    "SELECT_CHARACTER": "Mit wem willst du sprechen?",
+    "START": "Freies Gespräch mit {name}. Kein Timer, keine Note. Schreib einfach.",
+    "DONE": "Gespräch beendet, {name}. ARENA erinnert sich."
+  },
+  "SETTINGS": {
+    "TITLE": "⚙️ EINSTELLUNGEN",
+    "INTERFACE_LANGUAGE": "Sprache der Oberfläche",
+    "LEARNING_LANGUAGE": "Lernsprache",
+    "CHANGE_INTERFACE": "Sprache der Oberfläche ändern",
+    "CHANGE_LEARNING": "Lernsprache ändern",
+    "SAVED": "Gespeichert."
+  },
+  "MY_ARENA": {
+    "TITLE": "MEINE ARENA",
+    "PROFILE": "PROFIL",
+    "NAME": "Name",
+    "INTERFACE_LANGUAGE": "Oberfläche",
+    "LEARNING_LANGUAGE": "Übe",
+    "LEVEL": "Niveau",
+    "BATTLES": "Kämpfe",
+    "VICTORIES": "Siege",
+    "CHARACTERS": "Getroffene Charaktere",
+    "WHAT_ARENA_KNOWS": "WAS ARENA ÜBER DICH WEISS",
+    "CURRENT_CHALLENGE": "AKTUELLE HERAUSFORDERUNG",
+    "HOW_WE_TRAIN": "WIE ARENA DAS TRAINIERT",
+    "YOUR_STRENGTH": "DEINE STÄRKE",
+    "ARSENAL_SHORTCUT": "🧰 Mein Arsenal",
+    "BATTLE_HISTORY": "KAMPFVERLAUF"
+  },
+  "ARSENAL": {
+    "TITLE": "🧰 MEIN ARSENAL",
+    "EMPTY": "Dein Arsenal ist leer. Gewinne einen Kampf, um deine erste Waffe zu stehlen.",
+    "WORD": "Wort",
+    "PHRASE": "Phrase",
+    "MOVE": "Kommunikationszug",
+    "STRATEGY": "Strategie"
+  }
+}

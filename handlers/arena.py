@@ -1,13 +1,20 @@
 """
-handlers/arena.py — бой, свободный разговор, подведение итогов.
+handlers/arena.py — бой, дебрифинг, свободный разговор, арсенал.
 
-Бой: миссия от Арены → арсенал слов → персонаж сопротивляется через generate_battle_turn,
-«убеждённость» падает только за сильные аргументы (AI решает, не формула).
-Победа/поражение — gamification.battle_result: 50% убеждённость + 50% средний балл
-по 10 критериям. Обратная связь — ai.generate_arena_feedback (на языке пользователя,
-по имени, с ошибками из реального диалога и фразами для «кражи»).
+Принципы:
+  • Бой — детерминированный. Таймер и старт/стоп — в bot.py. Убеждённость считает
+    LLM (ai.generate_battle_turn), но с жёстким клампом в ai.py.
+  • В бою НЕТ обратной связи. Ни шкал, ни «правильно/неправильно», ни советов.
+    Только реплики персонажа и (по желанию) арсенал оружия.
+  • В бою НЕТ слова STOP. Останавливается сам по таймеру (bot.arena_timeout).
+  • В бою НЕТ префиксов «Victor:», «Richard:» перед каждой репликой.
+  • Debrief — отдельным сообщением, разделами: RESULT / WHAT WORKED /
+    WHAT COST YOU / STEAL THIS / OPPONENT ADVICE / NEXT TARGET.
+  • Free Talk — отдельный режим, без таймера, без миссии, без победы/поражения.
+    Персонаж держит характер, но не оценивает пользователя.
 """
 import asyncio
+import random
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
@@ -15,27 +22,31 @@ from telegram.ext import ContextTypes
 import ai
 import database as db
 import gamification
+import i18n
 import voice
 from config import (
     BATTLE_DURATION_MINUTES,
     BATTLE_MAX_ROUNDS,
     CONVICTION_START,
     CONVICTION_WIN_THRESHOLD,
+    ISO_TO_LANG_KEY,
+    SUPPORTED_LANGUAGES,
+    LANGUAGE_DISPLAY,
+    LANGUAGE_FLAGS,
     is_admin,
 )
 from game_data import (
-    LEVELS, PERSONALITIES, BADGES, ARENA_UI_STRINGS,
-    PERSONALITY_TO_SKILL, CRITERIA_LABELS_RU,
+    PERSONALITIES, PERSONALITY_TO_SKILL, CRITERIA_LABELS_RU, COMMUNICATION_SKILLS,
 )
 from handlers import intro, start
-from handlers.ui import esc
+from handlers.ui import send_or_edit, esc
 
 STATE_KEYS = [
-    "language", "level", "topic", "personality", "mission_weapons", "mission_tip",
-    "win_condition", "mission", "used_weapons", "dialogue", "turn",
-    "awaiting_response", "asked_continue", "battle_type",
-    "arena_analysis", "conviction", "early_win", "quest_done",
-    "_freetalk_personality", "awaiting_freetalk_topic", "last_input_was_voice",
+    "language", "language_iso", "level", "topic", "personality",
+    "mission_weapons", "mission_tip", "win_condition", "mission",
+    "used_weapons", "dialogue", "turn", "awaiting_response", "battle_type",
+    "arena_analysis", "conviction", "early_win", "last_input_was_voice",
+    "_freetalk_personality", "awaiting_freetalk_topic",
 ]
 
 
@@ -44,41 +55,25 @@ def _reset_state(ud: dict):
         ud.pop(key, None)
 
 
-def _ui(language: str) -> dict:
-    return ARENA_UI_STRINGS.get(language) or ARENA_UI_STRINGS["english"]
+def _lang_key(iso: str) -> str:
+    return ISO_TO_LANG_KEY.get(iso, "english")
 
 
-def _effective_level(context, user_id) -> str:
-    level = context.user_data.get("level") or db.get_current_level(user_id)
-    if level not in LEVELS:
-        level = db.get_current_level(user_id) or "B1"
-    context.user_data["level"] = level
-    return level
+def _lang_iso(ud: dict, user_id: int) -> str:
+    return ud.get("language_iso") or db.get_learning_language(user_id)
 
 
-def format_weapons_status(weapons: str, user_text: str, used_weapons: list):
-    if not weapons:
-        return "", 0, used_weapons
-    items = [w.strip() for w in weapons.replace("·", "|").split("|") if w.strip()]
-    new_used = used_weapons.copy()
-    user_lower = user_text.lower()
-    for item in items:
-        key = item.lower()
-        if key in user_lower and key not in new_used:
-            new_used.append(key)
-    lines = ["🗡️ <b>Арсенал:</b>"]
-    for item in items:
-        mark = "✅" if item.lower() in user_lower else "⬜"
-        lines.append(f"  {mark} {item}")
-    return "\n".join(lines), len(new_used), new_used
+# ==================================================================
+# ВХОД В БОЙ ИЗ МЕНЮ
+# ==================================================================
 
-
-# ------------------------------------------------------------------
-# Вход в бой из меню
-# ------------------------------------------------------------------
-
-async def play_entry(update, context):
-    """⚔️ Battle. Первый раз — Храм. Дальше — бой следующего дня."""
+async def play_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    ⚔️ BATTLE.
+    • Админ — всегда идёт в daily_battle.
+    • Новичок (не прошёл Храм) — уходит в Храм.
+    • Обычный игрок — в daily_battle (или cooldown, если бой был < 24 ч назад).
+    """
     user_id = update.effective_user.id
 
     if not db.has_completed_first_battle(user_id) and not is_admin(user_id):
@@ -86,70 +81,68 @@ async def play_entry(update, context):
         return
 
     if db.has_battled_today(user_id) and not is_admin(user_id):
-        hours_left = db.cooldown_hours_left(user_id)
-        text = (
-            f"⚔️ Следующий бой будет через ~{int(hours_left) + 1} ч.\n"
-            f"Арена даёт время всё обдумать. А пока можно просто поговорить."
-        )
-        markup = start.post_battle_keyboard()
-        if update.callback_query:
-            await update.callback_query.answer()
-            await update.callback_query.edit_message_text(text, reply_markup=markup)
-        else:
-            await update.message.reply_text(text, reply_markup=markup)
+        il = db.get_interface_language(user_id)
+        hours = int(db.cooldown_hours_left(user_id)) + 1
+        text = i18n.t(il, "BATTLE.COOLDOWN", hours=hours)
+        await send_or_edit(update, text, reply_markup=start._menu_keyboard(user_id, il))
         return
 
     await intro.daily_battle(update, context)
 
 
-async def stop_command(update, context):
-    if not context.user_data.get("dialogue"):
-        await update.message.reply_text("Нет активной игры.")
-        return
-    await update.message.reply_text("🏁 Завершаем...")
-    await finish_arena(update, context)
+# ==================================================================
+# НАЧАЛО БОЯ
+# ==================================================================
 
-
-# ------------------------------------------------------------------
-# НАЧАЛО БОЯ (кнопка "⚔️ ENTER BATTLE")
-# ------------------------------------------------------------------
-
-async def start_battle(update, context):
-    """fe_start_battle: миссия + арсенал + таймер + первая реплика персонажа."""
+async def start_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    fe_start_battle: минималистичный брифинг боя.
+    На экране — только: оппонент, тема, миссия, таймер, открывающая реплика.
+    Arsenal / Tip / How to win — НЕ показываем. Они внутри системы.
+    """
     query = update.callback_query
     await query.answer()
     user = update.effective_user
     user_id = user.id
     ud = context.user_data
+    il = db.get_interface_language(user_id)
 
-    language = ud.get("language") or db.get_user_language(user_id) or "english"
-    level = _effective_level(context, user_id)
+    language_iso = _lang_iso(ud, user_id)
+    language = _lang_key(language_iso)
+    level = ud.get("level") or db.get_current_level(user_id) or "B1"
     personality = ud.get("personality") or "devil_advocate"
     topic = ud.get("topic") or "a topic you care about"
-    ui = _ui(language)
     person = PERSONALITIES.get(personality, PERSONALITIES["devil_advocate"])
 
-    gamification.ensure_quest(user_id)
-
-    await query.edit_message_text(f"⚔️ {esc(ui['thinking'])}")
-
     analysis = ud.get("arena_analysis") or db.get_latest_arena_analysis(user_id) or {}
+
+    # Миссия — короткая (максимум 5 слов). Оружие и tip — генерим тихо, внутрь.
     mission, weapons_pack = await asyncio.gather(
-        asyncio.to_thread(ai.generate_mission_task, topic, personality,
-                          user.first_name or "", language, level),
-        asyncio.to_thread(ai.generate_mission_weapons, topic, level, personality,
-                          language, analysis, analysis.get("weakest_skill")),
+        asyncio.to_thread(
+            ai.generate_mission_task, topic, personality,
+            user.first_name or "", language, level, analysis.get("pattern", ""),
+        ),
+        asyncio.to_thread(
+            ai.generate_mission_weapons, topic, level, personality,
+            language, analysis, analysis.get("weakest_skill"),
+        ),
     )
     weapons, tip, win_condition = weapons_pack
-    opening = await asyncio.to_thread(ai.generate_opening_statement,
-                                      personality, topic, level, language, mission)
+
+    opening = await asyncio.to_thread(
+        ai.generate_opening_statement, personality, topic, level, language, mission
+    )
 
     ud.update({
         "language": language,
+        "language_iso": language_iso,
+        "level": level,
+        "personality": personality,
+        "topic": topic,
         "mission": mission,
-        "mission_weapons": weapons,
-        "mission_tip": tip,
-        "win_condition": win_condition,
+        "mission_weapons": weapons,       # внутри, для скрытого подсчёта
+        "mission_tip": tip,               # внутри, не показываем
+        "win_condition": win_condition,   # внутри, не показываем
         "used_weapons": [],
         "dialogue": [{"speaker": "AI", "text": opening}],
         "battle_type": "battle",
@@ -161,28 +154,34 @@ async def start_battle(update, context):
     from bot import start_arena_timer
     start_arena_timer(context, user_id, update.effective_chat.id, BATTLE_DURATION_MINUTES)
 
-    weapon_lines = "\n".join(f"  ⬜ {w.strip()}" for w in weapons.replace("·", "|").split("|") if w.strip())
+    # --- Минималистичный брифинг ---
+    # Opponent → Mission → Timer → Opening challenge.
+    topic_short = topic.strip().rstrip(".")
+
     text = (
-        f"⚔️ <b>{esc(ui['battle_begins'])}</b>\n\n"
-        f"🎯 <b>{esc(ui['mission'])}:</b> {esc(mission)}\n"
-        f"🗡️ <b>{esc(ui['weapons'])}:</b>\n{weapon_lines}\n"
-        f"💡 <b>{esc(ui['tip'])}:</b> {esc(tip)}\n"
-        f"🏁 <b>{esc(ui['how_to_win'])}:</b> {esc(win_condition)}\n"
-        f"⏱️ {esc(ui['time_limit'].format(n=BATTLE_DURATION_MINUTES))}\n\n"
-        f"<b>{esc(person['short_name'])}:</b> <i>{esc(opening)}</i>\n\n"
-        f"<i>{esc(ui['reply_or_stop'])}</i>"
+        f"⚔️ <b>{esc(i18n.t(il, 'BATTLE.BEGINS'))}</b>\n\n"
+        f"<b>{esc(person['full_name'].upper())}</b>\n\n"
+        f"🎯 <b>{esc(i18n.t(il, 'BATTLE.MISSION'))}</b>\n"
+        f"<b>{esc(mission)}</b>\n\n"
+        f"⏱ <i>{esc(i18n.t(il, 'BATTLE.TIME_LIMIT', n=BATTLE_DURATION_MINUTES))}</i>\n\n"
+        f"────────────\n\n"
+        f"<i>{esc(opening)}</i>"
     )
-    await context.bot.send_message(update.effective_chat.id, text, parse_mode="HTML")
 
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton(i18n.t(il, "MENU.MY_ARSENAL"), callback_data="menu_arsenal")],
+    ])
 
-# ------------------------------------------------------------------
+    await context.bot.send_message(update.effective_chat.id, text,
+                                   reply_markup=keyboard, parse_mode="HTML")
+# ==================================================================
 # ХОДЫ БОЯ
-# ------------------------------------------------------------------
+# ==================================================================
 
-async def handle_response(update, context):
+async def handle_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Ход игрока в бою. Реплика персонажа — без префиксов, без STOP, без фидбэка."""
     user_text = await voice.get_pending_text(update, context)
     if len(user_text) < 2:
-        await update.message.reply_text("❌ Слишком коротко.")
         return
 
     ud = context.user_data
@@ -191,30 +190,29 @@ async def handle_response(update, context):
     ud["awaiting_response"] = False
 
     user_turns = sum(1 for d in dialogue if d["speaker"] == "User")
-    if ud.get("battle_type") != "free_talk" and user_turns >= BATTLE_MAX_ROUNDS:
+    if user_turns >= BATTLE_MAX_ROUNDS:
         await finish_arena(update, context)
         return
 
     await _continue_round(update, context)
 
-    if (
-        ud.get("battle_type") != "free_talk"
-        and ud.get("dialogue")
-        and ud.get("conviction", CONVICTION_START) <= CONVICTION_WIN_THRESHOLD
-    ):
+    # Досрочная победа по убеждённости
+    if ud.get("conviction", CONVICTION_START) <= CONVICTION_WIN_THRESHOLD:
         ud["early_win"] = True
-        await update.message.reply_text(f"🏆 {_ui(ud.get('language', 'english'))['early_win']}")
         await finish_arena(update, context)
 
 
-async def _continue_round(update, context):
+async def _continue_round(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ud = context.user_data
     dialogue = ud["dialogue"]
     personality = ud.get("personality", "devil_advocate")
-    language = ud.get("language", "english")
-    level = _effective_level(context, update.effective_user.id)
-    person = PERSONALITIES.get(personality, PERSONALITIES["devil_advocate"])
+    user_id = update.effective_user.id
+    language_iso = _lang_iso(ud, user_id)
+    language = _lang_key(language_iso)
+    level = ud.get("level") or db.get_current_level(user_id) or "B1"
+    il = db.get_interface_language(user_id)
 
+    person = PERSONALITIES.get(personality, PERSONALITIES["devil_advocate"])
     weapons = ud.get("mission_weapons", "")
     mission = ud.get("mission")
     used_weapons = ud.get("used_weapons", [])
@@ -224,7 +222,8 @@ async def _continue_round(update, context):
     user_text_full = " ".join(user_responses)
     last_user = next((d["text"] for d in reversed(dialogue) if d["speaker"] == "User"), "")
     history = "\n".join(
-        f"{'Learner' if d['speaker'] == 'User' else person['short_name']}: {d['text']}" for d in dialogue
+        f"{'Learner' if d['speaker'] == 'User' else person['short_name']}: {d['text']}"
+        for d in dialogue
     )
 
     chat_action = "record_voice" if ud.get("last_input_was_voice") else "typing"
@@ -233,57 +232,63 @@ async def _continue_round(update, context):
     except Exception:
         pass
 
+    # --- Free Talk: отдельная ветка, без миссии и оценки ---
     if ud.get("battle_type") == "free_talk":
-        memory = db.get_memory(update.effective_user.id)
-        ai_reply = await asyncio.to_thread(
-            ai.generate_ai_response, personality, history, last_user, level, language,
-            None, user_name, memory,
+        memory = db.get_memory(user_id)
+        reply = await asyncio.to_thread(
+            ai.generate_ai_response, personality, history, last_user, level,
+            language, None, user_name, memory,
         )
-        ai_reply = ai_reply or person.get("phrase", "...")
-        dialogue.append({"speaker": "AI", "text": ai_reply})
+        reply = reply or person.get("phrase", "…")
+        dialogue.append({"speaker": "AI", "text": reply})
         ud["awaiting_response"] = True
-        await voice.maybe_reply_voice(update, context, ai_reply, personality)
-        await update.message.reply_text(
-            f"<b>{esc(person['name'])}:</b>\n<i>{esc(ai_reply)}</i>\n\n"
-            f"💬 /stop — закончить",
-            parse_mode="HTML",
-        )
+
+        await voice.maybe_reply_voice(update, context, reply, personality)
+        await update.message.reply_text(reply, parse_mode="HTML")
         return
 
-    # --- боевой ход: убеждённость решает персонаж, не формула ---
+    # --- Боевой ход ---
     conviction = ud.get("conviction", CONVICTION_START)
     turn = await asyncio.to_thread(
-        ai.generate_battle_turn, personality, history, last_user, level, language,
-        mission, user_name, conviction,
+        ai.generate_battle_turn, personality, history, last_user, level,
+        language, mission, user_name, conviction,
     )
-    ai_reply = turn["reply"] or person.get("phrase", "...")
+    reply = turn["reply"] or person.get("phrase", "…")
     ud["conviction"] = turn["conviction"]
-    dialogue.append({"speaker": "AI", "text": ai_reply})
+    dialogue.append({"speaker": "AI", "text": reply})
     ud["awaiting_response"] = True
 
-    ui = _ui(language)
-    weapons_status, used_count, updated_used = format_weapons_status(weapons, user_text_full, used_weapons)
-    new_weapon_used = used_count > len(used_weapons)
+    # Обновляем статус арсенала (тихо, без обращения к пользователю)
+    _, used_count, updated_used = _weapons_status(weapons, user_text_full, used_weapons)
     ud["used_weapons"] = updated_used
 
-    conv = ud["conviction"]
-    bar = "█" * int((100 - conv) / 10) + "░" * int(conv / 10)
-    weapon_note = "\n✨ +арсенал" if new_weapon_used else ""
-    await voice.maybe_reply_voice(update, context, ai_reply, personality)
-    await update.message.reply_text(
-        f"<b>{esc(person['name'])}:</b>\n<i>{esc(ai_reply)}</i>\n\n"
-        f"{weapons_status}\n\n"
-        f"🔥 {esc(ui['persuaded'])}: {bar} {conv}%{weapon_note}\n"
-        f"💬 /stop — закончить",
-        parse_mode="HTML",
-    )
+    await voice.maybe_reply_voice(update, context, reply, personality)
+    await update.message.reply_text(reply, parse_mode="HTML")
 
 
-# ------------------------------------------------------------------
-# ИТОГИ (общее ядро: и по /stop, и по таймеру)
-# ------------------------------------------------------------------
+def _weapons_status(weapons: str, user_text: str, used_weapons: list):
+    """Возвращает (status_line, used_count, updated_used) — используется только в дебрифе."""
+    if not weapons:
+        return "", 0, used_weapons
+    items = [w.strip() for w in weapons.replace("·", "|").split("|") if w.strip()]
+    new_used = used_weapons.copy()
+    user_lower = user_text.lower()
+    for item in items:
+        key = item.lower()
+        if key in user_lower and key not in new_used:
+            new_used.append(key)
+    lines = ["🗡️ <b>Arsenal:</b>"]
+    for item in items:
+        mark = "✅" if item.lower() in user_lower else "⬜"
+        lines.append(f"  {mark} {esc(item)}")
+    return "\n".join(lines), len(new_used), new_used
 
-async def finish_arena(update, context):
+
+# ==================================================================
+# ЗАВЕРШЕНИЕ БОЯ И ДЕБРИФИНГ
+# ==================================================================
+
+async def finish_arena(update: Update, context: ContextTypes.DEFAULT_TYPE):
     from bot import stop_arena_timer
     user = update.effective_user
     stop_arena_timer(context, user.id)
@@ -292,66 +297,72 @@ async def finish_arena(update, context):
 
 
 async def finish_arena_by_timeout(context, user_id: int, chat_id: int):
-    """Вызывается из job_queue, когда вышло время боя."""
-    user_data = context.application.user_data.get(user_id) or {}
-    if not user_data.get("dialogue"):
+    """Таймер вышел — Арена сама завершает бой."""
+    ud = context.application.user_data.get(user_id) or {}
+    if not ud.get("dialogue"):
         return
     first_name = db.get_user_first_name(user_id)
-    await _do_finish(context.bot, user_id, chat_id, user_data, first_name)
+    await _do_finish(context.bot, user_id, chat_id, ud, first_name)
 
 
 async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str):
-    language = ud.get("language") or db.get_user_language(user_id) or "english"
-    ui = _ui(language)
-    level = ud.get("level") or db.get_current_level(user_id) or "B1"
-    topic = ud.get("topic", "")
-    personality = ud.get("personality", "devil_advocate")
-    weapons = ud.get("mission_weapons", "")
-    used_weapons = ud.get("used_weapons", [])
+    il = db.get_interface_language(user_id)
     dialogue = ud.get("dialogue", [])
-    person = PERSONALITIES.get(personality, PERSONALITIES["devil_advocate"])
     user_responses = [d["text"] for d in dialogue if d["speaker"] == "User"]
 
     if not user_responses:
-        await bot.send_message(chat_id, "❌ Ты ничего не сказал(а).")
+        await bot.send_message(chat_id, "❌ …")
         _reset_state(ud)
         return
 
-    # ---------- Свободный разговор: без оценки, только память Арены ----------
+    language_iso = _lang_iso(ud, user_id)
+    language = _lang_key(language_iso)
+    level = ud.get("level") or db.get_current_level(user_id) or "B1"
+    topic = ud.get("topic", "")
+    personality = ud.get("personality", "devil_advocate")
+    person = PERSONALITIES.get(personality, PERSONALITIES["devil_advocate"])
+    weapons = ud.get("mission_weapons", "")
+    used_weapons = ud.get("used_weapons", [])
+
+    # ---------- FREE TALK: без Debrief, просто напоминаем, что Арена помнит ----------
     if ud.get("battle_type") == "free_talk":
-        await bot.send_message(chat_id, f"💬 {esc(ui['judging'])}")
         try:
-            analysis = await asyncio.to_thread(ai.analyze_freetalk, user_responses, language)
-            db.save_freetalk_session(user_id, personality, language, level, topic, dialogue, analysis)
-            db.update_criteria(user_id, {**analysis.get("language", {}),
-                                         **analysis.get("communication", {})}, weight=0.2)
+            analysis = await asyncio.to_thread(
+                ai.analyze_freetalk, user_responses, language
+            )
+            db.save_freetalk_session(user_id, personality, language_iso, level, topic,
+                                     dialogue, analysis)
+            db.update_criteria(user_id, {**analysis["language"], **analysis["communication"]},
+                               weight=0.2)
             if analysis.get("interests"):
                 db.add_interests(user_id, analysis["interests"])
             est = analysis.get("estimated_level")
-            if est in LEVELS and est != level:
+            if est:
                 db.add_level_snapshot(user_id, est, source="freetalk")
         except Exception:
             pass
+
         skill = PERSONALITY_TO_SKILL.get(personality, "argumentation")
-        db.add_skill_progress(user_id, skill, 8, battles=0)
-        text = f"{esc(ui['ft_done'].format(name=first_name))}\n\n⚡ +8 XP — {esc(person['name'])}"
-        await bot.send_message(chat_id, text, reply_markup=start.post_battle_keyboard())
+        db.add_skill_progress(user_id, skill, 5, battles=0)
+
+        text = i18n.t(il, "FT.DONE", name=first_name or "")
+        await bot.send_message(chat_id, text,
+                               reply_markup=start._menu_keyboard(user_id, il),
+                               parse_mode="HTML")
         _reset_state(ud)
         return
 
-    # ---------- Боевой разбор ----------
+    # ---------- БОЕВОЙ ДЕБРИФ ----------
     mission = ud.get("mission", "")
-    quest = db.get_active_quest(user_id)
-    quest_desc = quest["description"] if quest else ""
     dialogue_text = "\n".join(
-        f"{'Learner' if d['speaker'] == 'User' else person['short_name']}: {d['text']}" for d in dialogue
+        f"{'Learner' if d['speaker'] == 'User' else person['short_name']}: {d['text']}"
+        for d in dialogue
     )
 
-    await bot.send_message(chat_id, f"📝 {esc(ui['judging'])}")
-
+    # 1) Оценка по 10 критериям + результат
     analysis = await asyncio.to_thread(
         ai.analyze_debate, user_responses, dialogue_text, topic, level, language,
-        personality, weapons, quest_desc,
+        personality, weapons, mission,
     )
     criteria = analysis["criteria"]
     conviction = min(ud.get("conviction", CONVICTION_START), analysis.get("conviction", 70))
@@ -362,156 +373,232 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
     overall = result["overall"]
     win_score = result["win_score"]
 
-    best_key = max(criteria, key=criteria.get)
-    worst_key = min(criteria, key=criteria.get)
-
+    # 2) Дебриф от Арены + рабочие цитаты + «укради это»
     fb = await asyncio.to_thread(
-        ai.generate_arena_feedback, first_name, language, level, personality,
-        topic, mission, won, conviction, criteria, dialogue,
+        ai.generate_battle_debrief, first_name, language, level, personality,
+        topic, mission, won, win_score, conviction, criteria, dialogue,
+        ud.get("arena_analysis", {}).get("pattern", ""),
     )
     mistakes = fb.get("mistakes", [])
     if mistakes:
         db.add_vocabulary_mistakes(user_id, mistakes)
 
-    quest_done = gamification.evaluate_quest(
-        quest, len(used_weapons), personality, won, len(mistakes),
-        bool(analysis.get("quest_done")),
-    )
-
-    nemesis = db.get_nemesis(user_id)
-    is_nemesis = bool(nemesis and nemesis["personality"] == personality and not nemesis["defeated"])
-    if is_nemesis:
-        db.mark_nemesis_fought(user_id, defeated=won)
-
-    stats = db.get_user_stats(user_id)
-    is_new_character = personality not in stats["unique_personalities"]
-    hours_since = db.get_hours_since_last_battle(user_id)
-    is_first_daily = hours_since is None or hours_since >= 20
-
-    points = gamification.calculate_points(
-        rounds_completed, conviction, len(used_weapons), quest_done, len(mistakes),
-        is_first_daily, is_new_character, is_nemesis, won,
-    )
+    # 3) Скилл-прогресс, сохранение сессии, level-снапшот
     skill = PERSONALITY_TO_SKILL.get(personality, "argumentation")
-    skill_delta = gamification.calculate_skill_delta(conviction, len(used_weapons), quest_done, is_nemesis, won)
-
+    skill_delta = gamification.calculate_skill_delta(conviction, len(used_weapons),
+                                                     False, False, won)
+    db.add_skill_progress(user_id, skill, skill_delta)
     db.save_game_session(
-        user_id, personality, language, level, topic, rounds_completed, criteria, points,
-        strength=CRITERIA_LABELS_RU.get(best_key, best_key),
-        growth=CRITERIA_LABELS_RU.get(worst_key, worst_key),
-        conviction_final=conviction, quest_done=1 if quest_done else 0,
-        won=1 if won else 0, overall=overall,
+        user_id, personality, language_iso, level, topic, rounds_completed,
+        criteria, 0, conviction_final=conviction, won=1 if won else 0,
+        overall=overall, mission=mission, result_state=fb.get("result_state", ""),
     )
     db.update_criteria(user_id, criteria, weight=0.4)
     if topic:
         db.add_interests(user_id, [topic])
-    db.add_points(user_id, points)
-    db.mark_first_battle_done(user_id)
 
-    avg_recent = db.get_recent_avg_scores(user_id, n=3)
+    avg_recent = db.get_recent_avg_scores(user_id, n=3, level=level)
     new_level = gamification.adapt_level(level, avg_recent)
     if new_level != level:
         db.add_level_snapshot(user_id, new_level, source="battle_finish")
         ud["level"] = new_level
 
-    new_badges = gamification.check_and_unlock_achievements(
-        user_id, personality, rounds_completed, criteria, conviction, quest_done,
-        mistakes, is_nemesis=is_nemesis, won=won,
+    db.mark_first_battle_done(user_id)
+    db.mark_temple_done(user_id)
+
+    # 4) Немезида + бейджи
+    nemesis = db.get_nemesis(user_id)
+    is_nemesis = bool(nemesis and nemesis["personality"] == personality and not nemesis["defeated"])
+    if is_nemesis and won:
+        db.mark_nemesis_fought(user_id, defeated=True)
+    gamification.check_and_unlock_achievements(
+        user_id, personality, rounds_completed, criteria, conviction,
+        quest_done=False, mistakes=mistakes, is_nemesis=is_nemesis, won=won,
     )
 
-    if quest_done and quest:
-        db.complete_quest(user_id)
-    gamification.ensure_quest(user_id)
+    # 5) Debrief-сообщение
+    text = _format_debrief(il, fb, result, person, mistakes)
+    keyboard = _debrief_keyboard(il)
 
-    # ---------- Сообщение-вердикт (всё на языке пользователя) ----------
-    stars = gamification.result_stars(win_score)
-    lines = []
-    if fb.get("wow"):
-        lines.append(f"🏟️ <b>{esc(fb['wow'])}</b>")
-    lines.append(f"{stars} <b>{esc(ui['victory'] if won else ui['defeat'])}</b>"
-                 f" · win score {win_score}/100")
+    await bot.send_message(chat_id, text, reply_markup=keyboard, parse_mode="HTML")
+
+    # Сохраняем «steal» во временный буфер, чтобы кнопка ADD TO MY ARSENAL
+    # могла положить фразы в арсенал.
+    ud["_pending_steal"] = fb.get("steal", [])
+    ud["_pending_steal_source"] = personality
+
+
+def _format_debrief(il: str, fb: dict, result: dict, person: dict, mistakes: list) -> str:
+    lines = [f"🏟 <b>{esc(i18n.t(il, 'DEBRIEF.TITLE'))}</b>"]
+
+    state = fb.get("result_state") or ("VICTORY" if result["won"] else "DEFEATED")
+    stars = gamification.result_stars(result["win_score"])
+    lines.append(
+        f"\n{stars} <b>{esc(i18n.t(il, f'DEBRIEF.{state}'))}</b>"
+        f" · {esc(i18n.t(il, 'DEBRIEF.RESULT'))} {result['win_score']}/100"
+    )
+    if fb.get("result_line"):
+        lines.append(esc(fb["result_line"]))
+
     if fb.get("worked"):
-        lines.append(f"\n✅ <b>{esc(ui['worked'])}:</b> {esc(fb['worked'])}")
-    why_label = ui["why_won"] if won else ui["why_lost"]
-    if fb.get("why"):
-        lines.append(f"{'🏆' if won else '💀'} <b>{esc(why_label)}:</b> {esc(fb['why'])}")
-    if fb.get("great_phrases"):
-        lines.append("🔥 " + " · ".join(f"<i>{esc(p)}</i>" for p in fb["great_phrases"]))
+        lines.append(f"\n✅ <b>{esc(i18n.t(il, 'DEBRIEF.WHAT_WORKED'))}</b>\n{esc(fb['worked'])}")
+
+    if fb.get("cost"):
+        lines.append(f"\n💀 <b>{esc(i18n.t(il, 'DEBRIEF.WHAT_COST_YOU'))}</b>\n{esc(fb['cost'])}")
+
+    steal = fb.get("steal") or []
+    if steal:
+        lines.append(f"\n🧠 <b>{esc(i18n.t(il, 'DEBRIEF.STEAL_THIS'))}</b>")
+        for item in steal:
+            kind = item.get("kind", "")
+            content = item.get("content", "")
+            if not content:
+                continue
+            icon = {"phrase": "💬", "move": "🎯", "strategy": "🧭"}.get(kind, "•")
+            lines.append(f"  {icon} <i>{esc(content)}</i>")
+
+    if fb.get("advice"):
+        lines.append(
+            f"\n🎭 <b>{esc(i18n.t(il, 'DEBRIEF.OPPONENT_ADVICE'))} — {esc(person['short_name'])}:</b>\n"
+            f"<i>{esc(fb['advice'])}</i>"
+        )
+
+    target = fb.get("next_target")
+    if target:
+        target_name = CRITERIA_LABELS_RU.get(target, target).upper()
+        lines.append(f"\n🎯 <b>{esc(i18n.t(il, 'DEBRIEF.NEXT_TARGET'))}: {esc(target_name)}</b>")
+
     if mistakes:
         mlines = "\n".join(f"  • {esc(m['wrong'])} → <b>{esc(m['correct'])}</b>" for m in mistakes[:5])
-        lines.append(f"\n📚 <b>{esc(ui['language_check'])}:</b>\n{mlines}")
-    if fb.get("steal"):
-        slines = "\n".join(f"  • <i>{esc(p)}</i>" for p in fb["steal"])
-        lines.append(f"\n🧠 <b>{esc(ui['steal'].format(name=person['short_name']))}:</b>\n{slines}")
-    if fb.get("character_line"):
-        lines.append(f"\n🎭 <b>{esc(person['short_name'])}:</b> <i>{esc(fb['character_line'])}</i>")
+        lines.append(f"\n📚 <b>{esc(i18n.t(il, 'DEBRIEF.LANGUAGE_CHECK'))}</b>\n{mlines}")
 
-    lines.append(f"\n⭐ <b>+{points}</b> · ⚡ <b>+{skill_delta} XP</b> — {esc(person['name'])} ({skill})")
-    if quest_done and quest:
-        lines.append(f"🎯 <b>Quest:</b> {esc(quest['description'])}")
-    if new_badges:
-        names = ", ".join(BADGES[b]["name"] for b in new_badges if b in BADGES)
-        lines.append(f"🎉 {esc(names)}")
-    cooldown = "завтра" if not is_admin(user_id) else "когда захочешь (админ)"
-    lines.append(f"\n🗓️ <b>Следующий бой — {cooldown}.</b>")
+    return "\n".join(lines)
 
-    await bot.send_message(chat_id, "\n".join(lines),
-                           reply_markup=start.post_battle_keyboard(), parse_mode="HTML")
-    _reset_state(ud)
+def _debrief_keyboard(il: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(i18n.t(il, "DEBRIEF.ADD_TO_ARSENAL"), callback_data="arsenal_add_pending")],
+        [InlineKeyboardButton(i18n.t(il, "MENU.MY_ARENA"), callback_data="menu_profile")],
+        [InlineKeyboardButton(i18n.t(il, "MENU.FREE_TALK"), callback_data="freetalk")],
+        [InlineKeyboardButton(i18n.t(il, "MENU.BACK"), callback_data="back_to_main")],
+    ])
 
 
-async def rematch(update, context):
-    await intro.daily_battle(update, context)
+# ==================================================================
+# АРСЕНАЛ: положить steal-фразы в «Мой арсенал»
+# ==================================================================
 
-
-async def next_guardian(update, context):
-    await intro.daily_battle(update, context)
-
-
-# ------------------------------------------------------------------
-# FREE TALK: выбираешь ТОЛЬКО персонажа — Арена всё помнит сама
-# ------------------------------------------------------------------
-
-async def freetalk(update, context):
+async def arsenal_add_pending(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Кнопка ADD TO MY ARSENAL под дебрифом. Кладёт и phrase, и move, и strategy."""
     query = update.callback_query
     await query.answer()
+
+    ud = context.user_data
+    user_id = update.effective_user.id
+    il = db.get_interface_language(user_id)
+    items = ud.pop("_pending_steal", []) or []
+    source = ud.pop("_pending_steal_source", "")
+
+    added = 0
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        kind = item.get("kind", "")
+        content = item.get("content", "")
+        if kind not in ("phrase", "move", "strategy") or not content:
+            continue
+        if db.add_arsenal_item(user_id, kind, content, source=source):
+            added += 1
+
+    text = i18n.t(il, "ARSENAL.SAVED") if added else i18n.t(il, "ARSENAL.EMPTY_ADD")
+    await query.edit_message_text(text)
+
+
+# ==================================================================
+# FREE TALK — отдельный режим
+# ==================================================================
+
+async def freetalk(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Free Talk. Всегда доступен.
+    1) Сначала — выбор learning_language (не interface!).
+    2) Затем — выбор персонажа.
+    3) Потом — старт разговора; персонаж сам подбирает тему из памяти.
+    """
+    query = update.callback_query
+    await query.answer()
+    user_id = update.effective_user.id
+    il = db.get_interface_language(user_id)
+
     if context.user_data.get("dialogue"):
-        await query.edit_message_text("Сначала закончи текущий разговор (/stop).")
+        await query.edit_message_text(i18n.t(il, "FT.BUSY"))
         return
 
-    keyboard = [
-        [InlineKeyboardButton(p["name"], callback_data=f"freetalk_pick_{key}")]
-        for key, p in PERSONALITIES.items()
-    ]
-    keyboard.append([InlineKeyboardButton("🔙 В меню", callback_data="back_to_main")])
+    rows = []
+    for iso in SUPPORTED_LANGUAGES:
+        label = f"{LANGUAGE_FLAGS.get(iso, '')} {LANGUAGE_DISPLAY.get(iso, iso)}".strip()
+        rows.append([InlineKeyboardButton(label, callback_data=f"ft_lang_{iso}")])
+    rows.append([InlineKeyboardButton(i18n.t(il, "MENU.BACK"), callback_data="back_to_main")])
 
     await query.edit_message_text(
-        "💬 <b>Свободный разговор</b>\n\nС кем хочешь поговорить? Без таймера и без оценки.",
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        i18n.t(il, "FT.SELECT_LANGUAGE"),
+        reply_markup=InlineKeyboardMarkup(rows),
         parse_mode="HTML",
     )
 
 
-async def freetalk_pick(update, context):
+async def ft_select_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    iso = query.data.replace("ft_lang_", "")
+    if iso not in SUPPORTED_LANGUAGES:
+        return
+    user_id = update.effective_user.id
+    il = db.get_interface_language(user_id)
+
+    context.user_data["_ft_language_iso"] = iso
+
+    rows = [
+        [InlineKeyboardButton(p["name"], callback_data=f"freetalk_pick_{key}")]
+        for key, p in PERSONALITIES.items()
+    ]
+    rows.append([InlineKeyboardButton(i18n.t(il, "MENU.BACK"), callback_data="back_to_main")])
+
+    await query.edit_message_text(
+        i18n.t(il, "FT.SELECT_CHARACTER"),
+        reply_markup=InlineKeyboardMarkup(rows),
+        parse_mode="HTML",
+    )
+
+
+async def freetalk_pick(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Персонаж выбран. Начинаем свободный разговор — язык и тема из памяти."""
     query = update.callback_query
     await query.answer()
     user = update.effective_user
+    user_id = user.id
     ud = context.user_data
+    il = db.get_interface_language(user_id)
+
     personality = query.data.replace("freetalk_pick_", "")
     person = PERSONALITIES.get(personality, PERSONALITIES["devil_advocate"])
 
-    language = db.get_user_language(user.id) or ud.get("language") or "english"
-    level = db.get_current_level(user.id) or "B1"
-    memory = db.get_memory(user.id)
+    language_iso = ud.pop("_ft_language_iso", None) or db.get_learning_language(user_id)
+    db.set_learning_language(user_id, language_iso)
+    language = _lang_key(language_iso)
+    level = db.get_current_level(user_id) or "B1"
+    memory = db.get_memory(user_id)
     interests = memory.get("interests") or []
     topic = interests[0] if interests else ""
 
-    opening = await asyncio.to_thread(ai.generate_freetalk_opening,
-                                      personality, memory, language, level, user.first_name or "")
+    opening = await asyncio.to_thread(
+        ai.generate_freetalk_opening, personality, memory, language, level,
+        user.first_name or "",
+    )
 
     ud.update({
         "personality": personality,
         "language": language,
+        "language_iso": language_iso,
         "level": level,
         "topic": topic,
         "mission": None,
@@ -522,22 +609,25 @@ async def freetalk_pick(update, context):
         "awaiting_response": True,
     })
 
-    ui = _ui(language)
     await context.bot.send_message(
         update.effective_chat.id,
-        f"💬 {esc(ui['ft_start'].format(name=person['short_name']))}\n\n"
-        f"<b>{esc(person['name'])}:</b> <i>{esc(opening)}</i>",
+        f"<i>{esc(opening)}</i>",
         parse_mode="HTML",
     )
     await voice.maybe_reply_voice(update, context, opening, personality)
 
 
+# ==================================================================
+# ТЕКСТОВЫЙ РОУТЕР
+# ==================================================================
+
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.user_data.get("fe_awaiting_response"):
+    ud = context.user_data
+    if ud.get("fe_awaiting_response"):
         await intro.handle_fe_response(update, context)
-    elif context.user_data.get("awaiting_response"):
+    elif ud.get("awaiting_response"):
         await handle_response(update, context)
     else:
-        await update.message.reply_text(
-            "Нет активной игры. Нажми «⚔️ Battle» или «🏛️ Арена»."
-        )
+        user_id = update.effective_user.id
+        il = db.get_interface_language(user_id)
+        await update.message.reply_text(i18n.t(il, "MENU.NO_ACTIVE"))

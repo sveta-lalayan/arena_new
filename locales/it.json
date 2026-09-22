@@ -1,0 +1,96 @@
+{
+  "MENU": {
+    "BATTLE": "⚔️ BATTLE",
+    "FREE_TALK": "💬 CHIACCHIERA LIBERA",
+    "MY_ARENA": "🏛 LA MIA ARENA",
+    "MY_ARSENAL": "🧰 IL MIO ARSENALE",
+    "SETTINGS": "⚙️ IMPOSTAZIONI",
+    "ENTER_ARENA": "🏛 ENTRA NELL'ARENA",
+    "BACK": "🔙 Al menu",
+    "ACHIEVEMENTS": "🏆 Obiettivi",
+    "NO_ACTIVE": "Nessuna partita attiva. Tocca BATTLE o CHIACCHIERA LIBERA."
+  },
+  "START": {
+    "WELCOME_FIRST": "👋 {name}\nBenvenuto in ARENA.\n\n🏛 ENTRA NELL'ARENA\nLascia che ARENA ascolti e decida chi incontrerai.",
+    "WELCOME_BACK": "👋 {name}\nL'Arena osserva. Una battaglia al giorno. Chiacchiera libera — sempre."
+  },
+  "TEMPLE": {
+    "SELECT_LEARNING_LANGUAGE": "In che lingua parlerai?",
+    "LISTENING": "ARENA STA ASCOLTANDO.",
+    "YOUR_MOVE": "Tocca a te.",
+    "HINT": "cosa faccio · cosa amo · cosa penso · qualsiasi cosa",
+    "THINKING": "ARENA sta pensando…",
+    "HEARD_ENOUGH": "HO SENTITO ABBASTANZA.",
+    "ENTER_BATTLE": "⚔️ INIZIA LA SFIDA →",
+    "ALREADY_DONE": "🏛 Hai già conosciuto il Tempio. L'Arena deciderà quando arriva la prossima battaglia."
+  },
+  "BATTLE": {
+    "BEGINS": "LA SFIDA INIZIA!",
+    "MISSION": "Missione",
+    "ARSENAL": "Arsenale",
+    "TIP": "Consiglio",
+    "HOW_TO_WIN": "Come vincere",
+    "TIME_LIMIT": "Hai {n} min.",
+    "PERSUADED": "Convinto",
+    "TIME_UP": "Tempo scaduto.",
+    "EARLY_WIN": "L'hai convinto in anticipo. Vittoria!",
+    "COOLDOWN": "Prossima battaglia tra circa {hours} h."
+  },
+  "DEBRIEF": {
+    "TITLE": "RESOCONTO DELLA SFIDA",
+    "RESULT": "Risultato",
+    "VICTORY": "VITTORIA",
+    "ALMOST": "QUASI",
+    "DEFEATED": "SCONFITTA",
+    "OUTPLAYED": "SUPERATO",
+    "WHAT_WORKED": "COSA HA FUNZIONATO",
+    "WHAT_COST_YOU": "COSA TI È COSTATO",
+    "STEAL_THIS": "RUBA QUESTO",
+    "ADD_TO_ARSENAL": "🎒 AGGIUNGI AL MIO ARSENALE",
+    "OPPONENT_ADVICE": "CONSIGLIO DELL'AVVERSARIO",
+    "NEXT_TARGET": "PROSSIMO OBIETTIVO",
+    "LANGUAGE_CHECK": "CONTROLLO LINGUISTICO"
+  },
+  "FT": {
+    "SELECT_LANGUAGE": "💬 Chiacchiera libera — in che lingua ci esercitiamo?",
+    "SELECT_CHARACTER": "Con chi vuoi parlare?",
+    "START": "Chiacchiera libera con {name}. Nessun timer, nessun voto. Scrivi quello che vuoi.",
+    "DONE": "Conversazione finita, {name}. ARENA ricorda.",
+    "BUSY": "Prima finisci la conversazione attuale."
+  },
+  "SETTINGS": {
+    "TITLE": "⚙️ IMPOSTAZIONI",
+    "INTERFACE_LANGUAGE": "Lingua dell'interfaccia",
+    "LEARNING_LANGUAGE": "Lingua di studio",
+    "CHANGE_INTERFACE": "Cambia lingua dell'interfaccia",
+    "CHANGE_LEARNING": "Cambia lingua di studio",
+    "SAVED": "Salvato."
+  },
+  "MY_ARENA": {
+    "TITLE": "LA MIA ARENA",
+    "PROFILE": "PROFILO",
+    "NAME": "Nome",
+    "INTERFACE_LANGUAGE": "Interfaccia",
+    "LEARNING_LANGUAGE": "Mi sto esercitando in",
+    "LEVEL": "Livello",
+    "BATTLES": "Sfide",
+    "VICTORIES": "Vittorie",
+    "CHARACTERS": "Personaggi incontrati",
+    "WHAT_ARENA_KNOWS": "COSA ARENA SA DI TE",
+    "CURRENT_CHALLENGE": "SFIDA ATTUALE",
+    "HOW_WE_TRAIN": "COME ARENA LA ALLENA",
+    "YOUR_STRENGTH": "IL TUO PUNTO DI FORZA",
+    "ARSENAL_SHORTCUT": "🧰 Il mio Arsenale",
+    "BATTLE_HISTORY": "STORICO DELLE SFIDE"
+  },
+  "ARSENAL": {
+    "TITLE": "🧰 IL MIO ARSENALE",
+    "EMPTY": "Il tuo arsenale è vuoto. Vinci una sfida per rubare la tua prima arma.",
+    "EMPTY_ADD": "Stavolta non c'è niente da aggiungere.",
+    "SAVED": "Salvato nel tuo arsenale.",
+    "WORD": "Parola",
+    "PHRASE": "Frase",
+    "MOVE": "Mossa comunicativa",
+    "STRATEGY": "Strategia"
+  }
+}

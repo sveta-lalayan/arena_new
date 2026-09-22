@@ -1,0 +1,96 @@
+{
+  "MENU": {
+    "BATTLE": "⚔️ BATTLE",
+    "FREE_TALK": "💬 자유 대화",
+    "MY_ARENA": "🏛 나의 아레나",
+    "MY_ARSENAL": "🧰 나의 무기고",
+    "SETTINGS": "⚙️ 설정",
+    "ENTER_ARENA": "🏛 아레나 입장",
+    "BACK": "🔙 메뉴로",
+    "ACHIEVEMENTS": "🏆 업적",
+    "NO_ACTIVE": "진행 중인 게임이 없어. BATTLE 또는 자유 대화를 선택해."
+  },
+  "START": {
+    "WELCOME_FIRST": "👋 {name}\nARENA에 온 것을 환영해.\n\n🏛 아레나 입장\nARENA가 네 말을 듣고 누구를 만날지 결정할 거야.",
+    "WELCOME_BACK": "👋 {name}\n아레나가 지켜보고 있어. 하루 한 번의 대결, 자유 대화는 언제나."
+  },
+  "TEMPLE": {
+    "SELECT_LEARNING_LANGUAGE": "어떤 언어로 말할 거야?",
+    "LISTENING": "ARENA가 듣고 있어.",
+    "YOUR_MOVE": "네 차례야.",
+    "HINT": "내가 하는 일 · 내가 좋아하는 것 · 내 생각 · 뭐든지",
+    "THINKING": "ARENA가 생각 중이야…",
+    "HEARD_ENOUGH": "충분히 들었어.",
+    "ENTER_BATTLE": "⚔️ 전투 시작 →",
+    "ALREADY_DONE": "🏛 넌 이미 신전을 경험했어. 다음 대결은 아레나가 결정할 거야."
+  },
+  "BATTLE": {
+    "BEGINS": "전투 시작!",
+    "MISSION": "미션",
+    "ARSENAL": "무기",
+    "TIP": "팁",
+    "HOW_TO_WIN": "이기는 방법",
+    "TIME_LIMIT": "{n}분 있어.",
+    "PERSUADED": "설득도",
+    "TIME_UP": "시간 끝.",
+    "EARLY_WIN": "일찍 설득했어. 승리!",
+    "COOLDOWN": "다음 대결은 약 {hours}시간 후야."
+  },
+  "DEBRIEF": {
+    "TITLE": "대결 분석",
+    "RESULT": "결과",
+    "VICTORY": "승리",
+    "ALMOST": "거의",
+    "DEFEATED": "패배",
+    "OUTPLAYED": "완패",
+    "WHAT_WORKED": "잘한 점",
+    "WHAT_COST_YOU": "발목 잡은 점",
+    "STEAL_THIS": "이걸 훔쳐",
+    "ADD_TO_ARSENAL": "🎒 내 무기고에 추가",
+    "OPPONENT_ADVICE": "상대방의 조언",
+    "NEXT_TARGET": "다음 목표",
+    "LANGUAGE_CHECK": "언어 점검"
+  },
+  "FT": {
+    "SELECT_LANGUAGE": "💬 자유 대화 — 어떤 언어로 연습할까?",
+    "SELECT_CHARACTER": "누구와 이야기하고 싶어?",
+    "START": "{name}와의 자유 대화. 타이머도 평가도 없어. 편하게 말해.",
+    "DONE": "대화 끝, {name}. ARENA가 기억할게.",
+    "BUSY": "먼저 진행 중인 대화를 끝내줘."
+  },
+  "SETTINGS": {
+    "TITLE": "⚙️ 설정",
+    "INTERFACE_LANGUAGE": "인터페이스 언어",
+    "LEARNING_LANGUAGE": "학습 언어",
+    "CHANGE_INTERFACE": "인터페이스 언어 바꾸기",
+    "CHANGE_LEARNING": "학습 언어 바꾸기",
+    "SAVED": "저장됐어."
+  },
+  "MY_ARENA": {
+    "TITLE": "나의 아레나",
+    "PROFILE": "프로필",
+    "NAME": "이름",
+    "INTERFACE_LANGUAGE": "인터페이스",
+    "LEARNING_LANGUAGE": "연습 중",
+    "LEVEL": "레벨",
+    "BATTLES": "대결 수",
+    "VICTORIES": "승리",
+    "CHARACTERS": "만난 캐릭터",
+    "WHAT_ARENA_KNOWS": "ARENA가 아는 것",
+    "CURRENT_CHALLENGE": "현재 도전",
+    "HOW_WE_TRAIN": "ARENA의 훈련 방식",
+    "YOUR_STRENGTH": "너의 강점",
+    "ARSENAL_SHORTCUT": "🧰 나의 무기고",
+    "BATTLE_HISTORY": "대결 기록"
+  },
+  "ARSENAL": {
+    "TITLE": "🧰 나의 무기고",
+    "EMPTY": "무기고가 비어 있어. 한 번 이겨서 첫 무기를 훔쳐 봐.",
+    "EMPTY_ADD": "이번엔 추가할 게 없어.",
+    "SAVED": "무기고에 저장했어.",
+    "WORD": "단어",
+    "PHRASE": "표현",
+    "MOVE": "대화 기술",
+    "STRATEGY": "전략"
+  }
+}
