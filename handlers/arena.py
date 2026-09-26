@@ -14,6 +14,7 @@ handlers/arena.py — бой, дебрифинг, свободный разго�
     Персонаж держит характер, но не оценивает пользователя.
 """
 import asyncio
+import logging
 import random
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -27,6 +28,7 @@ import voice
 from config import (
     BATTLE_DURATION_MINUTES,
     BATTLE_MAX_ROUNDS,
+    BATTLE_COOLDOWN_HOURS,
     CONVICTION_START,
     CONVICTION_WIN_THRESHOLD,
     ISO_TO_LANG_KEY,
@@ -36,10 +38,12 @@ from config import (
     is_admin,
 )
 from game_data import (
-    PERSONALITIES, PERSONALITY_TO_SKILL, CRITERIA_LABELS_RU, COMMUNICATION_SKILLS,
+    PERSONALITIES, PERSONALITY_TO_SKILL, COMMUNICATION_SKILLS,
 )
 from handlers import intro, start
 from handlers.ui import send_or_edit, esc
+
+logger = logging.getLogger(__name__)
 
 STATE_KEYS = [
     "language", "language_iso", "level", "topic", "personality",
@@ -373,62 +377,119 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
     overall = result["overall"]
     win_score = result["win_score"]
 
-    # 2) Дебриф от Арены + рабочие цитаты + «укради это»
-    fb = await asyncio.to_thread(
-        ai.generate_battle_debrief, first_name, language, level, personality,
-        topic, mission, won, win_score, conviction, criteria, dialogue,
-        ud.get("arena_analysis", {}).get("pattern", ""),
-    )
+    # "Было → стало": снимаем профиль/арсенал ДО того, как этот бой их обновит,
+    # чтобы дебриф мог сравнить, а не оценивать бой в вакууме (My Arena logic),
+    # и чтобы новое оружие было следующим tier, а не дублем уже освоенного.
+    try:
+        previous_criteria = db.get_criteria(user_id)
+        weapon_tiers = db.get_weapon_tiers(user_id)
+    except Exception:
+        logger.exception("Не удалось получить предыдущий профиль/арсенал")
+        previous_criteria, weapon_tiers = {}, {}
+
+    # 2) Дебриф от Арены + рабочие цитаты + новое оружие
+    try:
+        fb = await asyncio.to_thread(
+            ai.generate_battle_debrief, first_name, language, level, personality,
+            topic, mission, won, win_score, conviction, criteria, dialogue,
+            ud.get("arena_analysis", {}).get("pattern", ""),
+            previous_criteria, weapon_tiers,
+        )
+    except Exception:
+        logger.exception("generate_battle_debrief упал — используем безопасный фолбэк")
+        fb = {}
+    if not fb:
+        fb = {"result_state": "VICTORY" if won else "DEFEATED"}
     mistakes = fb.get("mistakes", [])
     if mistakes:
-        db.add_vocabulary_mistakes(user_id, mistakes)
+        try:
+            db.add_vocabulary_mistakes(user_id, mistakes)
+        except Exception:
+            logger.exception("add_vocabulary_mistakes упал")
 
-    # 3) Скилл-прогресс, сохранение сессии, level-снапшот
+    # 3) Скилл-прогресс, сохранение сессии, level-снапшот.
+    # Каждый шаг — в своём try/except: даже если один упадёт, дебриф всё равно уйдёт.
     skill = PERSONALITY_TO_SKILL.get(personality, "argumentation")
-    skill_delta = gamification.calculate_skill_delta(conviction, len(used_weapons),
-                                                     False, False, won)
-    db.add_skill_progress(user_id, skill, skill_delta)
-    db.save_game_session(
-        user_id, personality, language_iso, level, topic, rounds_completed,
-        criteria, 0, conviction_final=conviction, won=1 if won else 0,
-        overall=overall, mission=mission, result_state=fb.get("result_state", ""),
-    )
-    db.update_criteria(user_id, criteria, weight=0.4)
+    skill_delta = gamification.calculate_skill_delta(conviction, len(used_weapons), False, won)
+    try:
+        db.add_skill_progress(user_id, skill, skill_delta)
+    except Exception:
+        logger.exception("add_skill_progress упал")
+    try:
+        db.save_game_session(
+            user_id, personality, language_iso, level, topic, rounds_completed,
+            criteria, 0, growth_plan=fb.get("growth", ""), conviction_final=conviction,
+            won=1 if won else 0, overall=overall, mission=mission,
+            result_state=fb.get("result_state", ""),
+        )
+    except Exception:
+        logger.exception("save_game_session упал")
+    try:
+        db.update_criteria(user_id, criteria, weight=0.4)
+    except Exception:
+        logger.exception("update_criteria упал")
     if topic:
-        db.add_interests(user_id, [topic])
+        try:
+            db.add_interests(user_id, [topic])
+        except Exception:
+            logger.exception("add_interests упал")
 
-    avg_recent = db.get_recent_avg_scores(user_id, n=3, level=level)
-    new_level = gamification.adapt_level(level, avg_recent)
-    if new_level != level:
-        db.add_level_snapshot(user_id, new_level, source="battle_finish")
-        ud["level"] = new_level
+    try:
+        avg_recent = db.get_recent_avg_scores(user_id, n=3, level=level)
+        new_level = gamification.adapt_level(level, avg_recent)
+        if new_level != level:
+            db.add_level_snapshot(user_id, new_level, source="battle_finish")
+            ud["level"] = new_level
+    except Exception:
+        logger.exception("adapt_level упал")
 
-    db.mark_first_battle_done(user_id)
-    db.mark_temple_done(user_id)
+    try:
+        db.mark_first_battle_done(user_id)
+        db.mark_temple_done(user_id)
+    except Exception:
+        logger.exception("mark_first_battle_done/mark_temple_done упали")
 
     # 4) Немезида + бейджи
-    nemesis = db.get_nemesis(user_id)
-    is_nemesis = bool(nemesis and nemesis["personality"] == personality and not nemesis["defeated"])
-    if is_nemesis and won:
-        db.mark_nemesis_fought(user_id, defeated=True)
-    gamification.check_and_unlock_achievements(
-        user_id, personality, rounds_completed, criteria, conviction,
-        quest_done=False, mistakes=mistakes, is_nemesis=is_nemesis, won=won,
-    )
+    try:
+        nemesis = db.get_nemesis(user_id)
+        is_nemesis = bool(nemesis and nemesis["personality"] == personality and not nemesis["defeated"])
+        if is_nemesis and won:
+            db.mark_nemesis_fought(user_id, defeated=True)
+        gamification.check_and_unlock_achievements(
+            user_id, personality, rounds_completed, criteria, conviction,
+            mistakes=mistakes, is_nemesis=is_nemesis, won=won,
+        )
+    except Exception:
+        logger.exception("achievements/nemesis упали")
 
-    # 5) Debrief-сообщение
-    text = _format_debrief(il, fb, result, person, mistakes)
-    keyboard = _debrief_keyboard(il)
+    # 5) Debrief-сообщение — это должно дойти до пользователя почти всегда,
+    # даже если что-то выше упало.
+    if is_admin(user_id):
+        next_battle_text = i18n.t(il, "DEBRIEF.NEXT_BATTLE_NOW")
+    elif BATTLE_COOLDOWN_HOURS <= 0:
+        next_battle_text = i18n.t(il, "DEBRIEF.NEXT_BATTLE_NOW")
+    elif BATTLE_COOLDOWN_HOURS >= 20:
+        next_battle_text = i18n.t(il, "DEBRIEF.NEXT_BATTLE_TOMORROW")
+    else:
+        next_battle_text = i18n.t(il, "DEBRIEF.NEXT_BATTLE_HOURS").format(h=BATTLE_COOLDOWN_HOURS)
+
+    text = _format_debrief(il, fb, result, person, mistakes, next_battle_text)
+    keyboard = _debrief_keyboard(il, has_weapon=bool(fb.get("weapon")))
 
     await bot.send_message(chat_id, text, reply_markup=keyboard, parse_mode="HTML")
 
-    # Сохраняем «steal» во временный буфер, чтобы кнопка ADD TO MY ARSENAL
-    # могла положить фразы в арсенал.
-    ud["_pending_steal"] = fb.get("steal", [])
-    ud["_pending_steal_source"] = personality
+    # Сохраняем оружие во временный буфер, чтобы кнопка ADD TO MY ARSENAL
+    # могла положить его в арсенал.
+    ud["_pending_weapon"] = fb.get("weapon")
+    ud["_pending_weapon_source"] = personality
+
+    # Важно: сбрасываем состояние боя, иначе Free Talk сразу после боя
+    # решит, что диалог всё ещё идёт ("уже занято").
+    _reset_state(ud)
 
 
-def _format_debrief(il: str, fb: dict, result: dict, person: dict, mistakes: list) -> str:
+def _format_debrief(il: str, fb: dict, result: dict, person: dict, mistakes: list,
+                    next_battle_text: str = "") -> str:
     lines = [f"🏟 <b>{esc(i18n.t(il, 'DEBRIEF.TITLE'))}</b>"]
 
     state = fb.get("result_state") or ("VICTORY" if result["won"] else "DEFEATED")
@@ -443,19 +504,25 @@ def _format_debrief(il: str, fb: dict, result: dict, person: dict, mistakes: lis
     if fb.get("worked"):
         lines.append(f"\n✅ <b>{esc(i18n.t(il, 'DEBRIEF.WHAT_WORKED'))}</b>\n{esc(fb['worked'])}")
 
+    if fb.get("win_move"):
+        lines.append(f"\n⚡ <b>{esc(i18n.t(il, 'DEBRIEF.WIN_COST'))}</b>\n{esc(fb['win_move'])}")
+
     if fb.get("cost"):
         lines.append(f"\n💀 <b>{esc(i18n.t(il, 'DEBRIEF.WHAT_COST_YOU'))}</b>\n{esc(fb['cost'])}")
 
-    steal = fb.get("steal") or []
-    if steal:
-        lines.append(f"\n🧠 <b>{esc(i18n.t(il, 'DEBRIEF.STEAL_THIS'))}</b>")
-        for item in steal:
-            kind = item.get("kind", "")
-            content = item.get("content", "")
-            if not content:
-                continue
-            icon = {"phrase": "💬", "move": "🎯", "strategy": "🧭"}.get(kind, "•")
-            lines.append(f"  {icon} <i>{esc(content)}</i>")
+    weapon = fb.get("weapon")
+    if weapon:
+        lines.append(f"\n⚔️ <b>{esc(weapon.get('name', '').upper())}</b>")
+        if weapon.get("what_it_does"):
+            lines.append(f"<b>{esc(i18n.t(il, 'ARSENAL.WHAT_IT_DOES'))}:</b> {esc(weapon['what_it_does'])}")
+        steps = weapon.get("how_to_use") or []
+        if steps:
+            step_lines = "\n".join(f"  {i+1}. {esc(s)}" for i, s in enumerate(steps))
+            lines.append(f"<b>{esc(i18n.t(il, 'ARSENAL.HOW_TO_USE'))}:</b>\n{step_lines}")
+        if weapon.get("example"):
+            lines.append(f"<b>{esc(i18n.t(il, 'ARSENAL.EXAMPLE'))}:</b> <i>{esc(weapon['example'])}</i>")
+        if weapon.get("when_to_use"):
+            lines.append(f"<b>{esc(i18n.t(il, 'ARSENAL.WHEN_TO_USE'))}:</b> {esc(weapon['when_to_use'])}")
 
     if fb.get("advice"):
         lines.append(
@@ -463,24 +530,28 @@ def _format_debrief(il: str, fb: dict, result: dict, person: dict, mistakes: lis
             f"<i>{esc(fb['advice'])}</i>"
         )
 
-    target = fb.get("next_target")
-    if target:
-        target_name = CRITERIA_LABELS_RU.get(target, target).upper()
-        lines.append(f"\n🎯 <b>{esc(i18n.t(il, 'DEBRIEF.NEXT_TARGET'))}: {esc(target_name)}</b>")
+    if fb.get("arena_note"):
+        lines.append(f"\n🏛 <b>{esc(i18n.t(il, 'DEBRIEF.ARENA_NOTE'))}</b>\n<i>{esc(fb['arena_note'])}</i>")
 
     if mistakes:
         mlines = "\n".join(f"  • {esc(m['wrong'])} → <b>{esc(m['correct'])}</b>" for m in mistakes[:5])
         lines.append(f"\n📚 <b>{esc(i18n.t(il, 'DEBRIEF.LANGUAGE_CHECK'))}</b>\n{mlines}")
 
+    if next_battle_text:
+        lines.append(f"\n⚔️ <b>{esc(i18n.t(il, 'DEBRIEF.NEXT_BATTLE'))}:</b> {esc(next_battle_text)}")
+
     return "\n".join(lines)
 
-def _debrief_keyboard(il: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton(i18n.t(il, "DEBRIEF.ADD_TO_ARSENAL"), callback_data="arsenal_add_pending")],
+def _debrief_keyboard(il: str, has_weapon: bool = True) -> InlineKeyboardMarkup:
+    rows = []
+    if has_weapon:
+        rows.append([InlineKeyboardButton(i18n.t(il, "DEBRIEF.ADD_TO_ARSENAL"), callback_data="arsenal_add_pending")])
+    rows += [
         [InlineKeyboardButton(i18n.t(il, "MENU.MY_ARENA"), callback_data="menu_profile")],
         [InlineKeyboardButton(i18n.t(il, "MENU.FREE_TALK"), callback_data="freetalk")],
         [InlineKeyboardButton(i18n.t(il, "MENU.BACK"), callback_data="back_to_main")],
-    ])
+    ]
+    return InlineKeyboardMarkup(rows)
 
 
 # ==================================================================
@@ -488,26 +559,23 @@ def _debrief_keyboard(il: str) -> InlineKeyboardMarkup:
 # ==================================================================
 
 async def arsenal_add_pending(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Кнопка ADD TO MY ARSENAL под дебрифом. Кладёт и phrase, и move, и strategy."""
+    """Кнопка ADD TO MY ARSENAL под дебрифом. Кладёт оружие этого боя (если оно было выдано)."""
     query = update.callback_query
     await query.answer()
 
     ud = context.user_data
     user_id = update.effective_user.id
     il = db.get_interface_language(user_id)
-    items = ud.pop("_pending_steal", []) or []
-    source = ud.pop("_pending_steal_source", "")
+    weapon = ud.pop("_pending_weapon", None)
+    source = ud.pop("_pending_weapon_source", "")
 
-    added = 0
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        kind = item.get("kind", "")
-        content = item.get("content", "")
-        if kind not in ("phrase", "move", "strategy") or not content:
-            continue
-        if db.add_arsenal_item(user_id, kind, content, source=source):
-            added += 1
+    added = False
+    if isinstance(weapon, dict) and weapon.get("name"):
+        added = db.add_weapon(
+            user_id, weapon.get("skill_area", ""), weapon.get("tier", 1), weapon["name"],
+            weapon.get("what_it_does", ""), weapon.get("how_to_use", []),
+            weapon.get("example", ""), weapon.get("when_to_use", ""), source=source,
+        )
 
     text = i18n.t(il, "ARSENAL.SAVED") if added else i18n.t(il, "ARSENAL.EMPTY_ADD")
     await query.edit_message_text(text)

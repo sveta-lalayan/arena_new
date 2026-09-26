@@ -42,10 +42,18 @@
     "OUTPLAYED": "OUTPLAYED",
     "WHAT_WORKED": "WHAT WORKED",
     "WHAT_COST_YOU": "WHAT COST YOU",
+    "GROWTH": "GROWTH",
+    "LANGUAGE_CHECK": "LANGUAGE CHECK",
     "STEAL_THIS": "STEAL THIS",
     "ADD_TO_ARSENAL": "🎒 ADD TO MY ARSENAL",
     "OPPONENT_ADVICE": "OPPONENT'S ADVICE",
-    "NEXT_TARGET": "NEXT TARGET"
+    "NEXT_TARGET": "NEXT TARGET",
+    "WIN_COST": "WHAT THE WIN COST YOU",
+    "ARENA_NOTE": "ARENA",
+    "NEXT_BATTLE": "Next battle",
+    "NEXT_BATTLE_NOW": "available right now",
+    "NEXT_BATTLE_TOMORROW": "tomorrow",
+    "NEXT_BATTLE_HOURS": "in {h} h"
   },
   "FT": {
     "SELECT_LANGUAGE": "💬 Free Talk — which language will you practise?",
@@ -84,6 +92,10 @@
     "WORD": "Word",
     "PHRASE": "Phrase",
     "MOVE": "Communication move",
-    "STRATEGY": "Strategy"
+    "STRATEGY": "Strategy",
+    "WHAT_IT_DOES": "What it does",
+    "HOW_TO_USE": "How to use",
+    "EXAMPLE": "Example",
+    "WHEN_TO_USE": "When to use"
   }
 }

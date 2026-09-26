@@ -45,11 +45,18 @@
     "OUTPLAYED": "完胜",
     "WHAT_WORKED": "奏效的地方",
     "WHAT_COST_YOU": "让你付出代价的地方",
+    "GROWTH": "成长",
     "STEAL_THIS": "偷走这招",
     "ADD_TO_ARSENAL": "🎒 加入我的武器库",
     "OPPONENT_ADVICE": "对手的建议",
     "NEXT_TARGET": "下一个目标",
-    "LANGUAGE_CHECK": "语言检查"
+    "LANGUAGE_CHECK": "语言检查",
+    "WIN_COST": "胜利的代价",
+    "ARENA_NOTE": "竞技场",
+    "NEXT_BATTLE": "下一场对决",
+    "NEXT_BATTLE_NOW": "现在就可以",
+    "NEXT_BATTLE_TOMORROW": "明天",
+    "NEXT_BATTLE_HOURS": "{h}小时后"
   },
   "FT": {
     "SELECT_LANGUAGE": "💬 自由交谈 — 用哪种语言练习？",
@@ -91,6 +98,10 @@
     "WORD": "词",
     "PHRASE": "短语",
     "MOVE": "沟通招式",
-    "STRATEGY": "策略"
+    "STRATEGY": "策略",
+    "WHAT_IT_DOES": "作用",
+    "HOW_TO_USE": "使用方法",
+    "EXAMPLE": "示例",
+    "WHEN_TO_USE": "适用场景"
   }
 }

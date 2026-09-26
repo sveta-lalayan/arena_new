@@ -45,11 +45,18 @@
     "OUTPLAYED": "완패",
     "WHAT_WORKED": "잘한 점",
     "WHAT_COST_YOU": "발목 잡은 점",
+    "GROWTH": "성장",
     "STEAL_THIS": "이걸 훔쳐",
     "ADD_TO_ARSENAL": "🎒 내 무기고에 추가",
     "OPPONENT_ADVICE": "상대방의 조언",
     "NEXT_TARGET": "다음 목표",
-    "LANGUAGE_CHECK": "언어 점검"
+    "LANGUAGE_CHECK": "언어 점검",
+    "WIN_COST": "승리의 대가",
+    "ARENA_NOTE": "아레나",
+    "NEXT_BATTLE": "다음 배틀",
+    "NEXT_BATTLE_NOW": "지금 바로 가능",
+    "NEXT_BATTLE_TOMORROW": "내일",
+    "NEXT_BATTLE_HOURS": "{h}시간 후"
   },
   "FT": {
     "SELECT_LANGUAGE": "💬 자유 대화 — 어떤 언어로 연습할까?",
@@ -91,6 +98,10 @@
     "WORD": "단어",
     "PHRASE": "표현",
     "MOVE": "대화 기술",
-    "STRATEGY": "전략"
+    "STRATEGY": "전략",
+    "WHAT_IT_DOES": "무엇을 하는가",
+    "HOW_TO_USE": "사용법",
+    "EXAMPLE": "예시",
+    "WHEN_TO_USE": "언제 쓸까"
   }
 }

@@ -138,6 +138,40 @@ CREATE TABLE IF NOT EXISTS user_arsenal (
     UNIQUE (telegram_id, content)
 );
 
+CREATE TABLE IF NOT EXISTS user_weapons (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_id   INTEGER NOT NULL,
+    skill_area    TEXT NOT NULL,
+    tier          INTEGER NOT NULL DEFAULT 1,
+    name          TEXT NOT NULL,
+    what_it_does  TEXT NOT NULL DEFAULT '',
+    how_to_use    TEXT NOT NULL DEFAULT '[]',
+    example       TEXT NOT NULL DEFAULT '',
+    when_to_use   TEXT NOT NULL DEFAULT '',
+    source        TEXT NOT NULL DEFAULT '',
+    created_at    TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS user_skills (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_id   INTEGER NOT NULL,
+    skill         TEXT NOT NULL,
+    points        INTEGER NOT NULL DEFAULT 0,
+    rank          INTEGER NOT NULL DEFAULT 1,
+    battles       INTEGER NOT NULL DEFAULT 0,
+    updated_at    TEXT NOT NULL,
+    UNIQUE (telegram_id, skill)
+);
+
+CREATE TABLE IF NOT EXISTS user_topics (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_id   INTEGER NOT NULL,
+    topic         TEXT NOT NULL,
+    count         INTEGER NOT NULL DEFAULT 1,
+    last_seen_at  TEXT NOT NULL,
+    UNIQUE (telegram_id, topic COLLATE NOCASE)
+);
+
 CREATE TABLE IF NOT EXISTS user_nemesis (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
     telegram_id       INTEGER NOT NULL,
@@ -315,6 +349,7 @@ def reset_user_data(telegram_id: int):
         for table in (
             "game_sessions", "achievements", "vocabulary_mistakes", "user_level_history",
             "arena_analyses", "freetalk_sessions", "user_criteria", "user_arsenal", "user_nemesis",
+            "user_weapons", "user_skills", "user_topics",
         ):
             conn.execute(f"DELETE FROM {table} WHERE telegram_id = ?", (telegram_id,))
         conn.execute("DELETE FROM users WHERE telegram_id = ?", (telegram_id,))
@@ -406,10 +441,41 @@ def add_interests(telegram_id: int, new_topics: list[str], limit: int = 8):
             "UPDATE users SET push_topics = ?, updated_at = ? WHERE telegram_id = ?",
             (json.dumps(merged[:limit], ensure_ascii=False), _now(), telegram_id),
         )
+    bump_topics(telegram_id, fresh)
+
+
+def bump_topics(telegram_id: int, topics: list[str]):
+    """Частотный учёт тем: каждое упоминание увеличивает счётчик. Используется,
+    чтобы отличать 'любимые' (часто всплывающие) темы от разово упомянутых."""
+    fresh = [t.strip() for t in (topics or []) if isinstance(t, str) and t.strip()]
+    if not fresh:
+        return
+    now = _now()
+    with get_conn() as conn:
+        for t in fresh:
+            conn.execute(
+                """INSERT INTO user_topics (telegram_id, topic, count, last_seen_at)
+                   VALUES (?, ?, 1, ?)
+                   ON CONFLICT(telegram_id, topic) DO UPDATE SET
+                       count = count + 1, last_seen_at = excluded.last_seen_at""",
+                (telegram_id, t, now),
+            )
+
+
+def get_favorite_topics(telegram_id: int, limit: int = 5, min_count: int = 2) -> list[str]:
+    """Темы, к которым пользователь возвращается чаще одного раза, по убыванию частоты."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT topic FROM user_topics WHERE telegram_id = ? AND count >= ? "
+            "ORDER BY count DESC, last_seen_at DESC LIMIT ?",
+            (telegram_id, min_count, limit),
+        ).fetchall()
+    return [r["topic"] for r in rows]
 
 
 def get_memory(telegram_id: int) -> dict:
     interests = get_interests(telegram_id)
+    favorite_topics = get_favorite_topics(telegram_id)
     with get_conn() as conn:
         ft_topics = [r["topic"] for r in conn.execute(
             "SELECT topic FROM freetalk_sessions WHERE telegram_id = ? AND topic != '' ORDER BY id DESC LIMIT 5",
@@ -431,7 +497,12 @@ def get_memory(telegram_id: int) -> dict:
             said = [m["text"][:140] for m in msgs if m.get("speaker") == "User"][-3:]
         except (ValueError, KeyError, TypeError):
             pass
-    return {"interests": interests, "recent_topics": recent, "last_said": said}
+    return {
+        "interests": interests,
+        "favorite_topics": favorite_topics,
+        "recent_topics": recent,
+        "last_said": said,
+    }
 
 
 # ---------- Sessions ----------
@@ -537,6 +608,17 @@ def cooldown_hours_left(telegram_id: int) -> float:
     if hours is None:
         return 0.0
     return max(0.0, BATTLE_COOLDOWN_HOURS - hours)
+
+
+def get_recent_battle_topics(telegram_id: int, n: int = 3) -> list[str]:
+    """Последние N тем боёв — чтобы daily_battle не выдавал ту же тему подряд."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT topic FROM game_sessions WHERE telegram_id = ? AND topic != '' "
+            "ORDER BY id DESC LIMIT ?",
+            (telegram_id, n),
+        ).fetchall()
+    return [r["topic"] for r in rows]
 
 
 def get_recent_avg_scores(telegram_id: int, n: int = 3, level: str | None = None) -> float | None:
@@ -733,7 +815,104 @@ def get_latest_arena_analysis(telegram_id: int) -> dict | None:
     }
 
 
-# ---------- Arsenal ----------
+# ---------- Skill progress ("Кто что тренирует" в профиле) ----------
+
+def add_skill_progress(telegram_id: int, skill: str, delta: int, battles: int = 1):
+    """Копит XP по коммуникационному скиллу. Раньше эта функция отсутствовала —
+    её вызов ронял _do_finish ДО отправки дебрифа (AttributeError)."""
+    if not skill:
+        return
+    delta = max(0, int(delta))
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT points, battles FROM user_skills WHERE telegram_id = ? AND skill = ?",
+            (telegram_id, skill),
+        ).fetchone()
+        points = (row["points"] if row else 0) + delta
+        total_battles = (row["battles"] if row else 0) + battles
+        rank = min(5, 1 + points // 50)
+        conn.execute(
+            """INSERT INTO user_skills (telegram_id, skill, points, rank, battles, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?)
+               ON CONFLICT(telegram_id, skill) DO UPDATE SET
+                   points = excluded.points, rank = excluded.rank,
+                   battles = excluded.battles, updated_at = excluded.updated_at""",
+            (telegram_id, skill, points, rank, total_battles, _now()),
+        )
+
+
+def get_all_skills(telegram_id: int) -> dict:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT skill, points, rank, battles FROM user_skills WHERE telegram_id = ?",
+            (telegram_id,),
+        ).fetchall()
+    return {r["skill"]: {"points": r["points"], "rank": r["rank"], "battles": r["battles"]} for r in rows}
+
+
+# ---------- Оружие ("Мой арсенал") ----------
+#
+# ОДНО оружие за бой, привязанное к тому, что реально произошло, а не выданное
+# просто за победу. Если у пользователя уже есть оружие в этой skill_area —
+# новое должно быть следующим tier (усложнённая версия), а не дублем.
+
+def get_weapon_tier(telegram_id: int, skill_area: str) -> int:
+    """Максимальный tier уже освоенного оружия в этой области (0, если ещё нет)."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT MAX(tier) AS t FROM user_weapons WHERE telegram_id = ? AND skill_area = ?",
+            (telegram_id, skill_area),
+        ).fetchone()
+    return (row["t"] or 0) if row else 0
+
+
+def add_weapon(telegram_id: int, skill_area: str, tier: int, name: str, what_it_does: str,
+              how_to_use: list[str], example: str, when_to_use: str, source: str = "") -> bool:
+    if not name:
+        return False
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO user_weapons
+               (telegram_id, skill_area, tier, name, what_it_does, how_to_use,
+                example, when_to_use, source, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (telegram_id, skill_area or "general", max(1, tier), name, what_it_does,
+             json.dumps(how_to_use or [], ensure_ascii=False), example, when_to_use,
+             source, _now()),
+        )
+    return True
+
+
+def get_weapons(telegram_id: int, limit: int = 50) -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT skill_area, tier, name, what_it_does, how_to_use, example, when_to_use, "
+            "source, created_at FROM user_weapons WHERE telegram_id = ? "
+            "ORDER BY id DESC LIMIT ?",
+            (telegram_id, limit),
+        ).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["how_to_use"] = json.loads(d["how_to_use"])
+        except (ValueError, TypeError):
+            d["how_to_use"] = []
+        out.append(d)
+    return out
+
+
+def get_weapon_tiers(telegram_id: int) -> dict:
+    """{skill_area: max_tier} — чтобы промпту было видно, что уже освоено."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT skill_area, MAX(tier) AS t FROM user_weapons WHERE telegram_id = ? GROUP BY skill_area",
+            (telegram_id,),
+        ).fetchall()
+    return {r["skill_area"]: r["t"] for r in rows}
+
+
+# ---------- Arsenal (устаревшее хранилище steal-фраз, оставлено для совместимости) ----------
 
 def add_arsenal_item(telegram_id: int, kind: str, content: str, source: str = "") -> bool:
     """kind: word | phrase | move | strategy."""

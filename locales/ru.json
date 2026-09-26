@@ -42,10 +42,18 @@
     "OUTPLAYED": "ПЕРЕИГРАН",
     "WHAT_WORKED": "ЧТО СРАБОТАЛО",
     "WHAT_COST_YOU": "ЧТО СТОИЛО ТЕБЕ",
+    "GROWTH": "РОСТ",
+    "LANGUAGE_CHECK": "ПРОВЕРКА ЯЗЫКА",
     "STEAL_THIS": "УКРАДИ ЭТО",
     "ADD_TO_ARSENAL": "🎒 В МОЙ АРСЕНАЛ",
     "OPPONENT_ADVICE": "СОВЕТ ОТ ПЕРСОНАЖА",
-    "NEXT_TARGET": "СЛЕДУЮЩАЯ ЦЕЛЬ"
+    "NEXT_TARGET": "СЛЕДУЮЩАЯ ЦЕЛЬ",
+    "WIN_COST": "ЧТО СТОИЛО ПОБЕДЫ",
+    "ARENA_NOTE": "АРЕНА",
+    "NEXT_BATTLE": "Следующий баттл",
+    "NEXT_BATTLE_NOW": "доступен прямо сейчас",
+    "NEXT_BATTLE_TOMORROW": "завтра",
+    "NEXT_BATTLE_HOURS": "через {h} ч."
   },
   "FT": {
     "SELECT_LANGUAGE": "💬 Свободный разговор — на каком языке практикуемся?",
@@ -84,6 +92,10 @@
     "WORD": "Слово",
     "PHRASE": "Фраза",
     "MOVE": "Приём",
-    "STRATEGY": "Стратегия"
+    "STRATEGY": "Стратегия",
+    "WHAT_IT_DOES": "Что делает",
+    "HOW_TO_USE": "Как использовать",
+    "EXAMPLE": "Пример",
+    "WHEN_TO_USE": "Когда применять"
   }
 }

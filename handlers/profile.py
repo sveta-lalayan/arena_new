@@ -153,29 +153,19 @@ async def my_arena(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # MY ARSENAL
 # ==================================================================
 
-_ARSENAL_ORDER = ["word", "phrase", "move", "strategy"]
-
-
 def _build_arsenal_text(user_id: int, il: str) -> str:
-    items = db.get_arsenal(user_id)
+    weapons = db.get_weapons(user_id)
     lines = [f"🧰 <b>{esc(i18n.t(il, 'ARSENAL.TITLE'))}</b>"]
 
-    if not items:
+    if not weapons:
         lines.append(f"\n{esc(i18n.t(il, 'ARSENAL.EMPTY'))}")
         return "\n".join(lines)
 
-    grouped: dict[str, list[dict]] = {k: [] for k in _ARSENAL_ORDER}
-    for it in items:
-        grouped.setdefault(it["kind"], []).append(it)
-
-    for kind in _ARSENAL_ORDER:
-        bucket = grouped.get(kind) or []
-        if not bucket:
-            continue
-        header = i18n.t(il, f"ARSENAL.{kind.upper()}")
-        lines.append(f"\n<b>{esc(header)}</b>")
-        for it in bucket[:12]:
-            lines.append(f"  • <i>{esc(it['content'])}</i>")
+    for w in weapons[:15]:
+        tier_mark = "⚔️" * min(3, max(1, w.get("tier", 1)))
+        lines.append(f"\n{tier_mark} <b>{esc(w['name'].upper())}</b>")
+        if w.get("what_it_does"):
+            lines.append(f"<i>{esc(w['what_it_does'])}</i>")
 
     return "\n".join(lines)
 

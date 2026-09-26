@@ -42,10 +42,18 @@
     "OUTPLAYED": "AUSGESPIELT",
     "WHAT_WORKED": "WAS FUNKTIONIERT HAT",
     "WHAT_COST_YOU": "WAS DICH GEKOSTET HAT",
+    "GROWTH": "FORTSCHRITT",
+    "LANGUAGE_CHECK": "SPRACHCHECK",
     "STEAL_THIS": "KLAU DAS",
     "ADD_TO_ARSENAL": "🎒 ZU MEINEM ARSENAL",
     "OPPONENT_ADVICE": "RAT DES GEGNERS",
-    "NEXT_TARGET": "NÄCHSTES ZIEL"
+    "NEXT_TARGET": "NÄCHSTES ZIEL",
+    "WIN_COST": "WAS DER SIEG GEKOSTET HAT",
+    "ARENA_NOTE": "ARENA",
+    "NEXT_BATTLE": "Nächster Kampf",
+    "NEXT_BATTLE_NOW": "jetzt verfügbar",
+    "NEXT_BATTLE_TOMORROW": "morgen",
+    "NEXT_BATTLE_HOURS": "in {h} Std."
   },
   "FT": {
     "SELECT_LANGUAGE": "💬 Freies Gespräch — in welcher Sprache üben wir?",
@@ -84,6 +92,10 @@
     "WORD": "Wort",
     "PHRASE": "Phrase",
     "MOVE": "Kommunikationszug",
-    "STRATEGY": "Strategie"
+    "STRATEGY": "Strategie",
+    "WHAT_IT_DOES": "Was es bewirkt",
+    "HOW_TO_USE": "So wendest du es an",
+    "EXAMPLE": "Beispiel",
+    "WHEN_TO_USE": "Wann anwenden"
   }
 }

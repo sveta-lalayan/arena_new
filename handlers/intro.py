@@ -332,7 +332,16 @@ async def daily_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         personality = analysis.get("recommended_personality", "hr_manager")
 
     interests = db.get_interests(user_id) or ([analysis["main_topic"]] if analysis.get("main_topic") else [])
-    topic = db.pop_push_topic(user_id) or (random.choice(interests) if interests else FALLBACK_TOPIC)
+    pushed = db.pop_push_topic(user_id)
+    if pushed:
+        topic = pushed
+    else:
+        # Не повторяем темы последних боёв подряд — наблюдения Арены должны
+        # вести к разнообразию, а не зацикливаться на одной теме.
+        recent = {t.lower() for t in db.get_recent_battle_topics(user_id, n=3)}
+        fresh_pool = [t for t in interests if t.lower() not in recent]
+        pool = fresh_pool or interests or [FALLBACK_TOPIC]
+        topic = random.choice(pool)
 
     level = db.get_current_level(user_id) or analysis.get("estimated_level") or "B1"
     language_iso = db.get_learning_language(user_id)

@@ -87,6 +87,14 @@ async def arena_timeout(context):
         await arena.finish_arena_by_timeout(context, user_id, chat_id)
     except Exception:
         logger.exception("Авто-итоги после таймаута не удались")
+        # Не оставляем пользователя в подвешенном состоянии молча: если дебриф
+        # всё же не собрался, сообщаем и сбрасываем бой, чтобы не блокировать Free Talk.
+        try:
+            il = db.get_interface_language(user_id)
+            await context.bot.send_message(chat_id, i18n.t(il, "BATTLE.TIME_UP"))
+        except Exception:
+            pass
+        arena._reset_state(ud)
 
 
 # ==================================================================

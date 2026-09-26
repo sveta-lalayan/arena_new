@@ -103,6 +103,34 @@ PERSONA_BRIEFS = {
                       "secretly agrees. Probes weak points, respects people who hold their ground.",
 }
 
+# Конкретные речевые привычки — без них персонаж звучит generic-дружелюбно даже
+# в свободном разговоре, когда нет явного конфликта, за который можно зацепиться.
+# Это должно работать в МЕЛОЧАХ (small talk), а не только в спорных моментах.
+SPEECH_STYLE = {
+    "ceo": "Clipped, transactional sentences, rarely more than 8-10 words. Often opens a reply with "
+           "'Bottom line —' or 'So, the number is?' or 'Fine, but —'. Gets visibly impatient with small "
+           "talk and redirects it toward outcomes, time, or money within a line or two, even when the "
+           "topic is something casual like food or weekend plans. Almost never asks how someone feels.",
+    "journalist": "Turns statements into questions back at the person ('You liked it? Or you're just "
+                  "being polite?'). Repeats a suspicious word before pressing on it. Drops in a quick "
+                  "'Really?' or 'Says who?' even about trivial claims. Curious about specifics — names, "
+                  "numbers, exact moments — and calls out vagueness immediately.",
+    "professor": "Formal, precise vocabulary, occasional dry academic humor. Asks for definitions of "
+                 "casual words ('what do you mean by \"good\", exactly?'). Mild condescension — corrects "
+                 "loose reasoning even in idle chat, then softens it with a small compliment.",
+    "hr_manager": "Warm surface tone but structured underneath. Reflexively asks for a concrete example "
+                  "of anything mentioned ('walk me through that', 'give me a specific moment'). Uses "
+                  "workplace-adjacent framing even for unrelated topics (calls a hobby a 'strength', a "
+                  "trip a 'growth experience').",
+    "philosopher": "Answers questions with questions more often than with answers. Slows the pace down, "
+                   "sometimes trails off mid-thought ('...though maybe that's not quite it'). Redirects "
+                   "small talk toward meaning or purpose without being asked to.",
+    "devil_advocate": "Reflexively takes the contrarian position on nearly anything, including trivial "
+                      "opinions like favorite food or a movie — playful, not hostile, but relentless. "
+                      "Often opens with 'I'd actually disagree' or 'See, that's exactly the problem' "
+                      "even when he privately agrees.",
+}
+
 PERSONALITIES = {
     "ceo": {
         "name": "👑 Richard the CEO",
@@ -171,6 +199,26 @@ PERSONALITIES = {
         "psychology": "😈 Victor weighs: CONFIDENCE, COUNTER-ARGUMENTS, WILL.",
     },
 }
+
+# Защита от задвоенного emoji-префикса в имени персонажа (например, если где-то
+# в данных случайно оказалось "👑 👑 Richard the CEO" вместо "👑 Richard the CEO") —
+# нормализуем один раз здесь, а не там, где имя выводится.
+import re as _re
+_DUP_EMOJI_PREFIX_RE = _re.compile(r"^(\S+)(\s+\1)+(\s+)")
+
+
+def _dedupe_leading_emoji(text: str) -> str:
+    m = _DUP_EMOJI_PREFIX_RE.match(text or "")
+    if m:
+        return m.group(1) + m.group(3) + text[m.end():]
+    return text
+
+
+for _p in PERSONALITIES.values():
+    for _field in ("name", "full_name"):
+        if _p.get(_field):
+            _p[_field] = _dedupe_leading_emoji(_p[_field])
+del _p, _field
 
 
 # ============================================================
@@ -375,7 +423,7 @@ SKILL_LABELS_EN = {
     "control": "conversation control",
 }
 
-# Комментарии персонажей (используются старым gamification.format_profile).
+# Комментарии персонажей (используются в дебрифе для советов "в характере").
 # Оставляем на английском — это не UI, а внутренний текст, который сейчас
 # нигде активно не показывается.
 PERSONALITY_COMMENTS = {

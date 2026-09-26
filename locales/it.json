@@ -45,11 +45,18 @@
     "OUTPLAYED": "SUPERATO",
     "WHAT_WORKED": "COSA HA FUNZIONATO",
     "WHAT_COST_YOU": "COSA TI È COSTATO",
+    "GROWTH": "PROGRESSO",
     "STEAL_THIS": "RUBA QUESTO",
     "ADD_TO_ARSENAL": "🎒 AGGIUNGI AL MIO ARSENALE",
     "OPPONENT_ADVICE": "CONSIGLIO DELL'AVVERSARIO",
     "NEXT_TARGET": "PROSSIMO OBIETTIVO",
-    "LANGUAGE_CHECK": "CONTROLLO LINGUISTICO"
+    "LANGUAGE_CHECK": "CONTROLLO LINGUISTICO",
+    "WIN_COST": "COSA È COSTATA LA VITTORIA",
+    "ARENA_NOTE": "ARENA",
+    "NEXT_BATTLE": "Prossima battaglia",
+    "NEXT_BATTLE_NOW": "disponibile ora",
+    "NEXT_BATTLE_TOMORROW": "domani",
+    "NEXT_BATTLE_HOURS": "tra {h} h"
   },
   "FT": {
     "SELECT_LANGUAGE": "💬 Chiacchiera libera — in che lingua ci esercitiamo?",
@@ -91,6 +98,10 @@
     "WORD": "Parola",
     "PHRASE": "Frase",
     "MOVE": "Mossa comunicativa",
-    "STRATEGY": "Strategia"
+    "STRATEGY": "Strategia",
+    "WHAT_IT_DOES": "Cosa fa",
+    "HOW_TO_USE": "Come usarlo",
+    "EXAMPLE": "Esempio",
+    "WHEN_TO_USE": "Quando usarlo"
   }
 }
