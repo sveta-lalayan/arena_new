@@ -6,7 +6,9 @@
     "MY_ARSENAL": "🧰 MY ARSENAL",
     "SETTINGS": "⚙️ SETTINGS",
     "ENTER_ARENA": "🏛 ENTER ARENA",
-    "BACK": "🔙 Back to menu"
+    "BACK": "🔙 Back to menu",
+    "ACHIEVEMENTS": "🏆 Achievements",
+    "NO_ACTIVE": "No active game. Pick BATTLE or FREE TALK."
   },
   "START": {
     "WELCOME_FIRST": "👋 {name}\nWelcome to ARENA.\n\n🏛 ENTER ARENA\nLet ARENA listen and decide who you meet.",
@@ -15,11 +17,12 @@
   "TEMPLE": {
     "SELECT_LEARNING_LANGUAGE": "Which language will you speak?",
     "LISTENING": "ARENA IS LISTENING.",
-    "YOUR_MOVE": "Your move.",
-    "HINT": "what I do · what I love · what I think · anything",
+    "SAY_ANYTHING": "Say whatever you want.",
+    "I_WILL_FIGURE_YOU_OUT": "I'll figure you out.",
     "THINKING": "ARENA is thinking…",
     "HEARD_ENOUGH": "I'VE HEARD ENOUGH.",
-    "ENTER_BATTLE": "⚔️ ENTER BATTLE →"
+    "ENTER_BATTLE": "⚔️ ENTER BATTLE →",
+    "ALREADY_DONE": "🏛 You've already met the Temple. The Arena will decide when the next battle comes."
   },
   "BATTLE": {
     "BEGINS": "THE BATTLE BEGINS!",
@@ -40,26 +43,40 @@
     "ALMOST": "ALMOST",
     "DEFEATED": "DEFEATED",
     "OUTPLAYED": "OUTPLAYED",
+    "YOU_HAD_THE_ADVANTAGE": "YOU HAD THE ADVANTAGE",
+    "CLOSE_ONE": "CLOSE ONE",
+    "YOU_LOST_THE_ROOM": "YOU LOST THE ROOM",
+    "YOU_TURNED_IT_AROUND": "YOU TURNED IT AROUND",
+    "CLEAN_WIN": "CLEAN WIN",
+    "YOU_SURPRISED_ME": "YOU SURPRISED ME",
+    "BEST_MOVE": "YOUR BEST MOVE",
+    "LOST_GROUND": "WHERE YOU LOST GROUND",
+    "LANGUAGE_UPGRADE": "LANGUAGE UPGRADE",
     "WHAT_WORKED": "WHAT WORKED",
     "WHAT_COST_YOU": "WHAT COST YOU",
+    "WIN_COST": "WHAT THE WIN COST",
     "GROWTH": "GROWTH",
-    "LANGUAGE_CHECK": "LANGUAGE CHECK",
     "STEAL_THIS": "STEAL THIS",
+    "ADD_WEAPON": "🎒 ADD TO MY ARSENAL",
     "ADD_TO_ARSENAL": "🎒 ADD TO MY ARSENAL",
     "OPPONENT_ADVICE": "OPPONENT'S ADVICE",
     "NEXT_TARGET": "NEXT TARGET",
-    "WIN_COST": "WHAT THE WIN COST YOU",
-    "ARENA_NOTE": "ARENA",
-    "NEXT_BATTLE": "Next battle",
-    "NEXT_BATTLE_NOW": "available right now",
+    "NEXT_BATTLE": "NEXT BATTLE",
+    "NEXT_BATTLE_NOW": "available now",
     "NEXT_BATTLE_TOMORROW": "tomorrow",
-    "NEXT_BATTLE_HOURS": "in {h} h"
+    "NEXT_BATTLE_HOURS": "in {h} h",
+    "ARENA_NOTICED": "ARENA NOTICED",
+    "ARENA_NOTE": "ARENA",
+    "LANGUAGE_CHECK": "LANGUAGE CHECK",
+    "FALLBACK": "Battle complete. ARENA couldn't finish the full analysis this time. Your conversation has been saved.",
+    "SILENT": "The battle ended before you said anything. Next time, even one sentence is enough to start."
   },
   "FT": {
     "SELECT_LANGUAGE": "💬 Free Talk — which language will you practise?",
     "SELECT_CHARACTER": "Who do you want to talk to?",
     "START": "Free talk with {name}. No timer, no score. Type anything.",
-    "DONE": "Conversation over, {name}. ARENA remembers."
+    "DONE": "Conversation over, {name}. ARENA remembers.",
+    "BUSY": "Finish the current conversation first."
   },
   "SETTINGS": {
     "TITLE": "⚙️ SETTINGS",
@@ -88,14 +105,16 @@
   },
   "ARSENAL": {
     "TITLE": "🧰 MY ARSENAL",
-    "EMPTY": "Your arsenal is empty. Win a battle to steal your first weapon.",
+    "EMPTY": "Nothing here yet. Win a battle. Take something with you.",
+    "EMPTY_ADD": "Nothing to add this time.",
+    "SAVED": "Saved to your arsenal.",
+    "WHAT_IT_DOES": "What it does",
+    "HOW_TO_USE": "How to use it",
+    "EXAMPLE": "Example",
+    "WHEN_TO_USE": "When to use it",
     "WORD": "Word",
     "PHRASE": "Phrase",
     "MOVE": "Communication move",
-    "STRATEGY": "Strategy",
-    "WHAT_IT_DOES": "What it does",
-    "HOW_TO_USE": "How to use",
-    "EXAMPLE": "Example",
-    "WHEN_TO_USE": "When to use"
+    "STRATEGY": "Strategy"
   }
 }

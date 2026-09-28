@@ -61,15 +61,12 @@ def is_admin(telegram_id: int) -> bool:
 #   - learning_language: язык, на котором идёт практика (Temple, Battle, Free Talk)
 #
 # Значения ВСЕГДА хранятся в БД как короткие ISO-коды: en, ru, de, es, it, ko, zh.
-# Внутренние ключи LANGUAGES (english / russian / ...) используются только
-# в промптах к GPT и в подборе голоса для TTS.
 
 SUPPORTED_LANGUAGES = ["en", "ru", "de", "es", "it", "ko", "zh"]
 DEFAULT_INTERFACE_LANGUAGE = "en"
 DEFAULT_LEARNING_LANGUAGE = "en"
 
 # ISO-код → внутренний ключ (english, russian, ...)
-# Нужен для промптов GPT, выбора голоса TTS и кода Whisper.
 ISO_TO_LANG_KEY = {
     "en": "english",
     "ru": "russian",
@@ -81,16 +78,16 @@ ISO_TO_LANG_KEY = {
 }
 LANG_KEY_TO_ISO = {v: k for k, v in ISO_TO_LANG_KEY.items()}
 
-# Человекочитаемые названия языков для UI (в настройках, в выборе языка обучения).
-# Названия НЕ локализуются — язык всегда называется на самом себе.
+# Названия языков БЕЗ флага — флаг добавляется отдельно через LANGUAGE_FLAGS,
+# чтобы в кнопках не было двойных эмодзи.
 LANGUAGE_DISPLAY = {
-    "en": "🇬🇧 English",
-    "ru": "🇷🇺 Русский",
-    "de": "🇩🇪 Deutsch",
-    "es": "🇪🇸 Español",
-    "it": "🇮🇹 Italiano",
-    "ko": "🇰🇷 한국어",
-    "zh": "🇨🇳 中文",
+    "en": "English",
+    "ru": "Русский",
+    "de": "Deutsch",
+    "es": "Español",
+    "it": "Italiano",
+    "ko": "한국어",
+    "zh": "中文",
 }
 
 # Флаги для кнопок выбора языка (без названия).

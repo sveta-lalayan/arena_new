@@ -1,6 +1,7 @@
 """
 БД ARENA: пользователь, раздельные interface/learning языки, бои, 10 критериев,
-арсенал, память, пуши, немезида.
+арсенал (оружие), память, пуши, немезида, языковой и коммуникационный профиль,
+Arena Noticed.
 """
 import sqlite3
 import json
@@ -129,12 +130,17 @@ CREATE TABLE IF NOT EXISTS user_criteria (
 );
 
 CREATE TABLE IF NOT EXISTS user_arsenal (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    telegram_id   INTEGER NOT NULL,
-    kind          TEXT NOT NULL,
-    content       TEXT NOT NULL,
-    source        TEXT,
-    created_at    TEXT NOT NULL,
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_id      INTEGER NOT NULL,
+    kind             TEXT NOT NULL,
+    content          TEXT NOT NULL,
+    source           TEXT,
+    battle_id        INTEGER,
+    label            TEXT,
+    description      TEXT,
+    language_upgrade TEXT,
+    soft_skill       TEXT,
+    created_at       TEXT NOT NULL,
     UNIQUE (telegram_id, content)
 );
 
@@ -180,6 +186,44 @@ CREATE TABLE IF NOT EXISTS user_nemesis (
     defeated          INTEGER NOT NULL DEFAULT 0,
     created_at        TEXT NOT NULL,
     UNIQUE (telegram_id)
+);
+
+CREATE TABLE IF NOT EXISTS user_language_profile (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_id   INTEGER NOT NULL,
+    dimension     TEXT NOT NULL,
+    label         TEXT NOT NULL,
+    evidence      TEXT,
+    updated_at    TEXT NOT NULL,
+    UNIQUE (telegram_id, dimension)
+);
+
+CREATE TABLE IF NOT EXISTS user_communication_profile (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_id   INTEGER NOT NULL,
+    dimension     TEXT NOT NULL,
+    label         TEXT NOT NULL,
+    evidence      TEXT,
+    updated_at    TEXT NOT NULL,
+    UNIQUE (telegram_id, dimension)
+);
+
+CREATE TABLE IF NOT EXISTS arena_noticed (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_id   INTEGER NOT NULL,
+    insight       TEXT NOT NULL,
+    evidence      TEXT,
+    shown         INTEGER NOT NULL DEFAULT 0,
+    created_at    TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS language_profile_updates (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_id   INTEGER NOT NULL,
+    summary       TEXT NOT NULL,
+    insight       TEXT,
+    created_at    TEXT NOT NULL,
+    shown         INTEGER NOT NULL DEFAULT 0
 );
 """
 
@@ -246,7 +290,15 @@ def init_db():
         _add_col("arena_analyses", "pattern_evidence",
                  "ALTER TABLE arena_analyses ADD COLUMN pattern_evidence TEXT")
 
-        # Переливаем старый users.language в learning_language, если он был
+        for col, ddl in [
+            ("battle_id", "INTEGER"),
+            ("label", "TEXT"),
+            ("description", "TEXT"),
+            ("language_upgrade", "TEXT"),
+            ("soft_skill", "TEXT"),
+        ]:
+            _add_col("user_arsenal", col, f"ALTER TABLE user_arsenal ADD COLUMN {col} {ddl}")
+
         try:
             conn.execute(
                 "UPDATE users SET learning_language = language "
@@ -255,7 +307,6 @@ def init_db():
         except sqlite3.OperationalError:
             pass
 
-        # Игравшие бой точно прошли Храм
         conn.execute("UPDATE users SET temple_done = 1 WHERE first_battle_done = 1 AND temple_done = 0")
 
 
@@ -349,7 +400,8 @@ def reset_user_data(telegram_id: int):
         for table in (
             "game_sessions", "achievements", "vocabulary_mistakes", "user_level_history",
             "arena_analyses", "freetalk_sessions", "user_criteria", "user_arsenal", "user_nemesis",
-            "user_weapons", "user_skills", "user_topics",
+            "user_weapons", "user_skills", "user_topics", "user_language_profile",
+            "user_communication_profile", "arena_noticed", "language_profile_updates",
         ):
             conn.execute(f"DELETE FROM {table} WHERE telegram_id = ?", (telegram_id,))
         conn.execute("DELETE FROM users WHERE telegram_id = ?", (telegram_id,))
@@ -445,8 +497,6 @@ def add_interests(telegram_id: int, new_topics: list[str], limit: int = 8):
 
 
 def bump_topics(telegram_id: int, topics: list[str]):
-    """Частотный учёт тем: каждое упоминание увеличивает счётчик. Используется,
-    чтобы отличать 'любимые' (часто всплывающие) темы от разово упомянутых."""
     fresh = [t.strip() for t in (topics or []) if isinstance(t, str) and t.strip()]
     if not fresh:
         return
@@ -463,7 +513,6 @@ def bump_topics(telegram_id: int, topics: list[str]):
 
 
 def get_favorite_topics(telegram_id: int, limit: int = 5, min_count: int = 2) -> list[str]:
-    """Темы, к которым пользователь возвращается чаще одного раза, по убыванию частоты."""
     with get_conn() as conn:
         rows = conn.execute(
             "SELECT topic FROM user_topics WHERE telegram_id = ? AND count >= ? "
@@ -611,7 +660,6 @@ def cooldown_hours_left(telegram_id: int) -> float:
 
 
 def get_recent_battle_topics(telegram_id: int, n: int = 3) -> list[str]:
-    """Последние N тем боёв — чтобы daily_battle не выдавал ту же тему подряд."""
     with get_conn() as conn:
         rows = conn.execute(
             "SELECT topic FROM game_sessions WHERE telegram_id = ? AND topic != '' "
@@ -815,11 +863,9 @@ def get_latest_arena_analysis(telegram_id: int) -> dict | None:
     }
 
 
-# ---------- Skill progress ("Кто что тренирует" в профиле) ----------
+# ---------- Skill progress ----------
 
 def add_skill_progress(telegram_id: int, skill: str, delta: int, battles: int = 1):
-    """Копит XP по коммуникационному скиллу. Раньше эта функция отсутствовала —
-    её вызов ронял _do_finish ДО отправки дебрифа (AttributeError)."""
     if not skill:
         return
     delta = max(0, int(delta))
@@ -851,13 +897,8 @@ def get_all_skills(telegram_id: int) -> dict:
 
 
 # ---------- Оружие ("Мой арсенал") ----------
-#
-# ОДНО оружие за бой, привязанное к тому, что реально произошло, а не выданное
-# просто за победу. Если у пользователя уже есть оружие в этой skill_area —
-# новое должно быть следующим tier (усложнённая версия), а не дублем.
 
 def get_weapon_tier(telegram_id: int, skill_area: str) -> int:
-    """Максимальный tier уже освоенного оружия в этой области (0, если ещё нет)."""
     with get_conn() as conn:
         row = conn.execute(
             "SELECT MAX(tier) AS t FROM user_weapons WHERE telegram_id = ? AND skill_area = ?",
@@ -903,7 +944,6 @@ def get_weapons(telegram_id: int, limit: int = 50) -> list[dict]:
 
 
 def get_weapon_tiers(telegram_id: int) -> dict:
-    """{skill_area: max_tier} — чтобы промпту было видно, что уже освоено."""
     with get_conn() as conn:
         rows = conn.execute(
             "SELECT skill_area, MAX(tier) AS t FROM user_weapons WHERE telegram_id = ? GROUP BY skill_area",
@@ -912,19 +952,24 @@ def get_weapon_tiers(telegram_id: int) -> dict:
     return {r["skill_area"]: r["t"] for r in rows}
 
 
-# ---------- Arsenal (устаревшее хранилище steal-фраз, оставлено для совместимости) ----------
+# ---------- Arsenal (хранит оружие боя) ----------
 
-def add_arsenal_item(telegram_id: int, kind: str, content: str, source: str = "") -> bool:
-    """kind: word | phrase | move | strategy."""
+def add_arsenal_item(telegram_id: int, kind: str, content: str, source: str = "",
+                     battle_id: int | None = None, label: str = "",
+                     description: str = "", language_upgrade: str = "",
+                     soft_skill: str = "") -> bool:
     content = (content or "").strip()
     if not content:
         return False
     with get_conn() as conn:
         try:
             conn.execute(
-                "INSERT INTO user_arsenal (telegram_id, kind, content, source, created_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (telegram_id, kind, content, source, _now()),
+                """INSERT INTO user_arsenal
+                   (telegram_id, kind, content, source, battle_id,
+                    label, description, language_upgrade, soft_skill, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (telegram_id, kind, content, source, battle_id,
+                 label, description, language_upgrade, soft_skill, _now()),
             )
             return True
         except sqlite3.IntegrityError:
@@ -932,7 +977,9 @@ def add_arsenal_item(telegram_id: int, kind: str, content: str, source: str = ""
 
 
 def get_arsenal(telegram_id: int, kind: str | None = None) -> list[dict]:
-    query = "SELECT kind, content, source, created_at FROM user_arsenal WHERE telegram_id = ?"
+    query = ("SELECT kind, content, source, battle_id, label, description, "
+             "language_upgrade, soft_skill, created_at "
+             "FROM user_arsenal WHERE telegram_id = ?")
     params: list = [telegram_id]
     if kind:
         query += " AND kind = ?"
@@ -940,7 +987,152 @@ def get_arsenal(telegram_id: int, kind: str | None = None) -> list[dict]:
     query += " ORDER BY kind, id DESC"
     with get_conn() as conn:
         rows = conn.execute(query, params).fetchall()
-    return [{"kind": r["kind"], "content": r["content"], "source": r["source"] or ""} for r in rows]
+    return [{
+        "kind": r["kind"], "content": r["content"], "source": r["source"] or "",
+        "battle_id": r["battle_id"], "label": r["label"] or "",
+        "description": r["description"] or "",
+        "language_upgrade": r["language_upgrade"] or "",
+        "soft_skill": r["soft_skill"] or "",
+    } for r in rows]
+
+
+# ---------- Language / Communication profile ----------
+
+LANGUAGE_DIMENSIONS = [
+    "accuracy", "range", "clarity", "precision",
+    "complexity", "fluency", "naturalness", "nuance",
+]
+
+COMMUNICATION_DIMENSIONS = [
+    "persuasion", "confidence", "critical_thinking", "empathy",
+    "assertiveness", "negotiation", "storytelling", "emotional_control",
+    "adaptability", "listening", "questioning", "clarity_of_thought",
+]
+
+
+def upsert_language_dimension(telegram_id: int, dimension: str, label: str,
+                              evidence: list | None = None):
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO user_language_profile
+               (telegram_id, dimension, label, evidence, updated_at)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(telegram_id, dimension) DO UPDATE SET
+                   label = excluded.label,
+                   evidence = excluded.evidence,
+                   updated_at = excluded.updated_at""",
+            (telegram_id, dimension, label,
+             json.dumps(evidence or [], ensure_ascii=False), _now()),
+        )
+
+
+def get_language_profile(telegram_id: int) -> dict[str, dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT dimension, label, evidence, updated_at "
+            "FROM user_language_profile WHERE telegram_id = ?",
+            (telegram_id,),
+        ).fetchall()
+    result = {}
+    for r in rows:
+        try:
+            ev = json.loads(r["evidence"] or "[]")
+        except ValueError:
+            ev = []
+        result[r["dimension"]] = {
+            "label": r["label"],
+            "evidence": ev,
+            "updated_at": r["updated_at"],
+        }
+    return result
+
+
+def upsert_communication_dimension(telegram_id: int, dimension: str, label: str,
+                                   evidence: list | None = None):
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO user_communication_profile
+               (telegram_id, dimension, label, evidence, updated_at)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(telegram_id, dimension) DO UPDATE SET
+                   label = excluded.label,
+                   evidence = excluded.evidence,
+                   updated_at = excluded.updated_at""",
+            (telegram_id, dimension, label,
+             json.dumps(evidence or [], ensure_ascii=False), _now()),
+        )
+
+
+def get_communication_profile(telegram_id: int) -> dict[str, dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT dimension, label, evidence, updated_at "
+            "FROM user_communication_profile WHERE telegram_id = ?",
+            (telegram_id,),
+        ).fetchall()
+    result = {}
+    for r in rows:
+        try:
+            ev = json.loads(r["evidence"] or "[]")
+        except ValueError:
+            ev = []
+        result[r["dimension"]] = {
+            "label": r["label"],
+            "evidence": ev,
+            "updated_at": r["updated_at"],
+        }
+    return result
+
+
+# ---------- Arena Noticed ----------
+
+def add_arena_noticed(telegram_id: int, insight: str, evidence: list | None = None):
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO arena_noticed (telegram_id, insight, evidence, created_at)
+               VALUES (?, ?, ?, ?)""",
+            (telegram_id, insight,
+             json.dumps(evidence or [], ensure_ascii=False), _now()),
+        )
+
+
+def pop_arena_noticed(telegram_id: int) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM arena_noticed WHERE telegram_id = ? AND shown = 0 "
+            "ORDER BY id DESC LIMIT 1",
+            (telegram_id,),
+        ).fetchone()
+        if not row:
+            return None
+        conn.execute("UPDATE arena_noticed SET shown = 1 WHERE id = ?", (row["id"],))
+    try:
+        ev = json.loads(row["evidence"] or "[]")
+    except ValueError:
+        ev = []
+    return {"insight": row["insight"], "evidence": ev}
+
+
+# ---------- Language Profile updates ----------
+
+def add_language_profile_update(telegram_id: int, summary: str, insight: str = ""):
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO language_profile_updates
+               (telegram_id, summary, insight, created_at)
+               VALUES (?, ?, ?, ?)""",
+            (telegram_id, summary, insight, _now()),
+        )
+
+
+def get_last_language_update_at(telegram_id: int) -> str | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT created_at FROM language_profile_updates "
+            "WHERE telegram_id = ? ORDER BY id DESC LIMIT 1",
+            (telegram_id,),
+        ).fetchone()
+    return row["created_at"] if row else None
 
 
 # ---------- Nemesis ----------
