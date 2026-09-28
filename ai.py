@@ -44,7 +44,12 @@ BEHAVIOURS = list(BEHAVIOUR_BRIEFS)
 def _get_client():
     global _client
     if _client is None and OPENAI_API_KEY:
-        _client = OpenAI(api_key=OPENAI_API_KEY, timeout=45)
+        from config import OPENAI_BASE_URL
+        _client = OpenAI(
+            api_key=OPENAI_API_KEY,
+            base_url=OPENAI_BASE_URL,
+            timeout=45,
+        )
     return _client
 
 

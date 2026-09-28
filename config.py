@@ -4,6 +4,9 @@ config.py — настройки ARENA.
 Ключевое архитектурное правило: interface_language и learning_language
 разделены. Telegram language_code используется ТОЛЬКО для первичного
 определения interface_language, никогда — как язык обучения.
+
+Провайдер LLM: ProxyAPI (совместим с OpenAI API, работает из РФ без VPN
+и обходит региональные блокировки через цепочку европейских прокси).
 """
 import os
 from dotenv import load_dotenv
@@ -14,11 +17,15 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN не задан")
 
-# --- OpenAI (текст, распознавание и синтез речи) ---
+# --- LLM (ProxyAPI, совместим с OpenAI SDK) ---
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 OPENAI_TRANSCRIBE_MODEL = os.getenv("OPENAI_TRANSCRIBE_MODEL", "whisper-1")
 OPENAI_TTS_MODEL = os.getenv("OPENAI_TTS_MODEL", "tts-1")
+
+# Базовый URL LLM. По умолчанию — ProxyAPI (работает из РФ и из ЕС).
+# Можно переопределить через .env: OPENAI_BASE_URL=...
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.proxyapi.ru/v1")
 
 DB_PATH = os.getenv("DB_PATH", "arena2.db")
 
@@ -101,8 +108,7 @@ LANGUAGE_FLAGS = {
     "zh": "🇨🇳",
 }
 
-# Маппинг Telegram language_code → наш ISO-код (для первичного определения
-# interface_language при первом /start).
+# Маппинг Telegram language_code → наш ISO-код.
 TELEGRAM_LANG_MAP = {
     "en": "en", "en-us": "en", "en-gb": "en",
     "ru": "ru", "ru-ru": "ru",
