@@ -17,8 +17,8 @@
   "TEMPLE": {
     "SELECT_LEARNING_LANGUAGE": "¿En qué idioma vas a hablar?",
     "LISTENING": "ARENA ESTÁ ESCUCHANDO.",
-    "SAY_ANYTHING": "Di lo que quieras.",
-    "I_WILL_FIGURE_YOU_OUT": "Ya te descifraré.",
+    "YOUR_MOVE": "Tu turno.",
+    "HINT": "lo que hago · lo que amo · lo que pienso · lo que sea",
     "THINKING": "ARENA está pensando…",
     "HEARD_ENOUGH": "YA HE OÍDO SUFICIENTE.",
     "ENTER_BATTLE": "⚔️ ENTRAR EN BATALLA →",
@@ -43,33 +43,21 @@
     "ALMOST": "CASI",
     "DEFEATED": "DERROTA",
     "OUTPLAYED": "SUPERADO",
-    "YOU_HAD_THE_ADVANTAGE": "TENÍAS LA VENTAJA",
-    "CLOSE_ONE": "REÑIDO",
-    "YOU_LOST_THE_ROOM": "PERDISTE LA SALA",
-    "YOU_TURNED_IT_AROUND": "LE DISTE LA VUELTA",
-    "CLEAN_WIN": "VICTORIA LIMPIA",
-    "YOU_SURPRISED_ME": "ME SORPRENDISTE",
-    "BEST_MOVE": "TU MEJOR JUGADA",
-    "LOST_GROUND": "DÓNDE PERDISTE TERRENO",
-    "LANGUAGE_UPGRADE": "MEJORA DE IDIOMA",
     "WHAT_WORKED": "LO QUE FUNCIONÓ",
     "WHAT_COST_YOU": "LO QUE TE COSTÓ",
-    "WIN_COST": "LO QUE COSTÓ LA VICTORIA",
-    "GROWTH": "CRECIMIENTO",
+    "GROWTH": "PROGRESO",
     "STEAL_THIS": "ROBA ESTO",
-    "ADD_WEAPON": "🎒 AÑADIR A MI ARSENAL",
     "ADD_TO_ARSENAL": "🎒 AÑADIR A MI ARSENAL",
     "OPPONENT_ADVICE": "CONSEJO DEL OPONENTE",
     "NEXT_TARGET": "PRÓXIMO OBJETIVO",
-    "NEXT_BATTLE": "PRÓXIMA BATALLA",
+    "LANGUAGE_CHECK": "REVISIÓN DEL IDIOMA",
+    "WIN_COST": "LO QUE COSTÓ LA VICTORIA",
+    "ARENA_NOTE": "ARENA",
+    "NEXT_BATTLE": "Próxima batalla",
     "NEXT_BATTLE_NOW": "disponible ahora",
     "NEXT_BATTLE_TOMORROW": "mañana",
     "NEXT_BATTLE_HOURS": "en {h} h",
-    "ARENA_NOTICED": "ARENA NOTÓ",
-    "ARENA_NOTE": "ARENA",
-    "LANGUAGE_CHECK": "REVISIÓN DEL IDIOMA",
-    "FALLBACK": "Batalla terminada. ARENA no pudo completar el análisis esta vez. Tu conversación ha sido guardada.",
-    "SILENT": "La batalla terminó antes de que dijeras algo. La próxima vez, basta con una frase."
+    "NEW_TOOL": "¡NUEVA HERRAMIENTA DESBLOQUEADA!"
   },
   "FT": {
     "SELECT_LANGUAGE": "💬 Charla libre — ¿en qué idioma practicamos?",
@@ -105,16 +93,63 @@
   },
   "ARSENAL": {
     "TITLE": "🧰 MI ARSENAL",
-    "EMPTY": "Aquí todavía no hay nada. Gana una batalla. Llévate algo contigo.",
+    "EMPTY": "Tu arsenal está vacío. Gana una batalla para robar tu primera arma.",
     "EMPTY_ADD": "Esta vez no hay nada que añadir.",
     "SAVED": "Guardado en tu arsenal.",
+    "WORD": "Palabra",
+    "PHRASE": "Frase",
+    "MOVE": "Jugada comunicativa",
+    "STRATEGY": "Estrategia",
     "WHAT_IT_DOES": "Qué hace",
     "HOW_TO_USE": "Cómo usarlo",
     "EXAMPLE": "Ejemplo",
     "WHEN_TO_USE": "Cuándo usarlo",
-    "WORD": "Palabra",
-    "PHRASE": "Frase",
-    "MOVE": "Jugada comunicativa",
-    "STRATEGY": "Estrategia"
+    "PROGRESS": "{n} de {total} desbloqueadas",
+    "LOCKED": "aún no desbloqueada"
+  },
+  "TOOLS": {
+    "premise_flip": {
+      "NAME": "Giro de premisa",
+      "DESC": "No discutes la afirmación — cuestionas en qué se apoya.",
+      "EXAMPLE": "«¿Por qué tiene que ser así de todos modos?»"
+    },
+    "clarifying_question": {
+      "NAME": "Pregunta aclaratoria",
+      "DESC": "Una pregunta precisa que corta de raíz la vaguedad.",
+      "EXAMPLE": "«¿Qué quieres decir exactamente con eficiente?»"
+    },
+    "emotional_anchor": {
+      "NAME": "Ancla emocional",
+      "DESC": "Te mantienes calmado y nombras la emoción en vez de dejarte llevar por ella.",
+      "EXAMPLE": "«Entiendo por qué frustra. Y aun así, estos son los hechos.»"
+    },
+    "fact_check": {
+      "NAME": "Verificación de hechos",
+      "DESC": "No aceptas una afirmación a ciegas — la verificas en voz alta.",
+      "EXAMPLE": "«¿De dónde sale ese número? ¿Tienes una fuente?»"
+    },
+    "counterexample": {
+      "NAME": "Contraejemplo",
+      "DESC": "Un ejemplo preciso que rompe su generalización.",
+      "EXAMPLE": "«¿Y la vez que pasó justo lo contrario?»"
+    },
+    "steelman": {
+      "NAME": "Steelman",
+      "DESC": "Formulas la posición del otro mejor que él mismo — y luego la refutas.",
+      "EXAMPLE": "«Si entendí bien, quieres decir... Y aun así...»"
+    },
+    "short_thesis": {
+      "NAME": "Tesis corta",
+      "DESC": "Una frase corta y decidida en lugar de tres minutos de explicación.",
+      "EXAMPLE": "«Sí — y esta es la razón.»"
+    },
+    "reframe": {
+      "NAME": "Cambio de marco",
+      "DESC": "Cambias los criterios con los que se juzga el debate.",
+      "EXAMPLE": "«No se trata de quién tiene razón. Se trata de qué funciona.»"
+    }
+  },
+  "ERROR": {
+    "AI_UNAVAILABLE": "Se perdió la conexión con la IA. Intenta enviar tu mensaje de nuevo en un minuto."
   }
 }

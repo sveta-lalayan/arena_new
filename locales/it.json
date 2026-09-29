@@ -17,8 +17,8 @@
   "TEMPLE": {
     "SELECT_LEARNING_LANGUAGE": "In che lingua parlerai?",
     "LISTENING": "ARENA STA ASCOLTANDO.",
-    "SAY_ANYTHING": "Di' quello che vuoi.",
-    "I_WILL_FIGURE_YOU_OUT": "Ti capirò.",
+    "YOUR_MOVE": "Tocca a te.",
+    "HINT": "cosa faccio · cosa amo · cosa penso · qualsiasi cosa",
     "THINKING": "ARENA sta pensando…",
     "HEARD_ENOUGH": "HO SENTITO ABBASTANZA.",
     "ENTER_BATTLE": "⚔️ INIZIA LA SFIDA →",
@@ -43,33 +43,21 @@
     "ALMOST": "QUASI",
     "DEFEATED": "SCONFITTA",
     "OUTPLAYED": "SUPERATO",
-    "YOU_HAD_THE_ADVANTAGE": "AVERI IL VANTAGGIO",
-    "CLOSE_ONE": "EQUILIBRATA",
-    "YOU_LOST_THE_ROOM": "HAI PERSO LA SALA",
-    "YOU_TURNED_IT_AROUND": "L'HAI RIBALTATA",
-    "CLEAN_WIN": "VITTORIA NETTA",
-    "YOU_SURPRISED_ME": "MI HAI SORPRESO",
-    "BEST_MOVE": "LA TUA MOSSA MIGLIORE",
-    "LOST_GROUND": "DOVE HAI PERSO TERRENO",
-    "LANGUAGE_UPGRADE": "UPGRADE LINGUISTICO",
     "WHAT_WORKED": "COSA HA FUNZIONATO",
     "WHAT_COST_YOU": "COSA TI È COSTATO",
-    "WIN_COST": "QUANTO È COSTATO VINCERE",
-    "GROWTH": "CRESCITA",
+    "GROWTH": "PROGRESSO",
     "STEAL_THIS": "RUBA QUESTO",
-    "ADD_WEAPON": "🎒 AGGIUNGI AL MIO ARSENALE",
     "ADD_TO_ARSENAL": "🎒 AGGIUNGI AL MIO ARSENALE",
     "OPPONENT_ADVICE": "CONSIGLIO DELL'AVVERSARIO",
     "NEXT_TARGET": "PROSSIMO OBIETTIVO",
-    "NEXT_BATTLE": "PROSSIMA SFIDA",
+    "LANGUAGE_CHECK": "CONTROLLO LINGUISTICO",
+    "WIN_COST": "COSA È COSTATA LA VITTORIA",
+    "ARENA_NOTE": "ARENA",
+    "NEXT_BATTLE": "Prossima battaglia",
     "NEXT_BATTLE_NOW": "disponibile ora",
     "NEXT_BATTLE_TOMORROW": "domani",
     "NEXT_BATTLE_HOURS": "tra {h} h",
-    "ARENA_NOTICED": "ARENA HA NOTATO",
-    "ARENA_NOTE": "ARENA",
-    "LANGUAGE_CHECK": "CONTROLLO LINGUISTICO",
-    "FALLBACK": "Sfida terminata. ARENA non è riuscita a completare l'analisi questa volta. La tua conversazione è stata salvata.",
-    "SILENT": "La sfida è finita prima che dicessi qualcosa. La prossima volta basta una frase."
+    "NEW_TOOL": "NUOVO STRUMENTO SBLOCCATO!"
   },
   "FT": {
     "SELECT_LANGUAGE": "💬 Chiacchiera libera — in che lingua ci esercitiamo?",
@@ -105,16 +93,63 @@
   },
   "ARSENAL": {
     "TITLE": "🧰 IL MIO ARSENALE",
-    "EMPTY": "Ancora niente qui. Vinci una sfida. Portati via qualcosa.",
+    "EMPTY": "Il tuo arsenale è vuoto. Vinci una sfida per rubare la tua prima arma.",
     "EMPTY_ADD": "Stavolta non c'è niente da aggiungere.",
     "SAVED": "Salvato nel tuo arsenale.",
+    "WORD": "Parola",
+    "PHRASE": "Frase",
+    "MOVE": "Mossa comunicativa",
+    "STRATEGY": "Strategia",
     "WHAT_IT_DOES": "Cosa fa",
     "HOW_TO_USE": "Come usarlo",
     "EXAMPLE": "Esempio",
     "WHEN_TO_USE": "Quando usarlo",
-    "WORD": "Parola",
-    "PHRASE": "Frase",
-    "MOVE": "Mossa comunicativa",
-    "STRATEGY": "Strategia"
+    "PROGRESS": "{n} su {total} sbloccati",
+    "LOCKED": "non ancora sbloccato"
+  },
+  "TOOLS": {
+    "premise_flip": {
+      "NAME": "Ribaltamento della premessa",
+      "DESC": "Non discuti l'affermazione — metti in discussione ciò su cui si basa.",
+      "EXAMPLE": "«Perché dovrebbe funzionare proprio così?»"
+    },
+    "clarifying_question": {
+      "NAME": "Domanda di chiarimento",
+      "DESC": "Una domanda precisa che blocca subito la vaghezza.",
+      "EXAMPLE": "«Cosa intendi esattamente per efficiente?»"
+    },
+    "emotional_anchor": {
+      "NAME": "Ancora emotiva",
+      "DESC": "Resti calmo e nomini l'emozione invece di farti travolgere.",
+      "EXAMPLE": "«Capisco perché frustra. E comunque, ecco i fatti.»"
+    },
+    "fact_check": {
+      "NAME": "Verifica dei fatti",
+      "DESC": "Non accetti un'affermazione per fede — la controlli ad alta voce.",
+      "EXAMPLE": "«Da dove viene questo numero? Hai una fonte?»"
+    },
+    "counterexample": {
+      "NAME": "Controesempio",
+      "DESC": "Un esempio preciso che smonta la generalizzazione.",
+      "EXAMPLE": "«E la volta in cui è successo il contrario?»"
+    },
+    "steelman": {
+      "NAME": "Steelman",
+      "DESC": "Formuli la posizione dell'altro meglio di lui — e poi la confuti.",
+      "EXAMPLE": "«Se ho capito bene, intendi... Eppure...»"
+    },
+    "short_thesis": {
+      "NAME": "Tesi breve",
+      "DESC": "Una frase breve e decisa invece di tre minuti di spiegazioni.",
+      "EXAMPLE": "«Sì — ed ecco perché.»"
+    },
+    "reframe": {
+      "NAME": "Cambio di cornice",
+      "DESC": "Cambi i criteri con cui si giudica la discussione.",
+      "EXAMPLE": "«Non si tratta di chi ha ragione. Si tratta di cosa funziona davvero.»"
+    }
+  },
+  "ERROR": {
+    "AI_UNAVAILABLE": "Connessione con l'IA persa. Riprova a inviare il messaggio tra un minuto."
   }
 }

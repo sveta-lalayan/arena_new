@@ -60,11 +60,14 @@ LEVEL_PROMPTS = {
     "B1": "Use medium-complexity sentences, everyday and some abstract vocabulary (~2000 words), "
           "a variety of common tenses, connectors like 'however', 'although', 'therefore'.",
     "B2": "Use complex sentences, all common tenses, modal verbs, passive voice, intermediate "
-          "idioms and a wide vocabulary (~4000 words).",
-    "C1": "Use sophisticated structures, precise and academic vocabulary, idioms, abstract "
-          "ideas, nuanced argumentation.",
-    "C2": "Use native-like, richly nuanced language, advanced idioms and stylistic devices, "
-          "subtle rhetoric.",
+          "idioms and a wide vocabulary (~4000 words) — but keep it sounding SPOKEN, like a real "
+          "person talking, not written prose.",
+    "C1": "Use sophisticated structures, precise and wide vocabulary, idioms, abstract ideas, "
+          "nuanced argumentation — but this is still spoken, natural speech, not an essay. Real "
+          "people at this level use contractions, interrupt themselves, throw in casual asides.",
+    "C2": "Use native-like, richly nuanced language, advanced idioms and stylistic devices, subtle "
+          "rhetoric — but stay natural and conversational, the way a sharp native speaker actually "
+          "talks, not a lecture or a written text. More vocabulary does NOT mean more formal.",
 }
 # Совместимость со старым именем.
 LEVEL_DESCRIPTIONS = LEVEL_PROMPTS
@@ -239,6 +242,47 @@ COMMUNICATION_SKILLS = [
 HIDDEN_SKILLS = ["resilience"]
 
 ALL_CRITERIA = LANGUAGE_CRITERIA + COMMUNICATION_SKILLS
+
+
+# ============================================================
+# АРСЕНАЛ: фиксированный набор из 8 приёмов
+# ============================================================
+# Это не свободная генерация оружия — это закрытый список конкретных техник.
+# Витрина (имя/описание/пример на языке интерфейса) живёт в locales/*.json → TOOLS.
+# Здесь — только порядок, эмодзи и внутреннее (английское) определение для промпта
+# классификации в ai.py: "какой из этих 8 приёмов реально продемонстрировал игрок".
+
+ARSENAL_TOOLS = [
+    {"key": "premise_flip", "emoji": "⚔️"},
+    {"key": "clarifying_question", "emoji": "🎯"},
+    {"key": "emotional_anchor", "emoji": "🛡️"},
+    {"key": "fact_check", "emoji": "🔍"},
+    {"key": "counterexample", "emoji": "🪤"},
+    {"key": "steelman", "emoji": "🗣️"},
+    {"key": "short_thesis", "emoji": "⚡"},
+    {"key": "reframe", "emoji": "♟️"},
+]
+ARSENAL_TOOL_KEYS = [t["key"] for t in ARSENAL_TOOLS]
+ARSENAL_TOOL_EMOJI = {t["key"]: t["emoji"] for t in ARSENAL_TOOLS}
+
+# Только для промпта классификации (ai.py) — не показывается пользователю.
+ARSENAL_TOOL_DEFS = {
+    "premise_flip": "Challenging the underlying assumption a claim rests on, instead of arguing "
+                    "on the opponent's terms (e.g. 'why does it have to work that way at all?').",
+    "clarifying_question": "Asking a precise question that exposes vagueness and forces the other "
+                            "side to commit to specifics before the exchange continues.",
+    "emotional_anchor": "Staying visibly calm and naming the emotional weight of the moment instead "
+                        "of getting swept up in it or ignoring it.",
+    "fact_check": "Explicitly questioning or checking a factual claim instead of accepting it at "
+                  "face value (asking for a source, a number, evidence).",
+    "counterexample": "Using one concrete counterexample that breaks the opponent's generalization.",
+    "steelman": "Restating the opponent's position in its strongest, most charitable form before "
+                "countering it.",
+    "short_thesis": "Compressing the position into one short, decisive line instead of over-explaining.",
+    "reframe": "Changing the criteria the whole argument is judged by, shifting the ground to "
+               "terms that favor the learner's position.",
+}
+
 
 CRITERIA_LABELS_RU = {
     "grammar": "Грамматика",

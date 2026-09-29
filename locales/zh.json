@@ -17,8 +17,8 @@
   "TEMPLE": {
     "SELECT_LEARNING_LANGUAGE": "你想用哪种语言说话？",
     "LISTENING": "ARENA 正在倾听。",
-    "SAY_ANYTHING": "随便说点什么。",
-    "I_WILL_FIGURE_YOU_OUT": "我会看穿你。",
+    "YOUR_MOVE": "轮到你了。",
+    "HINT": "我做什么 · 我爱什么 · 我怎么想 · 随便什么",
     "THINKING": "ARENA 正在思考……",
     "HEARD_ENOUGH": "我听够了。",
     "ENTER_BATTLE": "⚔️ 开始对战 →",
@@ -43,33 +43,21 @@
     "ALMOST": "接近",
     "DEFEATED": "失败",
     "OUTPLAYED": "完胜",
-    "YOU_HAD_THE_ADVANTAGE": "你占据优势",
-    "CLOSE_ONE": "势均力敌",
-    "YOU_LOST_THE_ROOM": "你失去了全场",
-    "YOU_TURNED_IT_AROUND": "你扭转了局面",
-    "CLEAN_WIN": "完胜",
-    "YOU_SURPRISED_ME": "你让我意外",
-    "BEST_MOVE": "你的最佳一步",
-    "LOST_GROUND": "你失守的地方",
-    "LANGUAGE_UPGRADE": "语言升级",
     "WHAT_WORKED": "奏效的地方",
     "WHAT_COST_YOU": "让你付出代价的地方",
-    "WIN_COST": "胜利的代价",
     "GROWTH": "成长",
     "STEAL_THIS": "偷走这招",
-    "ADD_WEAPON": "🎒 加入我的武器库",
     "ADD_TO_ARSENAL": "🎒 加入我的武器库",
     "OPPONENT_ADVICE": "对手的建议",
     "NEXT_TARGET": "下一个目标",
-    "NEXT_BATTLE": "下一场战斗",
-    "NEXT_BATTLE_NOW": "现在可用",
-    "NEXT_BATTLE_TOMORROW": "明天",
-    "NEXT_BATTLE_HOURS": "{h} 小时后",
-    "ARENA_NOTICED": "ARENA 注意到了",
-    "ARENA_NOTE": "ARENA",
     "LANGUAGE_CHECK": "语言检查",
-    "FALLBACK": "对战结束。这次 ARENA 未能完成完整分析。你的对话已保存。",
-    "SILENT": "对战在你开口之前就结束了。下次哪怕一句话也够了。"
+    "WIN_COST": "胜利的代价",
+    "ARENA_NOTE": "竞技场",
+    "NEXT_BATTLE": "下一场对决",
+    "NEXT_BATTLE_NOW": "现在就可以",
+    "NEXT_BATTLE_TOMORROW": "明天",
+    "NEXT_BATTLE_HOURS": "{h}小时后",
+    "NEW_TOOL": "解锁新技巧!"
   },
   "FT": {
     "SELECT_LANGUAGE": "💬 自由交谈 — 用哪种语言练习？",
@@ -105,16 +93,63 @@
   },
   "ARSENAL": {
     "TITLE": "🧰 我的武器库",
-    "EMPTY": "这里还没有东西。赢下一场对战，带走点什么。",
+    "EMPTY": "你的武器库是空的。赢下一场对战，偷走你的第一件武器。",
     "EMPTY_ADD": "这次没有可添加的内容。",
     "SAVED": "已保存到你的武器库。",
-    "WHAT_IT_DOES": "它的作用",
-    "HOW_TO_USE": "如何使用",
-    "EXAMPLE": "示例",
-    "WHEN_TO_USE": "何时使用",
     "WORD": "词",
     "PHRASE": "短语",
     "MOVE": "沟通招式",
-    "STRATEGY": "策略"
+    "STRATEGY": "策略",
+    "WHAT_IT_DOES": "作用",
+    "HOW_TO_USE": "使用方法",
+    "EXAMPLE": "示例",
+    "WHEN_TO_USE": "适用场景",
+    "PROGRESS": "已解锁 {n}/{total}",
+    "LOCKED": "尚未解锁"
+  },
+  "TOOLS": {
+    "premise_flip": {
+      "NAME": "前提反转",
+      "DESC": "不去争论结论本身,而是质疑它成立的前提。",
+      "EXAMPLE": "「这本来凭什么就该是这样?」"
+    },
+    "clarifying_question": {
+      "NAME": "澄清提问",
+      "DESC": "一个精准的问题,让含糊其辞无处可藏。",
+      "EXAMPLE": "「你说的高效到底是什么意思?」"
+    },
+    "emotional_anchor": {
+      "NAME": "情绪锚点",
+      "DESC": "保持冷静,说出情绪本身,而不是被它带走。",
+      "EXAMPLE": "「我理解这让人沮丧。不过事实是这样的。」"
+    },
+    "fact_check": {
+      "NAME": "事实核查",
+      "DESC": "不轻信一个说法,而是当场核实。",
+      "EXAMPLE": "「这个数字哪来的?有出处吗?」"
+    },
+    "counterexample": {
+      "NAME": "反例",
+      "DESC": "一个精准的反例,打破对方的以偏概全。",
+      "EXAMPLE": "「那反过来的那次呢?」"
+    },
+    "steelman": {
+      "NAME": "Steelman",
+      "DESC": "把对方的观点讲得比他自己还清楚,然后再反驳它。",
+      "EXAMPLE": "「如果我没理解错,你是说……不过……」"
+    },
+    "short_thesis": {
+      "NAME": "简短论点",
+      "DESC": "一句简短果断的话,胜过三分钟的解释。",
+      "EXAMPLE": "「是的——原因是这样。」"
+    },
+    "reframe": {
+      "NAME": "重新框定",
+      "DESC": "改变评判这场争论的标准本身。",
+      "EXAMPLE": "「问题不在于谁对,而在于什么真正有效。」"
+    }
+  },
+  "ERROR": {
+    "AI_UNAVAILABLE": "与AI的连接中断了。请一分钟后重新发送消息。"
   }
 }

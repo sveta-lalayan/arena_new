@@ -8,7 +8,6 @@ handlers/intro.py — Храм (первое знакомство) и вход �
   • Никаких оценок, очков, обратной связи во время Храма. 8 реплик — синтез.
   • Персонаж и тема назначаются ARENA, а не пользователем.
   • Админ может проходить Храм сколько угодно раз.
-  • ARENA в Храме — верховная наблюдающая сила, НЕ персонаж и НЕ робот.
 """
 import asyncio
 import logging
@@ -85,9 +84,7 @@ async def enter_arena_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     rows = []
     for iso in SUPPORTED_LANGUAGES:
-        flag = LANGUAGE_FLAGS.get(iso, "")
-        name = LANGUAGE_DISPLAY.get(iso, iso)
-        label = f"{flag} {name}".strip()
+        label = f"{LANGUAGE_FLAGS.get(iso, '')} {LANGUAGE_DISPLAY.get(iso, iso)}".strip()
         rows.append([InlineKeyboardButton(label, callback_data=f"fe_lang_{iso}")])
     rows.append([InlineKeyboardButton(i18n.t(il, "MENU.BACK"), callback_data="back_to_main")])
 
@@ -122,8 +119,8 @@ async def select_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
     il = db.get_interface_language(user_id)
     text = (
         f"🏛 <b>{esc(i18n.t(il, 'TEMPLE.LISTENING'))}</b>\n\n"
-        f"{esc(i18n.t(il, 'TEMPLE.SAY_ANYTHING'))}\n\n"
-        f"<b>{esc(i18n.t(il, 'TEMPLE.I_WILL_FIGURE_YOU_OUT'))}</b>"
+        f"<b>{esc(i18n.t(il, 'TEMPLE.YOUR_MOVE'))}</b>\n\n"
+        f"<i>{esc(i18n.t(il, 'TEMPLE.HINT'))}</i>"
     )
     await query.edit_message_text(text, parse_mode="HTML")
 
@@ -163,10 +160,14 @@ async def handle_fe_response(update: Update, context: ContextTypes.DEFAULT_TYPE)
     reaction = await asyncio.to_thread(
         ai.generate_arena_reaction, history, user_text, language, user_turns + 1
     )
-    if "fe_dialogue" not in ud:
+    if "fe_dialogue" not in ud:  # пользователь успел нажать /stop
         return
+
     if not reaction:
-        reaction = "…"
+        logger.warning("generate_arena_reaction вернул пусто (см. лог ai.py выше) — "
+                       "показываю пользователю понятное сообщение, а не многоточие")
+        il = db.get_interface_language(update.effective_user.id)
+        reaction = i18n.t(il, "ERROR.AI_UNAVAILABLE")
 
     dialogue.append({"speaker": "AI", "text": reaction})
     ud["fe_awaiting_response"] = True
@@ -203,6 +204,7 @@ async def _reveal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception:
         pass
 
+    # 1) Разбор Храма (язык + коммуникация + паттерн + интересы)
     analysis = await asyncio.to_thread(
         ai.analyze_first_encounter, user_responses, language
     )
@@ -241,6 +243,7 @@ async def _reveal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "arena_analysis": arena_analysis,
     })
 
+    # 2) Сохранения в БД
     db.get_or_create_user(user_id, user.username, user.first_name)
     db.set_learning_language(user_id, language_iso)
     db.save_arena_analysis(user_id, arena_analysis)
@@ -254,6 +257,7 @@ async def _reveal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     db.mark_temple_done(user_id)
 
+    # 3) Наблюдение + питч персонажа (без общих фраз)
     person = PERSONALITIES.get(personality, PERSONALITIES["hr_manager"])
     observation, pitch = await asyncio.gather(
         asyncio.to_thread(
@@ -270,7 +274,7 @@ async def _reveal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     parts = [
         f"🏛 <b>{esc(i18n.t(il, 'TEMPLE.HEARD_ENOUGH'))}</b>",
         esc(observation),
-        f"🎭 <b>{esc(person['name'])}</b> — <i>{esc(person['role'])}</i>",
+        f"<b>{esc(person['name'])}</b> — <i>{esc(person['role'])}</i>",
         esc(pitch),
         f"<i>«{esc(person['phrase'])}»</i>",
     ]
@@ -284,7 +288,7 @@ async def _reveal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     photo = _read_photo(person.get("photo"))
     if photo:
         try:
-            await update.message.reply_photo(photo=photo, caption=f"🎭 {person['name']}")
+            await update.message.reply_photo(photo=photo, caption=person["name"])
         except Exception:
             logger.warning("Не удалось отправить фото персонажа %s", personality)
 
@@ -319,6 +323,7 @@ async def daily_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await send_or_edit(update, text, reply_markup=start._menu_keyboard(user_id, il))
         return
 
+    # Персонаж по слабому скиллу (fallback — по разбору Храма)
     analysis = db.get_latest_arena_analysis(user_id) or {}
     criteria = db.get_criteria(user_id)
     communication = {k: v for k, v in criteria.items() if k in COMMUNICATION_SKILLS}
@@ -334,6 +339,8 @@ async def daily_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if pushed:
         topic = pushed
     else:
+        # Не повторяем темы последних боёв подряд — наблюдения Арены должны
+        # вести к разнообразию, а не зацикливаться на одной теме.
         recent = {t.lower() for t in db.get_recent_battle_topics(user_id, n=3)}
         fresh_pool = [t for t in interests if t.lower() not in recent]
         pool = fresh_pool or interests or [FALLBACK_TOPIC]

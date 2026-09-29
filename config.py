@@ -4,9 +4,6 @@ config.py — настройки ARENA.
 Ключевое архитектурное правило: interface_language и learning_language
 разделены. Telegram language_code используется ТОЛЬКО для первичного
 определения interface_language, никогда — как язык обучения.
-
-Провайдер LLM: ProxyAPI (совместим с OpenAI API, работает из РФ без VPN
-и обходит региональные блокировки через цепочку европейских прокси).
 """
 import os
 from dotenv import load_dotenv
@@ -17,15 +14,11 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN не задан")
 
-# --- LLM (ProxyAPI, совместим с OpenAI SDK) ---
+# --- OpenAI (текст, распознавание и синтез речи) ---
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 OPENAI_TRANSCRIBE_MODEL = os.getenv("OPENAI_TRANSCRIBE_MODEL", "whisper-1")
 OPENAI_TTS_MODEL = os.getenv("OPENAI_TTS_MODEL", "tts-1")
-
-# Базовый URL LLM. По умолчанию — ProxyAPI (работает из РФ и из ЕС).
-# Можно переопределить через .env: OPENAI_BASE_URL=...
-OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.proxyapi.ru/v1")
 
 DB_PATH = os.getenv("DB_PATH", "arena2.db")
 
@@ -68,12 +61,15 @@ def is_admin(telegram_id: int) -> bool:
 #   - learning_language: язык, на котором идёт практика (Temple, Battle, Free Talk)
 #
 # Значения ВСЕГДА хранятся в БД как короткие ISO-коды: en, ru, de, es, it, ko, zh.
+# Внутренние ключи LANGUAGES (english / russian / ...) используются только
+# в промптах к GPT и в подборе голоса для TTS.
 
 SUPPORTED_LANGUAGES = ["en", "ru", "de", "es", "it", "ko", "zh"]
 DEFAULT_INTERFACE_LANGUAGE = "en"
 DEFAULT_LEARNING_LANGUAGE = "en"
 
 # ISO-код → внутренний ключ (english, russian, ...)
+# Нужен для промптов GPT, выбора голоса TTS и кода Whisper.
 ISO_TO_LANG_KEY = {
     "en": "english",
     "ru": "russian",
@@ -85,8 +81,8 @@ ISO_TO_LANG_KEY = {
 }
 LANG_KEY_TO_ISO = {v: k for k, v in ISO_TO_LANG_KEY.items()}
 
-# Названия языков БЕЗ флага — флаг добавляется отдельно через LANGUAGE_FLAGS,
-# чтобы в кнопках не было двойных эмодзи.
+# Человекочитаемые названия языков для UI (в настройках, в выборе языка обучения).
+# Названия НЕ локализуются — язык всегда называется на самом себе.
 LANGUAGE_DISPLAY = {
     "en": "English",
     "ru": "Русский",
@@ -108,7 +104,8 @@ LANGUAGE_FLAGS = {
     "zh": "🇨🇳",
 }
 
-# Маппинг Telegram language_code → наш ISO-код.
+# Маппинг Telegram language_code → наш ISO-код (для первичного определения
+# interface_language при первом /start).
 TELEGRAM_LANG_MAP = {
     "en": "en", "en-us": "en", "en-gb": "en",
     "ru": "ru", "ru-ru": "ru",

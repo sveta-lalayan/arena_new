@@ -1,14 +1,12 @@
 {
   "MENU": {
     "BATTLE": "⚔️ BATTLE",
-    "FREE_TALK": "💬 FREIES GESPRÄCH",
+    "FREE_TALK": "💬 FREE TALK",
     "MY_ARENA": "🏛 MEINE ARENA",
     "MY_ARSENAL": "🧰 MEIN ARSENAL",
     "SETTINGS": "⚙️ EINSTELLUNGEN",
     "ENTER_ARENA": "🏛 ARENA BETRETEN",
-    "BACK": "🔙 Zum Menü",
-    "ACHIEVEMENTS": "🏆 Erfolge",
-    "NO_ACTIVE": "Kein aktives Spiel. Wähle BATTLE oder FREIES GESPRÄCH."
+    "BACK": "🔙 Zum Menü"
   },
   "START": {
     "WELCOME_FIRST": "👋 {name}\nWillkommen in ARENA.\n\n🏛 ARENA BETRETEN\nLass ARENA zuhören und entscheiden, wen du triffst.",
@@ -17,12 +15,11 @@
   "TEMPLE": {
     "SELECT_LEARNING_LANGUAGE": "In welcher Sprache sprichst du?",
     "LISTENING": "ARENA HÖRT ZU.",
-    "SAY_ANYTHING": "Sag, was du willst.",
-    "I_WILL_FIGURE_YOU_OUT": "Ich kriege dich schon.",
+    "YOUR_MOVE": "Du bist dran.",
+    "HINT": "was ich tue · was ich liebe · was ich denke · irgendwas",
     "THINKING": "ARENA denkt nach …",
     "HEARD_ENOUGH": "ICH HABE GENUG GEHÖRT.",
-    "ENTER_BATTLE": "⚔️ KAMPF BEGINNEN →",
-    "ALREADY_DONE": "🏛 Du hast den Tempel schon kennengelernt. Die Arena entscheidet, wann der nächste Kampf kommt."
+    "ENTER_BATTLE": "⚔️ KAMPF BEGINNEN →"
   },
   "BATTLE": {
     "BEGINS": "DER KAMPF BEGINNT!",
@@ -43,40 +40,27 @@
     "ALMOST": "FAST",
     "DEFEATED": "NIEDERLAGE",
     "OUTPLAYED": "AUSGESPIELT",
-    "YOU_HAD_THE_ADVANTAGE": "DU HATTEST DEN VORTEIL",
-    "CLOSE_ONE": "KNAPP",
-    "YOU_LOST_THE_ROOM": "DU HAST DEN RAUM VERLOREN",
-    "YOU_TURNED_IT_AROUND": "DU HAST ES GEDREHT",
-    "CLEAN_WIN": "KLARER SIEG",
-    "YOU_SURPRISED_ME": "DU HAST MICH ÜBERRASCHT",
-    "BEST_MOVE": "DEIN BESTER ZUG",
-    "LOST_GROUND": "WO DU BODEN VERLOREN HAST",
-    "LANGUAGE_UPGRADE": "SPRACH-UPDATE",
     "WHAT_WORKED": "WAS FUNKTIONIERT HAT",
     "WHAT_COST_YOU": "WAS DICH GEKOSTET HAT",
-    "WIN_COST": "WAS DER SIEG GEKOSTET HAT",
     "GROWTH": "FORTSCHRITT",
+    "LANGUAGE_CHECK": "SPRACHCHECK",
     "STEAL_THIS": "KLAU DAS",
-    "ADD_WEAPON": "🎒 ZU MEINEM ARSENAL",
     "ADD_TO_ARSENAL": "🎒 ZU MEINEM ARSENAL",
     "OPPONENT_ADVICE": "RAT DES GEGNERS",
     "NEXT_TARGET": "NÄCHSTES ZIEL",
-    "NEXT_BATTLE": "NÄCHSTER KAMPF",
+    "WIN_COST": "WAS DER SIEG GEKOSTET HAT",
+    "ARENA_NOTE": "ARENA",
+    "NEXT_BATTLE": "Nächster Kampf",
     "NEXT_BATTLE_NOW": "jetzt verfügbar",
     "NEXT_BATTLE_TOMORROW": "morgen",
     "NEXT_BATTLE_HOURS": "in {h} Std.",
-    "ARENA_NOTICED": "ARENA HAT BEMERKT",
-    "ARENA_NOTE": "ARENA",
-    "LANGUAGE_CHECK": "SPRACHCHECK",
-    "FALLBACK": "Kampf beendet. ARENA konnte die vollständige Analyse diesmal nicht abschließen. Dein Gespräch wurde gespeichert.",
-    "SILENT": "Der Kampf endete, bevor du etwas gesagt hast. Beim nächsten Mal reicht auch ein Satz."
+    "NEW_TOOL": "NEUES WERKZEUG FREIGESCHALTET!"
   },
   "FT": {
     "SELECT_LANGUAGE": "💬 Freies Gespräch — in welcher Sprache üben wir?",
     "SELECT_CHARACTER": "Mit wem willst du sprechen?",
     "START": "Freies Gespräch mit {name}. Kein Timer, keine Note. Schreib einfach.",
-    "DONE": "Gespräch beendet, {name}. ARENA erinnert sich.",
-    "BUSY": "Beende zuerst das aktuelle Gespräch."
+    "DONE": "Gespräch beendet, {name}. ARENA erinnert sich."
   },
   "SETTINGS": {
     "TITLE": "⚙️ EINSTELLUNGEN",
@@ -105,16 +89,61 @@
   },
   "ARSENAL": {
     "TITLE": "🧰 MEIN ARSENAL",
-    "EMPTY": "Noch nichts hier. Gewinne einen Kampf. Nimm etwas mit.",
-    "EMPTY_ADD": "Diesmal gibt es nichts hinzuzufügen.",
-    "SAVED": "In deinem Arsenal gespeichert.",
+    "EMPTY": "Dein Arsenal ist leer. Gewinne einen Kampf, um deine erste Waffe zu stehlen.",
+    "WORD": "Wort",
+    "PHRASE": "Phrase",
+    "MOVE": "Kommunikationszug",
+    "STRATEGY": "Strategie",
     "WHAT_IT_DOES": "Was es bewirkt",
     "HOW_TO_USE": "So wendest du es an",
     "EXAMPLE": "Beispiel",
     "WHEN_TO_USE": "Wann anwenden",
-    "WORD": "Wort",
-    "PHRASE": "Phrase",
-    "MOVE": "Kommunikationszug",
-    "STRATEGY": "Strategie"
+    "PROGRESS": "{n} von {total} freigeschaltet",
+    "LOCKED": "noch nicht freigeschaltet"
+  },
+  "TOOLS": {
+    "premise_flip": {
+      "NAME": "Prämissen-Umkehr",
+      "DESC": "Du streitest nicht über die Aussage — du hinterfragst, worauf sie beruht.",
+      "EXAMPLE": "„Warum muss das überhaupt so sein?“"
+    },
+    "clarifying_question": {
+      "NAME": "Präzisierungsfrage",
+      "DESC": "Eine genaue Frage, die vage Aussagen sofort stoppt.",
+      "EXAMPLE": "„Was genau meinst du mit effizient?“"
+    },
+    "emotional_anchor": {
+      "NAME": "Emotionaler Anker",
+      "DESC": "Du bleibst ruhig und benennst die Emotion, statt dich mitreißen zu lassen.",
+      "EXAMPLE": "„Ich verstehe, warum das frustriert. Hier sind die Fakten.“"
+    },
+    "fact_check": {
+      "NAME": "Faktencheck",
+      "DESC": "Du glaubst eine Behauptung nicht einfach — du prüfst sie laut nach.",
+      "EXAMPLE": "„Woher stammt diese Zahl? Hast du eine Quelle?“"
+    },
+    "counterexample": {
+      "NAME": "Gegenbeispiel",
+      "DESC": "Ein scharfes Beispiel, das ihre Verallgemeinerung widerlegt.",
+      "EXAMPLE": "„Und wie war es damals, als es andersrum lief?“"
+    },
+    "steelman": {
+      "NAME": "Steelman",
+      "DESC": "Du formulierst die Position des Gegners besser als er selbst — und widerlegst genau diese.",
+      "EXAMPLE": "„Wenn ich dich richtig verstehe, meinst du... Und trotzdem...“"
+    },
+    "short_thesis": {
+      "NAME": "Kurzthese",
+      "DESC": "Ein kurzer, entschiedener Satz statt drei Minuten Erklärung.",
+      "EXAMPLE": "„Ja — und zwar deshalb.“"
+    },
+    "reframe": {
+      "NAME": "Umdeutung",
+      "DESC": "Du änderst die Kriterien, nach denen die Debatte beurteilt wird.",
+      "EXAMPLE": "„Es geht nicht darum, wer recht hat. Es geht darum, was wirklich funktioniert.“"
+    }
+  },
+  "ERROR": {
+    "AI_UNAVAILABLE": "Verbindung zur KI verloren. Versuch es in einer Minute noch einmal."
   }
 }
