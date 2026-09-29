@@ -1,21 +1,16 @@
 """
-bot.py — точка входа ARENA: роутинг, таймер боя, ежедневные пуши.
+bot.py — точка входа ARENA: роутинг, таймер боя, ежедневные пуши,
+ежедневное обновление Language Profile.
 
-Правила:
-  • Таймер боя — детерминированный. LLM не решает, когда закончить бой.
-  • При истечении времени Арена сама вызывает arena.finish_arena_by_timeout,
-    без /stop со стороны пользователя.
-  • Пуш — один раз в день, на interface_language пользователя.
-  • Никаких технических команд пользователю не показываем — только меню.
+Включает фикс: DNS-подмена api.telegram.org → резервный IP
+(обход сетевых сбоев на некоторых хостингах).
 """
 import asyncio
 import logging
-from datetime import datetime, timezone, time as dt_time
+import socket
+from datetime import datetime, timezone, time as dt_time, timedelta
 
 from telegram import (
-    BotCommand,
-    BotCommandScopeDefault,
-    BotCommandScopeChat,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
 )
@@ -35,6 +30,33 @@ import database as db
 import i18n
 import voice
 from handlers import start, profile, arena, intro, settings
+
+
+# ==================================================================
+# ФИКС: Telegram API через резервный IP (обход сетевых сбоев)
+# ==================================================================
+# Заставляет соединение идти на резервный IP, но TLS-сертификат
+# проверяется для оригинального домена api.telegram.org.
+# Это решает проблему, когда api.telegram.org не резолвится или
+# режется по маршруту, но подсеть 149.154.160.0/20 доступна.
+
+_TELEGRAM_FALLBACK_IP = "149.154.167.220"
+
+_original_getaddrinfo = socket.getaddrinfo
+
+
+def _patched_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+    if host == "api.telegram.org":
+        return _original_getaddrinfo(_TELEGRAM_FALLBACK_IP, port, family, type, proto, flags)
+    return _original_getaddrinfo(host, port, family, type, proto, flags)
+
+
+socket.getaddrinfo = _patched_getaddrinfo
+
+
+# ==================================================================
+# ЛОГИРОВАНИЕ
+# ==================================================================
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -70,15 +92,11 @@ def stop_arena_timer(context, user_id: int):
 
 
 async def arena_timeout(context):
-    """
-    Время боя вышло. Никаких кнопок «продолжить» — Арена сама подводит итог.
-    """
     data = context.job.data
     user_id = data["user_id"]
     chat_id = data["chat_id"]
     arena_timers.pop(user_id, None)
 
-    # Проверяем, идёт ли ещё бой (пользователь мог закончить раньше)
     ud = context.application.user_data.get(user_id) or {}
     if not ud.get("dialogue") or ud.get("battle_type") != "battle":
         return
@@ -87,8 +105,6 @@ async def arena_timeout(context):
         await arena.finish_arena_by_timeout(context, user_id, chat_id)
     except Exception:
         logger.exception("Авто-итоги после таймаута не удались")
-        # Не оставляем пользователя в подвешенном состоянии молча: если дебриф
-        # всё же не собрался, сообщаем и сбрасываем бой, чтобы не блокировать Free Talk.
         try:
             il = db.get_interface_language(user_id)
             await context.bot.send_message(chat_id, i18n.t(il, "BATTLE.TIME_UP"))
@@ -97,20 +113,20 @@ async def arena_timeout(context):
         arena._reset_state(ud)
 
 
+async def on_error(update, context):
+    """Глобальный обработчик исключений: не даём боту молча падать."""
+    logger.exception("Ошибка при обработке апдейта", exc_info=context.error)
+
+
 # ==================================================================
 # ЕЖЕДНЕВНЫЙ ПУШ
 # ==================================================================
 
 async def send_daily_pushes(context):
-    """
-    Один пуш в день от персонажа — на interface_language пользователя,
-    по темам из его памяти. Никаких дублей: проверяем last_push_at.
-    """
     profiles = await asyncio.to_thread(db.get_all_push_profiles)
     today = datetime.now(timezone.utc).date()
 
     for p in profiles:
-        # уже отправляли сегодня?
         if p.get("last_push_at"):
             try:
                 if datetime.fromisoformat(p["last_push_at"]).date() == today:
@@ -118,7 +134,6 @@ async def send_daily_pushes(context):
             except ValueError:
                 pass
 
-        # бился за последние 24 часа?
         try:
             if await asyncio.to_thread(db.has_battled_today, p["telegram_id"]):
                 continue
@@ -128,7 +143,6 @@ async def send_daily_pushes(context):
         try:
             il = p.get("interface_language") or "en"
             learning_iso = p.get("learning_language") or "en"
-            # Текст пуша пишет персонаж на языке обучения. Кнопка — на языке интерфейса.
             from config import ISO_TO_LANG_KEY
             learning_key = ISO_TO_LANG_KEY.get(learning_iso, "english")
 
@@ -152,23 +166,51 @@ async def send_daily_pushes(context):
 
 
 # ==================================================================
-# КОМАНДЫ МЕНЮ TELEGRAM
+# ЕЖЕДНЕВНОЕ ОБНОВЛЕНИЕ LANGUAGE PROFILE
 # ==================================================================
 
-async def set_user_commands(app: Application, user_id: int, il: str):
-    """
-    Локализованные подсказки команд для конкретного пользователя.
-    Бренд ARENA не переводим.
-    """
-    commands = [
-        BotCommand("start", "ARENA"),
-    ]
-    try:
-        await app.bot.set_my_commands(
-            commands, scope=BotCommandScopeChat(chat_id=user_id)
-        )
-    except Exception:
-        pass
+async def daily_language_profile_update(context):
+    profiles = await asyncio.to_thread(db.get_all_push_profiles)
+
+    for p in profiles:
+        user_id = p["telegram_id"]
+        try:
+            last = await asyncio.to_thread(db.get_last_language_update_at, user_id)
+            if last:
+                try:
+                    age = datetime.now(timezone.utc) - datetime.fromisoformat(last)
+                    if age < timedelta(hours=20):
+                        continue
+                except ValueError:
+                    pass
+
+            battles = await asyncio.to_thread(db.get_recent_battle_messages, user_id, 5)
+            freetalks = await asyncio.to_thread(db.get_recent_freetalk_messages, user_id, 3)
+
+            if not battles and not freetalks:
+                continue
+
+            learning_iso = p.get("learning_language") or "en"
+            from config import ISO_TO_LANG_KEY
+            learning_key = ISO_TO_LANG_KEY.get(learning_iso, "english")
+
+            result = await asyncio.to_thread(
+                ai.update_language_profile_from_sessions,
+                user_id, learning_key, battles, freetalks,
+            )
+
+            for dim, label in (result.get("language") or {}).items():
+                await asyncio.to_thread(db.upsert_language_dimension, user_id, dim, label)
+            for dim, label in (result.get("communication") or {}).items():
+                await asyncio.to_thread(db.upsert_communication_dimension, user_id, dim, label)
+
+            if result.get("summary"):
+                await asyncio.to_thread(
+                    db.add_language_profile_update,
+                    user_id, result["summary"], result.get("insight", ""),
+                )
+        except Exception as e:
+            logger.warning("Language profile update failed для %s: %s", user_id, e)
 
 
 # ==================================================================
@@ -177,12 +219,13 @@ async def set_user_commands(app: Application, user_id: int, il: str):
 
 def main():
     db.init_db()
-    app = Application.builder().token(BOT_TOKEN) \
-        .base_url("https://149.154.167.220/bot") \
-        .build()
+    app = Application.builder().token(BOT_TOKEN).build()
 
-    # Ежедневный пуш
     app.job_queue.run_daily(send_daily_pushes, time=dt_time(hour=DAILY_PUSH_HOUR, minute=0))
+    app.job_queue.run_daily(
+        daily_language_profile_update,
+        time=dt_time(hour=(DAILY_PUSH_HOUR + 1) % 24, minute=0),
+    )
 
     # --- Команды ---
     app.add_handler(CommandHandler("start", start.start))
@@ -193,13 +236,14 @@ def main():
     # --- Меню ---
     app.add_handler(CallbackQueryHandler(start.show_main_menu,  pattern="^back_to_main$"))
     app.add_handler(CallbackQueryHandler(profile.my_arena,      pattern="^menu_profile$"))
+    app.add_handler(CallbackQueryHandler(profile.my_language_profile, pattern="^menu_language_profile$"))
     app.add_handler(CallbackQueryHandler(profile.my_arsenal,    pattern="^menu_arsenal$"))
     app.add_handler(CallbackQueryHandler(profile.achievements_callback, pattern="^menu_achievements$"))
     app.add_handler(CallbackQueryHandler(settings.settings_menu, pattern="^menu_settings$"))
 
-    # --- Настройки (interface / learning) ---
-    app.add_handler(CallbackQueryHandler(settings.pick_interface,  pattern="^set_pick_iface$"))
-    app.add_handler(CallbackQueryHandler(settings.pick_learning,   pattern="^set_pick_learn$"))
+    # --- Настройки ---
+    app.add_handler(CallbackQueryHandler(settings.pick_interface,   pattern="^set_pick_iface$"))
+    app.add_handler(CallbackQueryHandler(settings.pick_learning,    pattern="^set_pick_learn$"))
     app.add_handler(CallbackQueryHandler(settings.set_interface_cb, pattern="^set_iface_"))
     app.add_handler(CallbackQueryHandler(settings.set_learning_cb,  pattern="^set_learn_"))
 
@@ -213,24 +257,22 @@ def main():
     app.add_handler(CallbackQueryHandler(arena.play_entry,       pattern="^menu_play$"))
 
     # --- Free Talk ---
-    app.add_handler(CallbackQueryHandler(arena.freetalk,         pattern="^freetalk$"))
+    app.add_handler(CallbackQueryHandler(arena.freetalk,           pattern="^freetalk$"))
     app.add_handler(CallbackQueryHandler(arena.ft_select_language, pattern="^ft_lang_"))
-    app.add_handler(CallbackQueryHandler(arena.freetalk_pick,    pattern="^freetalk_pick_"))
+    app.add_handler(CallbackQueryHandler(arena.freetalk_pick,      pattern="^freetalk_pick_"))
 
-    # --- Arsenal (после дебрифа) ---
+    # --- Arsenal ---
+    app.add_handler(CallbackQueryHandler(arena.arsenal_add_pending, pattern="^arsenal_add_pending$"))
 
     # --- Текст / голос ---
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, arena.handle_text))
     app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, voice.handle_voice_message))
 
-    # --- Bot menu (можно задать один раз на старте для default scope) ---
-    # Локализованные подсказки для конкретного пользователя проставляются
-    # по мере смены interface_language (см. settings.set_interface_cb).
-    from telegram import BotCommandScopeDefault
-    app.bot_data["set_user_commands"] = set_user_commands
+    # --- Глобальный обработчик ошибок ---
+    app.add_error_handler(on_error)
 
     logger.info("ARENA запущена")
-    app.run_polling()
+    app.run_polling(drop_pending_updates=True)
 
 
 if __name__ == "__main__":
