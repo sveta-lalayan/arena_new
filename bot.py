@@ -177,7 +177,9 @@ async def set_user_commands(app: Application, user_id: int, il: str):
 
 def main():
     db.init_db()
-    app = Application.builder().token(BOT_TOKEN).build()
+    app = Application.builder().token(BOT_TOKEN) \
+        .base_url("https://149.154.167.220/bot") \
+        .build()
 
     # Ежедневный пуш
     app.job_queue.run_daily(send_daily_pushes, time=dt_time(hour=DAILY_PUSH_HOUR, minute=0))
