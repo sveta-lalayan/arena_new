@@ -556,6 +556,24 @@ def _debrief_keyboard(il: str) -> InlineKeyboardMarkup:
     ])
 
 
+async def arsenal_add_pending(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Совместимость: старая кнопка "В мой арсенал" под дебрифом. Новая система
+    разблокирует приёмы автоматически (см. _do_finish), эта кнопка больше нигде
+    не рендерится — но если где-то в bot.py ещё осталась регистрация на неё
+    (например, из-за смешения версий файлов), просто открываем арсенал вместо
+    падения с AttributeError."""
+    query = update.callback_query
+    await query.answer()
+    user_id = update.effective_user.id
+    il = db.get_interface_language(user_id)
+    await query.edit_message_text(_build_arsenal_text_compat(user_id, il), parse_mode="HTML")
+
+
+def _build_arsenal_text_compat(user_id: int, il: str) -> str:
+    from handlers.profile import _build_arsenal_text
+    return _build_arsenal_text(user_id, il)
+
+
 # ==================================================================
 # FREE TALK — отдельный режим
 # ==================================================================

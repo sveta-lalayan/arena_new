@@ -149,6 +149,14 @@ async def my_arena(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_or_edit(update, text, reply_markup=kb, parse_mode="HTML")
 
 
+# Совместимость: в некоторых версиях bot.py кнопка меню называется
+# "menu_language_profile" и ссылается на my_language_profile — раньше такой
+# функции не было вообще (AttributeError при старте). Пока это тот же экран,
+# что и "Моя арена"; если нужен отдельный экран только с языковым уровнем —
+# скажите, вынесу в отдельную функцию.
+my_language_profile = my_arena
+
+
 # ==================================================================
 # MY ARSENAL
 # ==================================================================

@@ -17,6 +17,22 @@ if not BOT_TOKEN:
 # --- OpenAI (текст, распознавание и синтез речи) ---
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+# Если запросы к OpenAI блокируются напрямую (см. HANDOFF про блокировку из РФ),
+# можно завернуть их через прокси — заполнив ОДНУ из двух переменных ниже,
+# без изменения кода:
+#
+# 1) OPENAI_BASE_URL — если это "прокси-зеркало" самого OpenAI API
+#    (отдельный домен, который сам проксирует запросы на api.openai.com).
+#    Пример: OPENAI_BASE_URL=https://my-proxy.example.com/v1
+#
+# 2) OPENAI_PROXY — если это обычный HTTP/SOCKS5-прокси, через который нужно
+#    заворачивать любой трафик (в т.ч. к настоящему api.openai.com).
+#    Пример: OPENAI_PROXY=http://user:password@1.2.3.4:8080
+#    Пример (SOCKS5): OPENAI_PROXY=socks5://user:password@1.2.3.4:1080
+#    (для socks5 нужен пакет httpx[socks], см. requirements.txt)
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "").strip() or None
+OPENAI_PROXY = os.getenv("OPENAI_PROXY", "").strip() or None
 OPENAI_TRANSCRIBE_MODEL = os.getenv("OPENAI_TRANSCRIBE_MODEL", "whisper-1")
 OPENAI_TTS_MODEL = os.getenv("OPENAI_TTS_MODEL", "tts-1")
 

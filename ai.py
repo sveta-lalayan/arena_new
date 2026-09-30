@@ -15,9 +15,10 @@ import logging
 import random
 import re
 
+import httpx
 from openai import OpenAI, APIStatusError, APIConnectionError
 
-from config import OPENAI_API_KEY, OPENAI_MODEL, FIRST_ENCOUNTER_MOVES
+from config import OPENAI_API_KEY, OPENAI_MODEL, OPENAI_BASE_URL, OPENAI_PROXY, FIRST_ENCOUNTER_MOVES
 from game_data import (
     LANG_PROMPT_NAME, LEVELS, LEVEL_PROMPTS, PERSONALITIES, PERSONA_BRIEFS, SPEECH_STYLE,
     MISSION_FORMAT_BY_PERSONALITY, SKILL_TO_PERSONALITY, COMMUNICATION_SKILLS,
@@ -39,7 +40,12 @@ BEHAVIOURS = list(BEHAVIOUR_BRIEFS)
 def _get_client():
     global _client
     if _client is None and OPENAI_API_KEY:
-        _client = OpenAI(api_key=OPENAI_API_KEY, timeout=45)
+        kwargs = dict(api_key=OPENAI_API_KEY, timeout=45)
+        if OPENAI_BASE_URL:
+            kwargs["base_url"] = OPENAI_BASE_URL
+        if OPENAI_PROXY:
+            kwargs["http_client"] = httpx.Client(proxy=OPENAI_PROXY, timeout=45)
+        _client = OpenAI(**kwargs)
     return _client
 
 
