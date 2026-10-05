@@ -1,31 +1,33 @@
 {
   "MENU": {
-    "BATTLE": "⚔️ BATTLE",
-    "FREE_TALK": "💬 CHIACCHIERA LIBERA",
+    "BATTLE": "⚔️ BATTAGLIA",
+    "FREE_TALK": "💬 CHIACCHIERATA LIBERA",
     "MY_ARENA": "🏛 LA MIA ARENA",
     "MY_ARSENAL": "🧰 IL MIO ARSENALE",
     "SETTINGS": "⚙️ IMPOSTAZIONI",
     "ENTER_ARENA": "🏛 ENTRA NELL'ARENA",
     "BACK": "🔙 Al menu",
-    "ACHIEVEMENTS": "🏆 Obiettivi",
-    "NO_ACTIVE": "Nessuna partita attiva. Tocca BATTLE o CHIACCHIERA LIBERA."
+    "NO_ACTIVE": "Nessuna conversazione attiva. Apri il menu."
   },
   "START": {
     "WELCOME_FIRST": "👋 {name}\nBenvenuto in ARENA.\n\n🏛 ENTRA NELL'ARENA\nLascia che ARENA ascolti e decida chi incontrerai.",
-    "WELCOME_BACK": "👋 {name}\nL'Arena osserva. Una battaglia al giorno. Chiacchiera libera — sempre."
+    "WELCOME_BACK": "👋 {name}\nL'Arena osserva. Una battaglia al giorno. Chiacchierata libera — quando vuoi."
   },
   "TEMPLE": {
-    "SELECT_LEARNING_LANGUAGE": "In che lingua parlerai?",
-    "LISTENING": "ARENA STA ASCOLTANDO.",
+    "SELECT_LEARNING_LANGUAGE": "In che lingua parli?",
+    "LISTENING": "ARENA ASCOLTA.",
     "YOUR_MOVE": "Tocca a te.",
-    "HINT": "cosa faccio · cosa amo · cosa penso · qualsiasi cosa",
-    "THINKING": "ARENA sta pensando…",
+    "HINT": "cosa faccio · cosa amo · cosa penso · qualunque cosa",
+    "THINKING": "ARENA sta pensando …",
     "HEARD_ENOUGH": "HO SENTITO ABBASTANZA.",
-    "ENTER_BATTLE": "⚔️ INIZIA LA SFIDA →",
-    "ALREADY_DONE": "🏛 Hai già conosciuto il Tempio. L'Arena deciderà quando arriva la prossima battaglia."
+    "ENTER_BATTLE": "⚔️ INIZIA LA BATTAGLIA →",
+    "INTRO": "Parlami.\n\nDeciderò chi sei da ciò che scegli di dire.",
+    "NOTICED": "Ho notato qualcosa.",
+    "LETS_FIND_OUT": "Scopriamolo.",
+    "ALREADY_DONE": "Sei già passato dal Tempio. L'Arena si ricorda di te."
   },
   "BATTLE": {
-    "BEGINS": "LA SFIDA INIZIA!",
+    "BEGINS": "LA BATTAGLIA COMINCIA!",
     "MISSION": "Missione",
     "ARSENAL": "Arsenale",
     "TIP": "Consiglio",
@@ -33,38 +35,55 @@
     "TIME_LIMIT": "Hai {n} min.",
     "PERSUADED": "Convinto",
     "TIME_UP": "Tempo scaduto.",
-    "EARLY_WIN": "L'hai convinto in anticipo. Vittoria!",
+    "EARLY_WIN": "L'hai spezzato subito. Vittoria!",
     "COOLDOWN": "Prossima battaglia tra circa {hours} h."
   },
   "DEBRIEF": {
-    "TITLE": "RESOCONTO DELLA SFIDA",
+    "TITLE": "ANALISI DELLA BATTAGLIA",
     "RESULT": "Risultato",
     "VICTORY": "VITTORIA",
     "ALMOST": "QUASI",
     "DEFEATED": "SCONFITTA",
-    "OUTPLAYED": "SUPERATO",
+    "OUTPLAYED": "SOPRAFFATTO",
     "WHAT_WORKED": "COSA HA FUNZIONATO",
     "WHAT_COST_YOU": "COSA TI È COSTATO",
-    "GROWTH": "PROGRESSO",
+    "GROWTH": "CRESCITA",
+    "LANGUAGE_CHECK": "CONTROLLO LINGUA",
+    "LANGUAGE_UPGRADE": "MIGLIORAMENTO LINGUA",
+    "YOU_SAID": "Hai detto",
+    "BETTER": "Meglio",
     "STEAL_THIS": "RUBA QUESTO",
-    "ADD_TO_ARSENAL": "🎒 AGGIUNGI AL MIO ARSENALE",
+    "ADD_TO_ARSENAL": "🎒 AL MIO ARSENALE",
     "OPPONENT_ADVICE": "CONSIGLIO DELL'AVVERSARIO",
     "NEXT_TARGET": "PROSSIMO OBIETTIVO",
-    "LANGUAGE_CHECK": "CONTROLLO LINGUISTICO",
-    "WIN_COST": "COSA È COSTATA LA VITTORIA",
+    "WIN_COST": "QUANTO È COSTATA LA VITTORIA",
     "ARENA_NOTE": "ARENA",
     "NEXT_BATTLE": "Prossima battaglia",
-    "NEXT_BATTLE_NOW": "disponibile ora",
+    "NEXT_BATTLE_NOW": "già disponibile",
     "NEXT_BATTLE_TOMORROW": "domani",
     "NEXT_BATTLE_HOURS": "tra {h} h",
-    "NEW_TOOL": "NUOVO STRUMENTO SBLOCCATO!"
+    "NEW_TOOL": "NUOVO STRUMENTO SBLOCCATO!",
+    "THE_MOVE": "LA MOSSA",
+    "WANT_TO_GO_DEEPER": "VUOI ANDARE PIÙ A FONDO?",
+    "READ_THE_BREAKDOWN": "📖 Leggi l'analisi",
+    "TURNING_POINT": "IL PUNTO DI SVOLTA",
+    "GRAMMAR_FOCUS": "FOCUS GRAMMATICALE",
+    "GRAMMAR_FOR_GOAL": "GRAMMATICA PER",
+    "YOU_COULD_SAY": "Avresti potuto dire",
+    "THE_MOMENT": "IL MOMENTO DECISIVO",
+    "THE_MECHANISM": "IL MECCANISMO",
+    "THE_SHIFT": "LA SVOLTA",
+    "ESCAPE_ROUTE": "VIA D'USCITA",
+    "THE_ARENA_READ": "CIÒ CHE LEGGE L'ARENA",
+    "ALTERNATIVE": "Un'alternativa",
+    "OPPONENT_SAID": "L'avversario ha detto"
   },
   "FT": {
-    "SELECT_LANGUAGE": "💬 Chiacchiera libera — in che lingua ci esercitiamo?",
+    "SELECT_LANGUAGE": "💬 Chiacchierata libera — in che lingua ci esercitiamo?",
     "SELECT_CHARACTER": "Con chi vuoi parlare?",
-    "START": "Chiacchiera libera con {name}. Nessun timer, nessun voto. Scrivi quello che vuoi.",
-    "DONE": "Conversazione finita, {name}. ARENA ricorda.",
-    "BUSY": "Prima finisci la conversazione attuale."
+    "START": "Chiacchierata libera con {name}. Niente timer, niente voto. Scrivi e basta.",
+    "DONE": "Conversazione conclusa, {name}. ARENA ricorda.",
+    "BUSY": "Sei già in una conversazione. Finiscila prima."
   },
   "SETTINGS": {
     "TITLE": "⚙️ IMPOSTAZIONI",
@@ -79,77 +98,122 @@
     "PROFILE": "PROFILO",
     "NAME": "Nome",
     "INTERFACE_LANGUAGE": "Interfaccia",
-    "LEARNING_LANGUAGE": "Mi sto esercitando in",
+    "LEARNING_LANGUAGE": "Mi alleno in",
     "LEVEL": "Livello",
-    "BATTLES": "Sfide",
+    "BATTLES": "Battaglie",
     "VICTORIES": "Vittorie",
     "CHARACTERS": "Personaggi incontrati",
     "WHAT_ARENA_KNOWS": "COSA ARENA SA DI TE",
+    "WHAT_IVE_SEEN": "COSA VEDO",
+    "TESTING_NOW": "COSA STO TESTANDO ORA",
+    "CURRENT_WEAPON": "ARMA ATTUALE",
     "CURRENT_CHALLENGE": "SFIDA ATTUALE",
-    "HOW_WE_TRAIN": "COME ARENA LA ALLENA",
+    "HOW_WE_TRAIN": "COME ARENA LO ALLENA",
     "YOUR_STRENGTH": "IL TUO PUNTO DI FORZA",
-    "ARSENAL_SHORTCUT": "🧰 Il mio Arsenale",
-    "BATTLE_HISTORY": "STORICO DELLE SFIDE"
+    "ARSENAL_SHORTCUT": "🧰 Il mio arsenale",
+    "BATTLE_HISTORY": "STORICO BATTAGLIE",
+    "COMMUNICATION": "COMUNICAZIONE",
+    "LANGUAGE": "LINGUA"
   },
   "ARSENAL": {
     "TITLE": "🧰 IL MIO ARSENALE",
-    "EMPTY": "Il tuo arsenale è vuoto. Vinci una sfida per rubare la tua prima arma.",
-    "EMPTY_ADD": "Stavolta non c'è niente da aggiungere.",
-    "SAVED": "Salvato nel tuo arsenale.",
+    "EMPTY": "Il tuo arsenale è vuoto. Vinci una battaglia per guadagnarti la prima mossa.",
     "WORD": "Parola",
     "PHRASE": "Frase",
     "MOVE": "Mossa comunicativa",
     "STRATEGY": "Strategia",
     "WHAT_IT_DOES": "Cosa fa",
-    "HOW_TO_USE": "Come usarlo",
+    "HOW_TO_USE": "Come usarla",
     "EXAMPLE": "Esempio",
-    "WHEN_TO_USE": "Quando usarlo",
-    "PROGRESS": "{n} su {total} sbloccati",
-    "LOCKED": "non ancora sbloccato"
+    "WHEN_TO_USE": "Quando usarla",
+    "PROGRESS": "{n} di {total} sbloccati",
+    "LOCKED": "non ancora sbloccato",
+    "MORE_TO_EARN": "Altre {n} mosse aspettano che tu le mostri.",
+    "PHRASES_SECTION": "FRASI PER I TUOI OBIETTIVI",
+    "CHANNEL_HINT": "Come suonano queste mosse nel parlato reale — sul canale ARENA.",
+    "CHANNEL_BUTTON": "📣 Canale ARENA"
+  },
+  "PATTERNS": {
+    "repeats_claim": "Quando ti interrompono, ripeti lo stesso punto invece di trovare un'angolazione nuova.",
+    "develops_argument": "Quando ti interrompono, aggiungi un argomento nuovo invece di ripetere.",
+    "claims_without_evidence": "Affermi con forza, ma senza esempio né numero.",
+    "backs_claims_with_evidence": "Sostieni le tue affermazioni con un esempio concreto.",
+    "agrees_too_quickly": "Cedi o accetti troppo in fretta quando ti mettono sotto pressione.",
+    "holds_position": "Mantieni la posizione — o la ridireziona con astuzia — sotto pressione.",
+    "imprecise_vocabulary": "Usi parole generiche dove una precisa porterebbe meglio l'idea.",
+    "uses_precise_vocabulary": "Scegli parole precise che si adattano all'idea.",
+    "states_position_clearly": "Dici la tua posizione in modo chiaro e diretto.",
+    "tells_vivid_stories": "Racconti storie vivide e concrete.",
+    "adapts_argument": "Cambi angolazione o tono dell'argomento per adattarti all'altra persona.",
+    "has_professional_context": "Torni sempre su un chiaro contesto professionale.",
+    "states_goals": "Dici apertamente in cosa vuoi migliorare.",
+    "avoids_topic": "Ti allontani o devii un argomento che chiaramente non vuoi affrontare."
+  },
+  "CRITERIA": {
+    "grammar": "Grammatica",
+    "vocabulary": "Vocabolario",
+    "fluency": "Scorrevolezza",
+    "naturalness": "Naturalezza",
+    "clarity": "Chiarezza",
+    "argumentation": "Argomentazione",
+    "adaptability": "Adattabilità",
+    "persuasion": "Persuasione",
+    "evidence": "Prove",
+    "control": "Controllo della conversazione"
   },
   "TOOLS": {
     "premise_flip": {
-      "NAME": "Ribaltamento della premessa",
-      "DESC": "Non discuti l'affermazione — metti in discussione ciò su cui si basa.",
-      "EXAMPLE": "«Perché dovrebbe funzionare proprio così?»"
+      "NAME": "Rovesciamento della premessa",
+      "DESC": "Non discuti l'affermazione — metti in dubbio ciò su cui si regge.",
+      "EXAMPLE": "«Perché deve funzionare proprio così?»"
     },
     "clarifying_question": {
-      "NAME": "Domanda di chiarimento",
-      "DESC": "Una domanda precisa che blocca subito la vaghezza.",
-      "EXAMPLE": "«Cosa intendi esattamente per efficiente?»"
+      "NAME": "Domanda chiarificatrice",
+      "DESC": "Una domanda precisa che ferma sul nascere le affermazioni vaghe.",
+      "EXAMPLE": "«Cosa intendi esattamente con efficiente?»"
     },
     "emotional_anchor": {
       "NAME": "Ancora emotiva",
-      "DESC": "Resti calmo e nomini l'emozione invece di farti travolgere.",
-      "EXAMPLE": "«Capisco perché frustra. E comunque, ecco i fatti.»"
+      "DESC": "Resti calmo e nomini l'emozione, invece di farti travolgere.",
+      "EXAMPLE": "«Capisco perché è frustrante. Ecco i fatti.»"
     },
     "fact_check": {
       "NAME": "Verifica dei fatti",
-      "DESC": "Non accetti un'affermazione per fede — la controlli ad alta voce.",
-      "EXAMPLE": "«Da dove viene questo numero? Hai una fonte?»"
+      "DESC": "Non prendi per buona un'affermazione — la verifichi ad alta voce.",
+      "EXAMPLE": "«Da dove viene quel numero? Hai una fonte?»"
     },
     "counterexample": {
       "NAME": "Controesempio",
-      "DESC": "Un esempio preciso che smonta la generalizzazione.",
-      "EXAMPLE": "«E la volta in cui è successo il contrario?»"
+      "DESC": "Un esempio affilato che spezza la loro generalizzazione.",
+      "EXAMPLE": "«E quella volta che è andata al contrario?»"
     },
     "steelman": {
       "NAME": "Steelman",
-      "DESC": "Formuli la posizione dell'altro meglio di lui — e poi la confuti.",
-      "EXAMPLE": "«Se ho capito bene, intendi... Eppure...»"
+      "DESC": "Formuli la posizione dell'avversario meglio di lui — e confuti proprio quella.",
+      "EXAMPLE": "«Se ti capisco bene, stai dicendo che… E comunque…»"
     },
     "short_thesis": {
       "NAME": "Tesi breve",
-      "DESC": "Una frase breve e decisa invece di tre minuti di spiegazioni.",
+      "DESC": "Una riga breve e decisa invece di tre minuti di spiegazione.",
       "EXAMPLE": "«Sì — ed ecco perché.»"
     },
     "reframe": {
-      "NAME": "Cambio di cornice",
-      "DESC": "Cambi i criteri con cui si giudica la discussione.",
-      "EXAMPLE": "«Non si tratta di chi ha ragione. Si tratta di cosa funziona davvero.»"
+      "NAME": "Riformulazione",
+      "DESC": "Cambi i criteri con cui viene giudicato il dibattito.",
+      "EXAMPLE": "«Non è questione di chi ha ragione. È questione di cosa funziona davvero.»"
     }
   },
   "ERROR": {
-    "AI_UNAVAILABLE": "Connessione con l'IA persa. Riprova a inviare il messaggio tra un minuto."
+    "AI_UNAVAILABLE": "Connessione con l'IA persa. Riprova tra un minuto."
+  },
+  "RESET": {
+    "WARNING": "Questo cancellerà tutti i tuoi dati in ARENA: battaglie, analisi, memoria, arsenale, temi.\n\nContinuare?",
+    "CONFIRM": "🗑 Sì, cancella tutto",
+    "DONE": "Fatto. Puoi ricominciare — /start."
+  },
+  "POLICY": {
+    "INTRO": "Prima di iniziare — breve nota su ciò che ARENA conserva di te.\n\n• I tuoi messaggi nel Tempio, nella Battaglia e nella Chiacchierata libera.\n• I vocali — vengono convertiti in testo con OpenAI Whisper e NON conservati come audio.\n• Profilo: lingua, livello, interessi, schemi di linguaggio, analisi.\n• Tutto viene usato solo dentro ARENA — per rendere la prossima conversazione più precisa.\n\nPuoi cancellare i tuoi dati in qualsiasi momento con /reset.\n\nContinuando, accetti questo trattamento.",
+    "ACCEPT": "✅ Accetto",
+    "READ_MORE": "📄 Politica completa"
   }
 }

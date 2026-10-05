@@ -1,12 +1,13 @@
 {
   "MENU": {
-    "BATTLE": "⚔️ BATTLE",
-    "FREE_TALK": "💬 FREE TALK",
+    "BATTLE": "⚔️ KAMPF",
+    "FREE_TALK": "💬 FREIES GESPRÄCH",
     "MY_ARENA": "🏛 MEINE ARENA",
     "MY_ARSENAL": "🧰 MEIN ARSENAL",
     "SETTINGS": "⚙️ EINSTELLUNGEN",
     "ENTER_ARENA": "🏛 ARENA BETRETEN",
-    "BACK": "🔙 Zum Menü"
+    "BACK": "🔙 Zum Menü",
+    "NO_ACTIVE": "Es läuft gerade kein Gespräch. Öffne das Menü."
   },
   "START": {
     "WELCOME_FIRST": "👋 {name}\nWillkommen in ARENA.\n\n🏛 ARENA BETRETEN\nLass ARENA zuhören und entscheiden, wen du triffst.",
@@ -19,7 +20,11 @@
     "HINT": "was ich tue · was ich liebe · was ich denke · irgendwas",
     "THINKING": "ARENA denkt nach …",
     "HEARD_ENOUGH": "ICH HABE GENUG GEHÖRT.",
-    "ENTER_BATTLE": "⚔️ KAMPF BEGINNEN →"
+    "ENTER_BATTLE": "⚔️ KAMPF BEGINNEN →",
+    "INTRO": "Sprich mit mir.\n\nIch entscheide, wer du bist, an dem, was du zu sagen wählst.",
+    "NOTICED": "Mir ist etwas aufgefallen.",
+    "LETS_FIND_OUT": "Finden wir es heraus.",
+    "ALREADY_DONE": "Du warst schon im Tempel. Die Arena erinnert sich an dich."
   },
   "BATTLE": {
     "BEGINS": "DER KAMPF BEGINNT!",
@@ -44,6 +49,9 @@
     "WHAT_COST_YOU": "WAS DICH GEKOSTET HAT",
     "GROWTH": "FORTSCHRITT",
     "LANGUAGE_CHECK": "SPRACHCHECK",
+    "LANGUAGE_UPGRADE": "SPRACH-UPDATE",
+    "YOU_SAID": "Du sagtest",
+    "BETTER": "Besser",
     "STEAL_THIS": "KLAU DAS",
     "ADD_TO_ARSENAL": "🎒 ZU MEINEM ARSENAL",
     "OPPONENT_ADVICE": "RAT DES GEGNERS",
@@ -54,13 +62,28 @@
     "NEXT_BATTLE_NOW": "jetzt verfügbar",
     "NEXT_BATTLE_TOMORROW": "morgen",
     "NEXT_BATTLE_HOURS": "in {h} Std.",
-    "NEW_TOOL": "NEUES WERKZEUG FREIGESCHALTET!"
+    "NEW_TOOL": "NEUES WERKZEUG FREIGESCHALTET!",
+    "THE_MOVE": "DER ZUG",
+    "WANT_TO_GO_DEEPER": "TIEFER EINTAUCHEN?",
+    "READ_THE_BREAKDOWN": "📖 Analyse lesen",
+    "TURNING_POINT": "DER WENDEPUNKT",
+    "GRAMMAR_FOCUS": "GRAMMATIK-FOKUS",
+    "GRAMMAR_FOR_GOAL": "GRAMMATIK FÜR",
+    "YOU_COULD_SAY": "Du hättest sagen können",
+    "THE_MOMENT": "DER ENTSCHEIDENDE MOMENT",
+    "THE_MECHANISM": "DER MECHANISMUS",
+    "THE_SHIFT": "DIE VERSCHIEBUNG",
+    "ESCAPE_ROUTE": "AUSWEG",
+    "THE_ARENA_READ": "WAS DIE ARENA LIEST",
+    "ALTERNATIVE": "Eine Alternative",
+    "OPPONENT_SAID": "Der Gegner sagte"
   },
   "FT": {
     "SELECT_LANGUAGE": "💬 Freies Gespräch — in welcher Sprache üben wir?",
     "SELECT_CHARACTER": "Mit wem willst du sprechen?",
     "START": "Freies Gespräch mit {name}. Kein Timer, keine Note. Schreib einfach.",
-    "DONE": "Gespräch beendet, {name}. ARENA erinnert sich."
+    "DONE": "Gespräch beendet, {name}. ARENA erinnert sich.",
+    "BUSY": "Du bist schon in einem Gespräch. Beende es zuerst."
   },
   "SETTINGS": {
     "TITLE": "⚙️ EINSTELLUNGEN",
@@ -81,15 +104,20 @@
     "VICTORIES": "Siege",
     "CHARACTERS": "Getroffene Charaktere",
     "WHAT_ARENA_KNOWS": "WAS ARENA ÜBER DICH WEISS",
+    "WHAT_IVE_SEEN": "WAS ICH SEHE",
+    "TESTING_NOW": "WAS ICH JETZT PRÜFE",
+    "CURRENT_WEAPON": "AKTUELLE WAFFE",
     "CURRENT_CHALLENGE": "AKTUELLE HERAUSFORDERUNG",
     "HOW_WE_TRAIN": "WIE ARENA DAS TRAINIERT",
     "YOUR_STRENGTH": "DEINE STÄRKE",
     "ARSENAL_SHORTCUT": "🧰 Mein Arsenal",
-    "BATTLE_HISTORY": "KAMPFVERLAUF"
+    "BATTLE_HISTORY": "KAMPFVERLAUF",
+    "COMMUNICATION": "KOMMUNIKATION",
+    "LANGUAGE": "SPRACHE"
   },
   "ARSENAL": {
     "TITLE": "🧰 MEIN ARSENAL",
-    "EMPTY": "Dein Arsenal ist leer. Gewinne einen Kampf, um deine erste Waffe zu stehlen.",
+    "EMPTY": "Dein Arsenal ist leer. Gewinne einen Kampf, um deinen ersten Zug zu verdienen.",
     "WORD": "Wort",
     "PHRASE": "Phrase",
     "MOVE": "Kommunikationszug",
@@ -99,7 +127,39 @@
     "EXAMPLE": "Beispiel",
     "WHEN_TO_USE": "Wann anwenden",
     "PROGRESS": "{n} von {total} freigeschaltet",
-    "LOCKED": "noch nicht freigeschaltet"
+    "LOCKED": "noch nicht freigeschaltet",
+    "MORE_TO_EARN": "{n} weitere Züge warten darauf, dass du sie zeigst.",
+    "PHRASES_SECTION": "PHRASEN FÜR DEINE ZIELE",
+    "CHANNEL_HINT": "Wie diese Züge in echter Sprache klingen — auf dem ARENA-Kanal.",
+    "CHANNEL_BUTTON": "📣 ARENA-Kanal"
+  },
+  "PATTERNS": {
+    "repeats_claim": "Wenn man dich unterbricht, wiederholst du denselben Punkt, statt einen neuen Winkel zu finden.",
+    "develops_argument": "Wenn man dich unterbricht, bringst du ein neues Argument statt einer Wiederholung.",
+    "claims_without_evidence": "Du behauptest stark, aber ohne Beispiel oder Zahl.",
+    "backs_claims_with_evidence": "Du untermauerst Behauptungen mit einem konkreten Beispiel.",
+    "agrees_too_quickly": "Du gibst zu schnell nach oder stimmst zu, wenn Druck kommt.",
+    "holds_position": "Du hältst deine Position — oder drehst sie geschickt — unter Druck.",
+    "imprecise_vocabulary": "Du greifst zu allgemeinen Worten, wo ein präzises die Idee besser trägt.",
+    "uses_precise_vocabulary": "Du wählst präzise Worte, die zur Idee passen.",
+    "states_position_clearly": "Du sagst deine Position klar und direkt.",
+    "tells_vivid_stories": "Du erzählst lebendige, konkrete Geschichten.",
+    "adapts_argument": "Du änderst Winkel oder Ton deines Arguments, um zur Person zu passen.",
+    "has_professional_context": "Du kommst immer wieder auf einen klaren beruflichen Kontext zurück.",
+    "states_goals": "Du sagst offen, worin du besser werden willst.",
+    "avoids_topic": "Du gehst von einem Thema weg oder lenkst ab, wenn du es offensichtlich nicht besprechen willst."
+  },
+  "CRITERIA": {
+    "grammar": "Grammatik",
+    "vocabulary": "Wortschatz",
+    "fluency": "Flüssigkeit",
+    "naturalness": "Natürlichkeit",
+    "clarity": "Klarheit",
+    "argumentation": "Argumentation",
+    "adaptability": "Anpassungsfähigkeit",
+    "persuasion": "Überzeugungskraft",
+    "evidence": "Belege",
+    "control": "Gesprächskontrolle"
   },
   "TOOLS": {
     "premise_flip": {
@@ -145,5 +205,15 @@
   },
   "ERROR": {
     "AI_UNAVAILABLE": "Verbindung zur KI verloren. Versuch es in einer Minute noch einmal."
+  },
+  "RESET": {
+    "WARNING": "Dies löscht alle deine Daten in ARENA: Kämpfe, Auswertungen, Gedächtnis, Arsenal, Themen.\n\nFortfahren?",
+    "CONFIRM": "🗑 Ja, alles löschen",
+    "DONE": "Erledigt. Du kannst neu beginnen — /start."
+  },
+  "POLICY": {
+    "INTRO": "Bevor wir starten — kurz, was ARENA über dich speichert.\n\n• Deine Nachrichten in Tempel, Kampf und freiem Gespräch.\n• Sprachnachrichten — werden über OpenAI Whisper in Text umgewandelt und NICHT als Audio gespeichert.\n• Profil: Sprache, Niveau, Interessen, Sprechmuster, Auswertungen.\n• All das wird nur innerhalb von ARENA verwendet — damit das nächste Gespräch präziser wird.\n\nDu kannst deine Daten jederzeit mit /reset löschen.\n\nWenn du fortfährst, stimmst du dieser Verarbeitung zu.",
+    "ACCEPT": "✅ Ich stimme zu",
+    "READ_MORE": "📄 Vollständige Richtlinie"
   }
 }

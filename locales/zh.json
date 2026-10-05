@@ -1,77 +1,96 @@
 {
   "MENU": {
-    "BATTLE": "⚔️ BATTLE",
+    "BATTLE": "⚔️ 对战",
     "FREE_TALK": "💬 自由交谈",
     "MY_ARENA": "🏛 我的竞技场",
     "MY_ARSENAL": "🧰 我的武器库",
     "SETTINGS": "⚙️ 设置",
     "ENTER_ARENA": "🏛 进入竞技场",
     "BACK": "🔙 返回菜单",
-    "ACHIEVEMENTS": "🏆 成就",
-    "NO_ACTIVE": "当前没有进行中的游戏。选择 BATTLE 或 自由交谈。"
+    "NO_ACTIVE": "当前没有进行的对话。请打开菜单。"
   },
   "START": {
-    "WELCOME_FIRST": "👋 {name}\n欢迎来到 ARENA。\n\n🏛 进入竞技场\n让 ARENA 聆听，并决定你要遇见谁。",
-    "WELCOME_BACK": "👋 {name}\n竞技场在注视着你。每天一场对战，自由交谈随时可用。"
+    "WELCOME_FIRST": "👋 {name}\n欢迎来到 ARENA。\n\n🏛 进入竞技场\n让 ARENA 聆听,决定你会遇见谁。",
+    "WELCOME_BACK": "👋 {name}\n竞技场在注视。每天一战。自由交谈 — 随时。"
   },
   "TEMPLE": {
-    "SELECT_LEARNING_LANGUAGE": "你想用哪种语言说话？",
-    "LISTENING": "ARENA 正在倾听。",
+    "SELECT_LEARNING_LANGUAGE": "你说哪种语言?",
+    "LISTENING": "ARENA 正在聆听。",
     "YOUR_MOVE": "轮到你了。",
-    "HINT": "我做什么 · 我爱什么 · 我怎么想 · 随便什么",
-    "THINKING": "ARENA 正在思考……",
+    "HINT": "我做的事 · 我爱的东西 · 我的想法 · 什么都可以",
+    "THINKING": "ARENA 正在思考 …",
     "HEARD_ENOUGH": "我听够了。",
     "ENTER_BATTLE": "⚔️ 开始对战 →",
-    "ALREADY_DONE": "🏛 你已经历过神殿。竞技场会决定下一场对战何时到来。"
+    "INTRO": "跟我说话。\n\n我会根据你选择说的,判断你是谁。",
+    "NOTICED": "我注意到了一件事。",
+    "LETS_FIND_OUT": "让我们一探究竟。",
+    "ALREADY_DONE": "你已经走过神殿了。竞技场记得你。"
   },
   "BATTLE": {
-    "BEGINS": "战斗开始！",
+    "BEGINS": "对战开始!",
     "MISSION": "任务",
-    "ARSENAL": "武器",
+    "ARSENAL": "武器库",
     "TIP": "提示",
-    "HOW_TO_WIN": "获胜条件",
+    "HOW_TO_WIN": "如何取胜",
     "TIME_LIMIT": "你有 {n} 分钟。",
-    "PERSUADED": "说服度",
+    "PERSUADED": "被说服",
     "TIME_UP": "时间到。",
-    "EARLY_WIN": "你提前说服了对方。胜利！",
-    "COOLDOWN": "下一场战斗大约 {hours} 小时后。"
+    "EARLY_WIN": "你早早攻破了他。胜利!",
+    "COOLDOWN": "下一场对战大约在 {hours} 小时后。"
   },
   "DEBRIEF": {
-    "TITLE": "战斗复盘",
+    "TITLE": "对战复盘",
     "RESULT": "结果",
     "VICTORY": "胜利",
     "ALMOST": "接近",
     "DEFEATED": "失败",
     "OUTPLAYED": "完胜",
-    "WHAT_WORKED": "奏效的地方",
-    "WHAT_COST_YOU": "让你付出代价的地方",
+    "WHAT_WORKED": "什么奏效了",
+    "WHAT_COST_YOU": "什么拖累了你",
     "GROWTH": "成长",
-    "STEAL_THIS": "偷走这招",
+    "LANGUAGE_CHECK": "语言检查",
+    "LANGUAGE_UPGRADE": "语言升级",
+    "YOU_SAID": "你说过",
+    "BETTER": "更好的说法",
+    "STEAL_THIS": "把这个偷走",
     "ADD_TO_ARSENAL": "🎒 加入我的武器库",
     "OPPONENT_ADVICE": "对手的建议",
     "NEXT_TARGET": "下一个目标",
-    "LANGUAGE_CHECK": "语言检查",
     "WIN_COST": "胜利的代价",
-    "ARENA_NOTE": "竞技场",
-    "NEXT_BATTLE": "下一场对决",
+    "ARENA_NOTE": "ARENA",
+    "NEXT_BATTLE": "下一场对战",
     "NEXT_BATTLE_NOW": "现在就可以",
     "NEXT_BATTLE_TOMORROW": "明天",
-    "NEXT_BATTLE_HOURS": "{h}小时后",
-    "NEW_TOOL": "解锁新技巧!"
+    "NEXT_BATTLE_HOURS": "{h} 小时后",
+    "NEW_TOOL": "新招式解锁!",
+    "THE_MOVE": "这一招",
+    "WANT_TO_GO_DEEPER": "想深入了解吗?",
+    "READ_THE_BREAKDOWN": "📖 阅读分析",
+    "TURNING_POINT": "转折点",
+    "GRAMMAR_FOCUS": "语法重点",
+    "GRAMMAR_FOR_GOAL": "语法 · ",
+    "YOU_COULD_SAY": "你可以这样说",
+    "THE_MOMENT": "决定性的瞬间",
+    "THE_MECHANISM": "机制",
+    "THE_SHIFT": "转折",
+    "ESCAPE_ROUTE": "脱困路线",
+    "THE_ARENA_READ": "竞技场的解读",
+    "ALTERNATIVE": "另一种说法",
+    "OPPONENT_SAID": "对手说"
   },
   "FT": {
-    "SELECT_LANGUAGE": "💬 自由交谈 — 用哪种语言练习？",
-    "SELECT_CHARACTER": "你想和谁交谈？",
-    "START": "与 {name} 的自由交谈。没有计时，没有评分。随便说吧。",
-    "DONE": "对话结束，{name}。ARENA 会记住。",
-    "BUSY": "请先结束当前的对话。"
+    "SELECT_LANGUAGE": "💬 自由交谈 — 我们练习哪种语言?",
+    "SELECT_CHARACTER": "你想和谁说话?",
+    "START": "和 {name} 的自由交谈。没有计时器,没有评分。直接写吧。",
+    "DONE": "对话结束,{name}。ARENA 会记住。",
+    "BUSY": "你已经在对话中了。先结束它。"
   },
   "SETTINGS": {
     "TITLE": "⚙️ 设置",
     "INTERFACE_LANGUAGE": "界面语言",
     "LEARNING_LANGUAGE": "学习语言",
-    "CHANGE_INTERFACE": "更换界面语言",
-    "CHANGE_LEARNING": "更换学习语言",
+    "CHANGE_INTERFACE": "更改界面语言",
+    "CHANGE_LEARNING": "更改学习语言",
     "SAVED": "已保存。"
   },
   "MY_ARENA": {
@@ -79,77 +98,122 @@
     "PROFILE": "档案",
     "NAME": "名字",
     "INTERFACE_LANGUAGE": "界面",
-    "LEARNING_LANGUAGE": "正在练习",
+    "LEARNING_LANGUAGE": "练习中",
     "LEVEL": "等级",
     "BATTLES": "对战",
     "VICTORIES": "胜利",
-    "CHARACTERS": "已遇见角色",
-    "WHAT_ARENA_KNOWS": "ARENA 知道你什么",
+    "CHARACTERS": "遇到的角色",
+    "WHAT_ARENA_KNOWS": "ARENA 对你的了解",
+    "WHAT_IVE_SEEN": "我所看到的",
+    "TESTING_NOW": "我现在在检验什么",
+    "CURRENT_WEAPON": "当前武器",
     "CURRENT_CHALLENGE": "当前挑战",
     "HOW_WE_TRAIN": "ARENA 如何训练它",
     "YOUR_STRENGTH": "你的强项",
     "ARSENAL_SHORTCUT": "🧰 我的武器库",
-    "BATTLE_HISTORY": "对战记录"
+    "BATTLE_HISTORY": "对战历史",
+    "COMMUNICATION": "沟通",
+    "LANGUAGE": "语言"
   },
   "ARSENAL": {
     "TITLE": "🧰 我的武器库",
-    "EMPTY": "你的武器库是空的。赢下一场对战，偷走你的第一件武器。",
-    "EMPTY_ADD": "这次没有可添加的内容。",
-    "SAVED": "已保存到你的武器库。",
+    "EMPTY": "你的武器库是空的。赢一场对战,赢得你的第一个招式。",
     "WORD": "词",
     "PHRASE": "短语",
     "MOVE": "沟通招式",
     "STRATEGY": "策略",
-    "WHAT_IT_DOES": "作用",
-    "HOW_TO_USE": "使用方法",
+    "WHAT_IT_DOES": "它做什么",
+    "HOW_TO_USE": "如何使用",
     "EXAMPLE": "示例",
-    "WHEN_TO_USE": "适用场景",
-    "PROGRESS": "已解锁 {n}/{total}",
-    "LOCKED": "尚未解锁"
+    "WHEN_TO_USE": "何时使用",
+    "PROGRESS": "已解锁 {n} / {total}",
+    "LOCKED": "尚未解锁",
+    "MORE_TO_EARN": "还有 {n} 个招式,等你去展现它们。",
+    "PHRASES_SECTION": "目标语句",
+    "CHANNEL_HINT": "这些招式在真实言语中听起来如何 — 在 ARENA 频道。",
+    "CHANNEL_BUTTON": "📣 ARENA 频道"
+  },
+  "PATTERNS": {
+    "repeats_claim": "被打断时,你会重复同一个观点,而不是换一个新的角度。",
+    "develops_argument": "被打断时,你会补充新的论据,而不是重复。",
+    "claims_without_evidence": "你会强烈地断言,但没有例子或数字。",
+    "backs_claims_with_evidence": "你会用具体的例子支撑你的主张。",
+    "agrees_too_quickly": "一受压你就太快让步或同意。",
+    "holds_position": "在压力下你守住立场,或巧妙地改变它的方向。",
+    "imprecise_vocabulary": "该用更准确的词传达想法时,你却用了笼统的词。",
+    "uses_precise_vocabulary": "你会选择贴合想法的准确词汇。",
+    "states_position_clearly": "你会清楚、直接地说出自己的立场。",
+    "tells_vivid_stories": "你会讲生动、具体的故事。",
+    "adapts_argument": "你会调整论点的角度或语气,以适应对方。",
+    "has_professional_context": "你总是会回到自己清晰的职业语境。",
+    "states_goals": "你会公开说出自己想要变强的地方。",
+    "avoids_topic": "你会从一个明显不愿谈论的话题上退开或转移。"
+  },
+  "CRITERIA": {
+    "grammar": "语法",
+    "vocabulary": "词汇",
+    "fluency": "流利度",
+    "naturalness": "自然度",
+    "clarity": "清晰度",
+    "argumentation": "论证",
+    "adaptability": "适应力",
+    "persuasion": "说服力",
+    "evidence": "证据",
+    "control": "对话掌控"
   },
   "TOOLS": {
     "premise_flip": {
       "NAME": "前提反转",
-      "DESC": "不去争论结论本身,而是质疑它成立的前提。",
-      "EXAMPLE": "「这本来凭什么就该是这样?」"
+      "DESC": "你不与论断争辩 — 你质疑它立足的根基。",
+      "EXAMPLE": "「为什么一定要那样才行?」"
     },
     "clarifying_question": {
       "NAME": "澄清提问",
-      "DESC": "一个精准的问题,让含糊其辞无处可藏。",
-      "EXAMPLE": "「你说的高效到底是什么意思?」"
+      "DESC": "一个精确的问题,让含糊的论断立刻停下。",
+      "EXAMPLE": "「你说的『高效』到底是什么意思?」"
     },
     "emotional_anchor": {
       "NAME": "情绪锚点",
-      "DESC": "保持冷静,说出情绪本身,而不是被它带走。",
-      "EXAMPLE": "「我理解这让人沮丧。不过事实是这样的。」"
+      "DESC": "你保持冷静,并说出情绪本身,而不是被它卷走。",
+      "EXAMPLE": "「我明白这为什么让人恼火。这是事实。」"
     },
     "fact_check": {
       "NAME": "事实核查",
-      "DESC": "不轻信一个说法,而是当场核实。",
-      "EXAMPLE": "「这个数字哪来的?有出处吗?」"
+      "DESC": "你不会不加思索地接受一个说法 — 你会出声地核查它。",
+      "EXAMPLE": "「这个数字从哪来的?有出处吗?」"
     },
     "counterexample": {
       "NAME": "反例",
-      "DESC": "一个精准的反例,打破对方的以偏概全。",
-      "EXAMPLE": "「那反过来的那次呢?」"
+      "DESC": "一个犀利例子,击破他们的泛化。",
+      "EXAMPLE": "「那一次情况反过来的时候呢?」"
     },
     "steelman": {
-      "NAME": "Steelman",
-      "DESC": "把对方的观点讲得比他自己还清楚,然后再反驳它。",
-      "EXAMPLE": "「如果我没理解错,你是说……不过……」"
+      "NAME": "钢人",
+      "DESC": "你把对手的立场表述得比他本人更好 — 然后精确地反驳它。",
+      "EXAMPLE": "「如果我理解得对,你是说…… 但即便如此……」"
     },
     "short_thesis": {
-      "NAME": "简短论点",
-      "DESC": "一句简短果断的话,胜过三分钟的解释。",
-      "EXAMPLE": "「是的——原因是这样。」"
+      "NAME": "短论点",
+      "DESC": "用一句简短、果断的话,代替三分钟的解释。",
+      "EXAMPLE": "「是的 — 原因就在这里。」"
     },
     "reframe": {
       "NAME": "重新框定",
-      "DESC": "改变评判这场争论的标准本身。",
-      "EXAMPLE": "「问题不在于谁对,而在于什么真正有效。」"
+      "DESC": "你改变评判整场争论的标准。",
+      "EXAMPLE": "「重点不在于谁对。重点在于什么真正行得通。」"
     }
   },
   "ERROR": {
-    "AI_UNAVAILABLE": "与AI的连接中断了。请一分钟后重新发送消息。"
+    "AI_UNAVAILABLE": "与 AI 的连接中断了。请稍后再试一次。"
+  },
+  "RESET": {
+    "WARNING": "这将删除你在 ARENA 中的所有数据:对战、复盘、记忆、武器库、主题。\n\n继续吗?",
+    "CONFIRM": "🗑 是,全部删除",
+    "DONE": "完成。你可以重新开始 — /start。"
+  },
+  "POLICY": {
+    "INTRO": "开始之前 — 简短说明 ARENA 会保存关于你的什么。\n\n• 你在神殿、对战和自由交谈中的消息。\n• 语音消息 — 会通过 OpenAI Whisper 转换为文字,不会以音频形式保存。\n• 档案:语言、等级、兴趣、语言模式、复盘。\n• 所有这些只在 ARENA 内部使用 — 为了让下一次对话更精准。\n\n你可以随时用 /reset 删除你的数据。\n\n继续,即表示你同意这种处理。",
+    "ACCEPT": "✅ 我同意",
+    "READ_MORE": "📄 完整政策"
   }
 }

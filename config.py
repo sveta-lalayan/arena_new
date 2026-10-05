@@ -57,6 +57,9 @@ CONVICTION_WIN_THRESHOLD = int(os.getenv("CONVICTION_WIN_THRESHOLD", "15"))
 WIN_SCORE_THRESHOLD = int(os.getenv("WIN_SCORE_THRESHOLD", "60"))
 MIN_ROUNDS_TO_WIN = int(os.getenv("MIN_ROUNDS_TO_WIN", "2"))
 
+# Telegram-канал: разборы приёмов «в исполнении» персонажей (ссылка показывается в My Arsenal)
+CHANNEL_URL = os.getenv("ARENA_CHANNEL_URL", "https://t.me/arena_league")
+
 # --- Админы (обходят кулдаун и правило «Храм один раз») ---
 ADMIN_IDS = {
     int(x.strip())

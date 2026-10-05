@@ -2,13 +2,18 @@
 ai.py — GPT-слой ARENA.
 
 Правила:
- 1. Всё, что «говорят» Арена и персонажи (реакции, миссии, реплики, дебрифы,
-    пуши), пишется СТРОГО на learning_language пользователя. Если модель
-    проскользнула в кириллицу на не-русском языке — делаем повторную попытку,
-    иначе возвращаем None (сработает fallback).
- 2. Сложность речи подгоняется под CEFR-уровень.
- 3. UI никогда не проходит через этот файл — только локали в locales/*.json.
- 4. Если OpenAI недоступен — функции возвращают безопасные значения, бот не падает.
+ 1. Всё, что «говорят» Арена и персонажи, пишется СТРОГО на learning_language.
+ 2. Debrief: заголовки секций — на interface_language (в arena.py через i18n),
+    содержимое — на learning_language. Debrief описывает МЕХАНИКУ, а не ошибки:
+    THE MOMENT / THE MECHANISM / THE SHIFT / ESCAPE ROUTE / THE MOVE /
+    THE ARENA READ. Плюс grammar_for_goal — грамматика, подчинённая
+    коммуникационной цели, которая хромает.
+ 3. Сложность речи подгоняется под CEFR-уровень (для боя и дебрифа).
+ 4. UI — только локали в locales/*.json.
+ 5. OpenAI недоступен — функции возвращают безопасные значения, бот не падает.
+ 6. Храм (Temple) использует свой system (_TEMPLE_SYSTEM) и живую манеру:
+    turn 1-2 — обычный собеседник; turn 3-6 — простые связки; turn 7 — проверка.
+    REVEAL (generate_arena_observation) — вау-инсайт о человеке, не описание стиля.
 """
 import json
 import logging
@@ -50,7 +55,6 @@ def _get_client():
 
 
 def _lang(language: str) -> str:
-    """language — ISO-код (en/ru/…) или старый ключ (english)."""
     return LANG_PROMPT_NAME.get(language, LANG_PROMPT_NAME.get(
         {"english": "en", "russian": "ru", "german": "de", "spanish": "es",
          "italian": "it", "korean": "ko", "chinese": "zh"}.get(language, "en"),
@@ -66,9 +70,34 @@ def _system(language: str, extra: str = "") -> str:
     lang = _lang(language)
     return (
         f"You are part of ARENA, a language-training game where learners debate characters. "
-        f"Write ONLY in {lang}. Never write any other language, even if the learner's message "
-        f"or these instructions contain other languages. {extra}".strip()
+        f"Write ONLY in {lang}. Never write any other language. {extra}".strip()
     )
+
+
+_TEMPLE_SYSTEM = (
+    "You are ARENA — a calm, attentive presence listening to a stranger for the first time. "
+    "You are curious, specific, genuinely interested. You do NOT perform insight. You do NOT diagnose. "
+    "You ask about what is actually in front of you. As the conversation goes on, you begin to notice "
+    "small patterns — and you offer careful, provisional guesses. "
+    "You never flatter, never paraphrase, never say 'interesting'. You never ask 'why do you like it' "
+    "or 'tell me more'. "
+    "SOMETIMES — not often — you are ironic. Not mean, not sarcastic-as-attack. Ironic in the way "
+    "a smart friend is: you notice the small absurdity of what the person just said and you name it "
+    "with a light touch. "
+    "SOMETIMES you have your own opinion and share it briefly. This invites them to answer. "
+    "SOMETIMES — when they joke or are self-deprecating — you play along in the same tone. "
+    "You are allowed to say something that is NOT a question. A short reaction is often better than "
+    "another question. "
+    "ALWAYS SPEAK SIMPLY. Short sentences. Same level as the person — never above. Everyday words. "
+    "If a thought needs more than two sentences, do not make it. "
+    "Never use abstract concepts like 'control', 'identity', 'fear', 'discipline', 'armour', "
+    "'vulnerability', 'authenticity'. Never write metaphors. "
+    "Write ONLY in {lang}. Never write in any other language."
+)
+
+
+def _temple_system(language: str) -> str:
+    return _TEMPLE_SYSTEM.format(lang=_lang(language))
 
 
 def _chat(system: str, prompt: str, temperature: float = 0.7, max_tokens: int = 400,
@@ -89,8 +118,6 @@ def _chat(system: str, prompt: str, temperature: float = 0.7, max_tokens: int = 
         resp = client.chat.completions.create(**kwargs)
         return (resp.choices[0].message.content or "").strip()
     except APIStatusError as e:
-        # HTTP-ошибка от самого OpenAI (403 = блок по стране/аккаунту, 429 = квота/рейт-лимит,
-        # 401 = неверный ключ и т.д.) — тело ответа обычно прямо называет причину.
         body = None
         try:
             body = e.response.text
@@ -99,10 +126,7 @@ def _chat(system: str, prompt: str, temperature: float = 0.7, max_tokens: int = 
         logger.error("OpenAI API error: status=%s body=%s", e.status_code, body)
         return None
     except APIConnectionError:
-        # Запрос не дошёл до OpenAI вообще (сеть/DNS/таймаут/блокировка на уровне сети,
-        # а не HTTP-ответ от самого OpenAI).
-        logger.error("OpenAI connection error — запрос не дошёл до api.openai.com "
-                     "(проверь сеть/файрвол сервера)")
+        logger.error("OpenAI connection error — запрос не дошёл до api.openai.com")
         return None
     except Exception:
         logger.exception("OpenAI chat error (непредвиденное)")
@@ -117,9 +141,6 @@ def _clean(text: str | None) -> str | None:
 
 
 def _ask(prompt: str, language: str, temperature: float = 0.7, max_tokens: int = 300) -> str | None:
-    """
-    Проза на языке пользователя. Кириллицу отсекаем, если язык не русский.
-    """
     system = _system(language)
     text = _chat(system, prompt, temperature, max_tokens)
     if text and _lang(language) != "Russian" and _CYRILLIC.search(text):
@@ -209,21 +230,125 @@ def format_history(dialogue: list, char_name: str, last: int = 14) -> str:
 # ХРАМ
 # ==================================================================
 
-def generate_arena_reaction(history: str, user_text: str, language: str, turn: int) -> str | None:
-    prompt = f"""
-You are ARENA — a supreme, terse, slightly sharp presence that is listening to a newcomer.
-This is their message number {turn} of {FIRST_ENCOUNTER_MOVES}. You do not know their language level yet:
-mirror it — keep your sentences NO more complex than theirs.
+ARENA_MOMENTS = {
+    "reflect": (
+        "REFLECT — say one small thing you noticed about HOW they talk, in plain everyday words. "
+        "Like: 'You keep saying a number every time.' / 'You always answer with a question first.' "
+        "Short. Concrete. About a word or a habit, not about their personality."
+    ),
+    "connect": (
+        "CONNECT — link two things they said earlier that are actually the same thing, "
+        "in one short line. Like: 'First the coffee, now the gym — same thing, right?' "
+        "Do not explain the link. Just name it and stop."
+    ),
+    "probe": (
+        "PROBE — ask ONE small question that tests your guess. Simple, direct, answerable right away. "
+        "Like: 'Did you pick it, or did they?' / 'Was that your idea or someone else's?' "
+        "Not a deep question. A quick one."
+    ),
+}
 
-Conversation so far:
+MOMENT_SCHEDULE = {3: "reflect", 5: "connect", 7: "probe"}
+
+
+def generate_arena_reaction(history: str, user_text: str, language: str, turn: int) -> str | None:
+    moment = MOMENT_SCHEDULE.get(turn)
+
+    if turn <= 2:
+        task = """
+This is an early message (turn 1 or 2). You are a smart, attentive conversationalist.
+You are NOT yet offering hypotheses about this person.
+
+Pick ONE of these moves and commit to it — the more natural one for THIS message:
+
+  A) SIMPLE FOLLOW-UP — pick ONE concrete thing they said and ask ONE short question about it.
+     The answer should already be in their head.
+     "Which one?" / "What part of it?" / "Home or somewhere specific?"
+
+  B) SHARE YOUR VIEW — say ONE short line about what you actually think, then optionally ask.
+     "I'd have picked the other one." / "That's not how I'd do it." / "Same here."
+     Not a lecture. One sentence.
+
+  C) PICK UP THE HUMOUR — if they said something with a joke, irony, or self-deprecation,
+     play along in the same tone. Do NOT ignore the joke and do NOT top it.
+     Short, dry, same register as theirs.
+
+  D) GENTLE NEEDLE — a light, friendly jab at something small they just said.
+     Not mean. Not sarcastic-as-attack. Just noticed.
+     "That's the humble version." / "Very modest." / "Sure."
+
+HARD BANS:
+- No hypotheses about who they are yet.
+- No 'interesting', 'great', 'nice', 'cool', 'fascinating'.
+- No 'tell me more', 'elaborate', 'why do you think that'.
+- No paraphrase of what they said before asking.
+- No emojis, no greeting, no lists.
+
+Output is 1 short sentence, or 1 short sentence + 1 short question. Nothing else.
+"""
+        tokens = 110
+
+    elif moment:
+        task = f"""
+{ARENA_MOMENTS[moment]}
+
+CRITICAL — the moment must stay EASY and SMALL:
+- One short observation about something they ACTUALLY said, in everyday words.
+- If you ask a question — it must be answerable right now.
+- 1-2 SHORT sentences. Never more.
+- A light touch of irony is allowed here, but only if it fits naturally.
+- Point to a SPECIFIC WORD they actually typed.
+
+HARD BANS:
+- No big abstract concepts ('control', 'identity', 'fear', 'discipline or armour').
+- No 'interesting', 'tell me more', 'why do you think that'.
+- No paraphrase. No emojis. No lists.
+
+Output is 1-2 SHORT sentences. Nothing else.
+"""
+        tokens = 150
+
+    else:
+        task = """
+You are now a few messages in. You may or may not see a small pattern yet.
+
+Choose the move that fits THIS message best:
+
+  A) SIMPLE FOLLOW-UP — ask ONE easy, concrete question about the last thing they said.
+  B) SHORT OBSERVATION — only if you see an OBVIOUS, SIMPLE pattern.
+  C) LIGHT IRONY — a short dry remark. Use SPARINGLY.
+  D) SHARE YOUR VIEW — one short line about what you think, without asking a question.
+
+DO NOT:
+- force insight. If nothing obvious — use A.
+- use abstract words ('control', 'identity', 'fear', 'discipline', 'armour', 'vulnerability').
+- write more than 2 short sentences.
+- paraphrase their message and then ask about it.
+- say 'interesting', 'tell me more', 'elaborate', 'why do you think that'.
+- use emojis, greetings, lists.
+
+Output is 1-2 SHORT sentences.
+"""
+        tokens = 130
+
+    prompt = f"""
+The conversation so far:
 {history}
 
 They just said: "{user_text}"
 
-React in 1-2 SHORT sentences: pick up ONE concrete detail they mentioned, then ask ONE short follow-up
-question that digs into what they care about. No praise, no lists, no greeting, no emojis.
+This is their message number {turn} of {FIRST_ENCOUNTER_MOVES}.
+
+{task}
 """
-    return _ask(prompt, language, temperature=0.8, max_tokens=120)
+    system = _temple_system(language)
+    text = _chat(system, prompt, temperature=0.92, max_tokens=tokens)
+    if text and _lang(language) != "Russian" and _CYRILLIC.search(text):
+        text = _chat(system + f" Answer strictly in {_lang(language)}.",
+                     prompt, temperature=0.92, max_tokens=tokens)
+        if text and _CYRILLIC.search(text):
+            return None
+    return _clean(text)
 
 
 def _normalize_analysis(data: dict | None) -> dict:
@@ -247,6 +372,7 @@ def _normalize_analysis(data: dict | None) -> dict:
         return [s for s in (data.get(key) or []) if isinstance(s, str)][:3]
 
     pattern = (data.get("pattern") or "").strip() if isinstance(data.get("pattern"), str) else ""
+    claim = (data.get("claim") or "").strip() if isinstance(data.get("claim"), str) else ""
     pattern_evidence = [e for e in (data.get("pattern_evidence") or []) if isinstance(e, (str, int))][:5]
 
     return {
@@ -265,14 +391,11 @@ def _normalize_analysis(data: dict | None) -> dict:
         "recommended_personality": personality if personality in PERSONALITIES else SKILL_TO_PERSONALITY[weakest],
         "pattern": pattern,
         "pattern_evidence": pattern_evidence,
+        "claim": claim,
     }
 
 
 def analyze_first_encounter(user_responses: list[str], language: str) -> dict:
-    """
-    Разбор Храма по 10 критериям + определение ОДНОГО коммуникационного паттерна,
-    который реально видно в диалоге, с явной ссылкой на реплики-доказательства.
-    """
     lang = _lang(language)
     numbered = "\n".join(f"{i + 1}. {t}" for i, t in enumerate(user_responses))
 
@@ -305,12 +428,15 @@ Return a JSON object with EXACTLY these keys:
 - "behaviour": one of {BEHAVIOURS}. Meaning: {json.dumps(BEHAVIOUR_BRIEFS)}
 - "grammar_weak_areas": up to 3 short English strings
 - "vocabulary_weak_areas": up to 3 short English strings
-- "interests": 3-5 short topic phrases (1-4 words each) in {lang}, taken from what they ACTUALLY talked about
+- "interests": 3-5 short topic phrases (1-4 words each) in {lang}
 - "main_topic": the ONE topic they care about most, 2-5 words, in {lang}
 - "recommended_personality": one of {list(PERSONALITIES)}. Pick the character who best fits BOTH their main
-  topic AND their weakest communication skill.
+  topic AND their weakest communication skill. Do NOT default to hr_manager unless she's genuinely the best
+  fit. If two characters are equally good fits, pick the one that will SURPRISE the learner — the less
+  obvious choice.
 - "pattern": the ONE pattern phrase (from the list above), lowercase, exactly as written
-- "pattern_evidence": list of 2-4 short quotes (VERBATIM from their messages) that justify the pattern
+- "pattern_evidence": list of 2-4 short quotes (VERBATIM) that justify the pattern
+- "claim": ONE concrete opinion the learner actually stated, short phrase in {lang}, or ""
 """
     data = _ask_json(prompt, language, temperature=0.3, max_tokens=800)
     if not data:
@@ -325,36 +451,82 @@ def analyze_freetalk(user_responses: list[str], language: str) -> dict:
 def generate_arena_observation(user_name: str, user_responses: list[str], language: str, level: str,
                                topic: str, personality: str, weakest_skill: str,
                                pattern: str = "") -> str:
-    """
-    Наблюдение после Храма. Если pattern известен — обязательно связать его
-    с реальными словами пользователя, а не с общими фразами.
-    """
-    person = PERSONALITIES.get(personality, PERSONALITIES["hr_manager"])
     said = "\n".join(f"- {t}" for t in user_responses[-8:])
     pattern_line = (
-        f"The pattern you spotted in them (use plain words, do NOT name it as a label): {pattern}."
+        f"An internal hint about them (do NOT mention it as a label): {pattern}."
         if pattern else ""
     )
 
     prompt = f"""
-You are ARENA, the supreme voice of a language arena: terse, sharp, a little cold, but you respect effort.
-You just listened to {user_name or 'a newcomer'} for several minutes. Their level is {level}: {_lv(level)}
-Write it so THEY can read it comfortably.
+You are ARENA. You just listened to a stranger across several messages. Now you say
+ONE thing about them that they probably have not said to themselves.
 
 What they said:
 {said}
 
 {pattern_line}
 
-Write exactly 3 short lines separated by blank lines:
-1. ONE punchy, slightly biting "wow" sentence about them (max 12 words), referring to something real they said.
-2. One sentence showing the pattern in their OWN words (paraphrase what they did, no psychology terms).
-3. One sentence: because of this, you're bringing someone who will push on exactly that — and name
-   {person['full_name']} naturally.
+This is the REVEAL — the moment the person should stop and think: "she's right, I do
+that — but I never said it out loud."
 
-Address them by name ({user_name}) once. No emojis, no lists, no headings.
+Write EXACTLY 2 short paragraphs, separated by a blank line.
+
+=== WHAT MAKES A GREAT REVEAL ===
+1. It is about THE PERSON, not about their speech style.
+2. It CONNECTS 2-3 separate things they said — things that look unrelated — and shows
+   they point at the same thing.
+3. It is a GUESS, not a verdict.
+4. It NAMES something they have not named themselves.
+5. It can be slightly uncomfortable, but never cruel.
+
+=== GOOD SHAPES (do NOT copy — match the level of insight) ===
+  "You came into this conversation as if through the side door — coffee, work, small
+   things. But every small thing you mentioned had something in it you cared about.
+   You just didn't say it out loud. Maybe you don't say it to yourself either."
+
+  "You don't talk about what you want. You talk about what you're good at, and let the
+   person figure out the rest. That's a choice — not a habit. I don't know yet why."
+
+  "Every answer you gave had a small test in it — as if you were checking whether
+   I'd understand. Not the words. The thing behind the words. I noticed it three times."
+
+  "You keep saying the version of yourself that gets things done. There's another
+   version somewhere in what you said — I can almost see it — but you don't bring it
+   to the table."
+
+=== WHAT TO AVOID (this is a hard ban) ===
+- Do NOT describe their speech: 'short sentences', 'you always add examples',
+  'you use numbers', 'you answer with a question', 'you speak directly'.
+- Do NOT use formulaic openings: 'you always', 'every time you', 'you never'.
+- Do NOT name abstract concepts directly: 'control', 'identity', 'fear', 'vulnerability',
+  'authenticity', 'discipline', 'armour'. Talk in plain words.
+- Do NOT paraphrase what they said — do not repeat their sentences back.
+- Do NOT praise, diagnose, or advise.
+- Do NOT use metaphors or poetic images.
+- Do NOT invent facts they never mentioned.
+- No emojis, no headings, no character names, no mention of language or learning.
+
+Before you write, ask yourself: could this observation apply to any random person?
+If yes, rewrite it. It must contain at least ONE specific word, image or detail
+from what they actually said.
+
+Paragraph 1 — the observation. 2-3 sentences. Short. Specific.
+Paragraph 2 — one short closing line that keeps the doubt and signals you'll keep
+watching. Max 10 words. Examples of the shape:
+  "I'll keep watching."
+  "We'll see if it holds."
+  "I might be wrong."
+
+Write ONLY in the target language.
 """
-    return _ask(prompt, language, temperature=0.85, max_tokens=240) or ""
+    system = _temple_system(language)
+    text = _chat(system, prompt, temperature=0.95, max_tokens=280)
+    if text and _lang(language) != "Russian" and _CYRILLIC.search(text):
+        text = _chat(system + f" Answer strictly in {_lang(language)}.",
+                     prompt, temperature=0.95, max_tokens=280)
+        if text and _CYRILLIC.search(text):
+            return None
+    return _clean(text) or ""
 
 
 def generate_character_pitch(personality: str, topic: str, language: str, level: str,
@@ -376,20 +548,6 @@ No emojis, no stage directions, no quotation marks.
 
 def generate_mission_task(topic: str, personality: str, user_name: str, language: str,
                           level: str, pattern: str = "") -> str:
-    """
-    Короткая (максимум 8 слов), game-like миссия — без «convince X that Y»,
-    без «take seriously», без академической структуры.
-
-    Хорошо:
-      "Change his mind."
-      "Get the budget."
-      "Make her reconsider."
-      "Defend your decision."
-      "Get him to commit."
-
-    Плохо:
-      "Convince Professor Adams that unpredictable weather is more harmful than helpful."
-    """
     person = PERSONALITIES.get(personality, PERSONALITIES["hr_manager"])
 
     prompt = f"""
@@ -411,17 +569,11 @@ Good examples (do NOT copy, just match the LENGTH and TONE):
 "Defend your decision."
 "Get him to commit."
 
-Bad examples (never produce anything like these):
-"Convince Professor Adams that unpredictable weather is more harmful than helpful."
-"Provide a clear thesis and support it with examples."
-"Take a clear position and defend it with evidence."
-
 Answer with ONE line, no quotes, no punctuation at the end except a period.
 """
     raw = _ask(prompt, language, temperature=0.85, max_tokens=40)
     if not raw:
         return "Change his mind."
-    # страховка: жёстко обрезаем до 5 слов
     words = raw.strip().strip('"“”«»').split()
     return " ".join(words[:5]).rstrip(".!?") + "."
 
@@ -441,10 +593,9 @@ Learner weak spots — grammar: {weak_areas.get('grammar_weak_areas', [])}, voca
 weakest communication skill: {weakest_skill or 'unknown'}.
 
 Return JSON with:
-- "weapons": list of exactly {n} items: {kind}. Each must be short enough that the learner can type it verbatim
-  in an argument about this topic, and fit their level.
-- "tip": ONE short sentence: how to talk to THIS character to win.
-- "win_condition": 1-2 short lines: what exactly will convince THIS character (specific to the topic).
+- "weapons": list of exactly {n} items: {kind}.
+- "tip": ONE short sentence.
+- "win_condition": 1-2 short lines.
 All text in {_lang(language)}.
 """
     data = _ask_json(prompt, language, temperature=0.7, max_tokens=350, check_ru=True) or {}
@@ -458,27 +609,33 @@ All text in {_lang(language)}.
 
 
 def generate_opening_statement(personality: str, topic: str, level: str, language: str,
-                               mission: str = "") -> str:
-    """
-    Первая реплика персонажа. Не «What do you think?», а конкретная
-    оппозиция + один вызов, который заставляет отвечать.
-    """
+                               mission: str = "", claim: str = "") -> str:
+    if claim:
+        phrase = PERSONALITIES.get(personality, {}).get("phrase", "")
+        prompt = f"""
+You are {_persona(personality)}
+
+A learner just entered a battle with you. Earlier, in a private talk with ARENA, they said: "{claim}".
+Open the battle in 2 SHORT lines, fully in character:
+1. A short reaction, then quote their claim back to them ("You said ...").
+2. A direct challenge (your trademark phrase is: "{phrase}").
+
+Rules: no intro, no rules, no praise, no grammar correction. No "Let's discuss".
+Their level is {level}: {_lv(level)}
+No emojis, no stage directions, no quotes around your reply.
+"""
+        return _ask(prompt, language, temperature=0.9, max_tokens=110) or phrase
+
     prompt = f"""
 You are {_persona(personality)}
 
 A learner just entered a battle with you. Topic: "{topic}". Your mission (for them): {mission}.
 
 Open the battle — 1-2 short sentences:
-1. State YOUR concrete position on "{topic}". Be a bit skeptical or contrarian, not neutral.
-2. End with ONE direct question that forces them to defend their view.
+1. State YOUR concrete position on "{topic}". A bit skeptical or contrarian, not neutral.
+2. End with ONE direct question.
 
-Rules:
-- Do NOT say "What do you think?" and do NOT ask them to introduce themselves.
-- Do NOT explain the rules, the topic, or the mission.
-- Do NOT use phrases like "Let's discuss", "Tell me", "Let's begin".
-- Do NOT correct grammar. Do NOT praise.
-- Speak as a real person who already has a position, not as a host.
-
+Rules: no "What do you think?", no intro, no rules, no "Let's discuss". Speak as a real person.
 Their level is {level}: {_lv(level)}
 No emojis, no stage directions, no quotes around your reply.
 """
@@ -488,12 +645,6 @@ No emojis, no stage directions, no quotes around your reply.
 
 def generate_battle_turn(personality: str, history: str, last_user: str, level: str, language: str,
                          mission: str, user_name: str, conviction: int) -> dict:
-    """
-    Реплика персонажа + новое значение «убеждённости» (100 = не убеждён, 0 = полностью убеждён).
-    Модель решает, насколько сдвинуть, но с жёстким клампом:
-      - не больше -30 за ход;
-      - не больше +10 за ход.
-    """
     person = PERSONALITIES.get(personality, PERSONALITIES["devil_advocate"])
     prompt = f"""
 You are role-playing a character in a debate game with a language learner{f' named {user_name}' if user_name else ''}.
@@ -508,15 +659,18 @@ The learner's latest message: "{last_user}"
 Your current conviction that the learner is right: {conviction} (100 = not convinced at all, 0 = fully convinced).
 
 Do two things:
-1. Reply in character, in {_lang(language)}, 1-3 short sentences. Push back, probe, or ask ONE follow-up question.
-   Do not hand the learner the answer. Do not correct their grammar (that happens later).
-2. Decide the NEW conviction. Lower it by 8-30 ONLY if the latest message contains a genuinely strong, specific
-   and relevant argument for the mission; lower it by 0-6 for weak or generic answers; RAISE it by up to 10 if the
-   learner dodged, contradicted themselves or went off-topic. Stay stubborn.
+1. Reply in character, in {_lang(language)}, 1-3 short sentences.
+   CRITICAL: BEFORE you react, check — did the learner ask you a DIRECT QUESTION or ask for your
+   opinion/experience? If yes, answer it FIRST, in character. Do NOT deflect. Only AFTER
+   answering may you add pressure, a counter-argument, or ONE follow-up question.
+   If they did NOT ask you anything, then push back, probe, or ask ONE follow-up question.
+   Do not hand the answer to their mission. Do not correct their grammar.
+2. Decide the NEW conviction. Lower by 8-30 ONLY if the message contains a genuinely strong,
+   specific argument. Lower by 0-6 for weak answers. RAISE by up to 10 if they dodged. Stay stubborn.
 
 Return JSON: {{"reply": "<your reply>", "conviction": <integer 0-100>}}
 """
-    data = _ask_json(prompt, language, temperature=0.85, max_tokens=250, check_ru=True) or {}
+    data = _ask_json(prompt, language, temperature=0.85, max_tokens=280, check_ru=True) or {}
     reply = _no_ru(data.get("reply"))
     new_conv = _score(data.get("conviction"), default=max(0, conviction - 5))
     new_conv = max(conviction - 30, min(conviction + 10, new_conv))
@@ -530,8 +684,7 @@ Evaluate a language learner's performance in a debate battle against a character
 Target language: {_lang(language)}. Learner level: {level}: {_lv(level)}
 Topic: "{topic}". Character: {_persona(personality)}
 The learner's mission: {mission or 'convince the character'}
-Score every criterion 0-100 RELATIVE to what is expected at level {level}: flawless for {level} = 85-95,
-typical solid performance = 60-75, many errors or thin answers = below 50. Be fair but honest.
+Score every criterion 0-100 RELATIVE to what is expected at level {level}.
 
 Criteria:
 - language: grammar, vocabulary, fluency, naturalness
@@ -566,159 +719,296 @@ def generate_battle_debrief(user_name: str, language: str, level: str, personali
                             conviction: int, criteria: dict, dialogue: list,
                             pattern: str = "", previous_criteria: dict | None = None,
                             unlocked_tools: set | None = None) -> dict:
-    """
-    Финальный дебриф после боя.
-
-    Три отдельных слоя (см. Battle Debrief Engine):
-      1. BATTLE DEBRIEF — что произошло именно в этом бою (result_line/worked/cost/tool_used/advice/mistakes).
-      2. MY ARENA        — growth: как это соотносится с предыдущим профилем (было → стало),
-                            а не изолированная разовая оценка.
-      3. MY ARSENAL      — next_target + tool_used: какой из 8 ФИКСИРОВАННЫХ приёмов
-                            (см. game_data.ARSENAL_TOOLS) реально продемонстрирован в этом бою.
-
-    Ключи:
-      result_state  — VICTORY | ALMOST | DEFEATED | OUTPLAYED
-      result_line   — 1 предложение о том, что реально произошло
-      worked        — 1 конкретное, что сработало
-      cost          — 1 конкретное, что помешало
-      tool_used     — str | None: ключ из game_data.ARSENAL_TOOL_KEYS, если игрок реально
-                       продемонстрировал один из 8 приёмов; иначе None
-      advice        — 1-2 предложения от самого персонажа (в характере)
-      next_target   — один communication-скилл для следующего боя
-      mistakes      — список ошибок языка
-      growth        — 1 предложение: сравнение с прошлым профилем (пусто, если сравнивать не с чем)
-    """
     person = PERSONALITIES.get(personality, PERSONALITIES["devil_advocate"])
     user_lines = [d["text"] for d in dialogue if d["speaker"] == "User"]
     char_lines = [d["text"] for d in dialogue if d["speaker"] != "User"]
-    user_blob, char_blob = "\n".join(user_lines), "\n".join(char_lines)
+    user_blob = "\n".join(user_lines)
+    char_blob = "\n".join(char_lines)
 
     result_state = "VICTORY" if won else ("ALMOST" if win_score >= 50 else "DEFEATED")
     if won and win_score >= 85:
         result_state = "OUTPLAYED"
 
-    # --- "было → стало": прошлый профиль критериев, чтобы не оценивать бой изолированно ---
-    prev_block = "Not enough previous data — treat this as a first real data point, don't claim a pattern yet."
+    prev_block = "Not enough previous data — treat this as a first data point."
     if previous_criteria:
         deltas = []
         for k, v in criteria.items():
             prev_v = previous_criteria.get(k)
             if prev_v is not None and abs(v - prev_v) >= 8:
-                direction = "up" if v > prev_v else "down"
-                deltas.append(f"{k}: {prev_v} → {v} ({direction})")
+                deltas.append(f"{k}: {prev_v} → {v}")
         prev_block = (
-            f"Learner's profile BEFORE this battle: {json.dumps(previous_criteria)}. "
-            f"Notable shifts this battle: {'; '.join(deltas) if deltas else 'no single skill moved much'}. "
-            "If a previously weak skill clearly improved, say so explicitly as growth — don't just repeat "
-            "that it's still their weak point."
+            f"Learner's profile BEFORE: {json.dumps(previous_criteria)}. "
+            f"Notable shifts: {'; '.join(deltas) if deltas else 'no single skill moved much'}. "
+            "If a previously weak skill improved, say so explicitly as growth."
         )
 
-    # --- каталог из 8 фиксированных приёмов для классификации ---
     unlocked_tools = unlocked_tools or set()
     tools_listing = "\n".join(f'- "{k}": {d}' for k, d in ARSENAL_TOOL_DEFS.items())
     owned_note = (
-        f"They already have: {', '.join(sorted(unlocked_tools))}. You can still pick one of these again "
-        "if they genuinely demonstrated it — repetition just won't unlock anything new, that's handled "
-        "elsewhere, so answer honestly regardless."
+        f"They already have: {', '.join(sorted(unlocked_tools))}."
         if unlocked_tools else "They haven't unlocked any of these yet."
     )
 
     prompt = f"""
-You are ARENA writing the debrief after a debate battle. ARENA's voice: terse, sharp, a little biting
-but fair, short sentences, never gushing. Learner: {user_name}. Level {level}: {_lv(level)} — write so
-THEY can read it easily, in language appropriate for THIS level (simpler words/shorter sentences for
-A1-A2, more nuance allowed for C1-C2).
-Character: {_persona(personality)}. Stay strictly true to this character's personality in "advice" —
-never write generic teacher-voice, always their voice.
-Topic: "{topic}". Mission: {mission or 'convince the character'}.
-Result: win_score = {win_score}/100, character's remaining doubt = {conviction}/100. Scores: {json.dumps(criteria)}
-Learner's observed pattern (from the Temple): {pattern or 'not specified'}
+You are ARENA writing the debrief after a debate battle. Voice: terse, sharp, but fair.
+Short sentences. Never gushing. Never a school report.
 
-MY ARENA (long-term profile, compare before → now, don't re-score from scratch):
+=== OUTPUT LANGUAGE ===
+EVERY free-text value MUST be in {_lang(language)} — the LEARNER'S TARGET LANGUAGE.
+NOT English (unless English IS the target). NOT the UI language. Never mix.
+JSON keys stay in English for parsing; values stay in {_lang(language)}.
+Match complexity to level {level}: {_lv(level)}.
+
+=== THE CORE IDEA ===
+The debrief must reveal the MECHANISM of what happened — NOT list mistakes.
+Bad (Level 1 AI trainer): "You didn't provide enough evidence. Add more examples."
+Good (ARENA): "You corrected the answer. You didn't develop it."
+
+The learner should learn WHAT TO DO at the moment the conversation stopped going their way.
+NEVER announce a permanent trait from one battle.
+
+=== CONTEXT ===
+Learner: {user_name}. Character: {_persona(personality)} — stay IN CHARACTER for advice.
+Topic: "{topic}". Mission: {mission or 'convince the character'}.
+Result: win_score = {win_score}/100, character's remaining doubt = {conviction}/100.
+Scores: {json.dumps(criteria)}
+Observed long-term pattern (from Temple): {pattern or 'not specified'}
+
+MY ARENA (long-term profile before → now):
 {prev_block}
 
-The learner's messages:
+The learner's messages (in {_lang(language)}):
 {user_blob}
 
 The character's lines:
 {char_blob}
 
-Don't treat this as flat win/lose. A learner can win the argument but still lose on a specific
-communication skill, or lose the argument but clearly grow on something. Look at the SCORES above —
-if one or two criteria are notably weaker than the rest even in a win (or notably strong even in a
-loss), say so explicitly instead of just reporting win/lose.
+=== CRITICAL RULES ===
+- Quote REAL words from the learner. Paraphrasing kills the value.
+- Every critique and every praise must be tied to a specific sentence they wrote.
+- NEVER invent facts about the learner. If they never mentioned numbers — do not say
+  "you always use numbers". Every claim must be verifiable against their messages.
+- NEVER say "you need to provide more detail" — SHOW what was missing, with the exact line.
+- Do NOT invent grammar mistakes that aren't in the transcript.
+- Do NOT correct something that was fine for their level.
 
-Return JSON with these keys:
-- "result_line": ONE or TWO sentences on what actually happened — NOT a score recap, and NOT flat
-    win/lose. If it fits, name the split explicitly, e.g. "You won the argument. But you lost on X."
-    Only claim a split if the scores actually support it — don't invent one.
-- "worked": ONE short sentence — the one concrete thing that worked, quoting or referencing what they said.
-- "win_move": ONE short sentence — the specific move/tactic that actually secured the result (how they
-    got the character to budge, or — if they lost — the one thing that was closest to working). This is
-    about the MECHANISM of the outcome, distinct from "worked" (just what was good) and "cost" (what held
-    them back).
-- "cost": ONE short sentence — the ONE behavior that held them back or prevented a stronger result,
-    even if they won overall.
-- "growth": ONE short sentence comparing this battle to their previous profile — name a skill that is
-    clearly improving OR clearly still stuck. If there isn't enough previous data, return an empty string.
-    Never invent a trend that the numbers don't support.
-- "tool_used": which ONE of these 8 fixed techniques the learner ACTUALLY demonstrated in this battle,
-    or null if genuinely none of them applies. Pick the exact key string, nothing else:
+=== JSON KEYS (ALL VALUES in {_lang(language)}) ===
+- "result_state_label": SHORT label of the outcome (1-2 words, natural, no emoji).
+- "result_state": "VICTORY"|"ALMOST"|"DEFEATED"|"OUTPLAYED" — internal key.
+- "result_line": 1-2 sentences on what actually happened — NOT a score recap.
+- "the_moment": the ONE concrete episode that best explains the result. Object:
+    "quote_user": VERBATIM line from the learner that mattered most,
+    "quote_opponent": VERBATIM line from the character, or "",
+    "why_it_mattered": 1-2 sentences — WHY this moment decided the battle, as a mechanism.
+- "the_mechanism": 3-4 sentences covering BOTH sides:
+    (a) WHAT WAS GENUINELY GOOD in the learner's speech in THIS battle — quote or
+        reference an actual line.
+    (b) WHAT HELD THEM BACK — the mechanism of behaviour.
+    Both parts must be tied to real lines the learner wrote.
+- "the_shift": ONE alternative move with a concrete line. Object:
+    "alternative": a rewritten line — what the learner could have said instead.
+    "why_it_would_work": 1-2 sentences — why that alternative would have worked.
+- "escape_route": ONE generic pattern for getting out of the trap. Object:
+    "trap": short label of the situation,
+    "rule": a short reusable rule (1 sentence) — an action, not a description,
+    "example": one example line that shows the rule in action.
+- "tool_used": which ONE of these 8 fixed techniques the learner ACTUALLY demonstrated, or null:
 {tools_listing}
-    Rules: it must be grounded in something they ACTUALLY did — quote or reference it in your own
-    reasoning, don't guess. {owned_note} Most real battles contain at least one of these — look
-    carefully before returning null; only return null for a genuinely too-short/degenerate exchange.
-- "advice": 1-2 sentences spoken IN CHARACTER, not like a teacher.
-    If the learner lost: what to change. If the learner won: a grudging, in-character reaction.
-- "next_target": one of {COMMUNICATION_SKILLS} — the communication criterion to train next.
-- "arena_note": 1-2 sentences in ARENA's OWN voice (not the character's) — a forward-looking meta
-    observation, as if ARENA is quietly tracking them across battles. Reference "next_target" naturally
-    (e.g. "I noticed something else — tomorrow, let's test how you hold up under pressure"). This is
-    NOT a repeat of "growth" above — it should feel like ARENA teasing what's coming, not scoring what
-    already happened.
-- "mistakes": up to 3 objects {{"wrong": <copied VERBATIM from learner>, "correct": <fixed>}}.
+    Ground it in something they ACTUALLY did. {owned_note}
+- "arena_read": forward-looking. Object:
+    "skill_now": 1-2 sentences — which skill is currently maturing (or stuck) and why.
+    "test_next": ONE line — what to test in the next battle.
+- "opponent_advice": 1-2 sentences spoken IN CHARACTER.
+- "language_upgrade": ONE language improvement tied to THIS battle — or null.
+    Object {{"said": VERBATIM, "better": stronger version, "why": ONE short sentence}}.
+- "grammar_focus": the ONE recurring grammar mistake visible in THIS battle — or null.
+    Object {{
+      "pattern": plain-word name of the mistake,
+      "example_wrong": VERBATIM from learner,
+      "example_right": corrected sentence,
+      "drill": ONE short sentence — a micro-practice
+    }}
+- "grammar_for_goal": ONE grammar pattern that directly supports the learner's weakest
+    communication skill — the one that is `next_target`. Object:
+    "goal": the same value as next_target (one of {COMMUNICATION_SKILLS}), internal key,
+    "grammar_pattern": a SHORT, concrete grammar structure name, in {_lang(language)}.
+        Not "grammar in general". Not "tenses". Specific: "present perfect for effects",
+        "conditionals for hypotheticals", "relative clauses for definitions",
+        "contrast connectors (although / whereas)", "passive voice for focus",
+        "causative have/get", "reported speech for sources". Pick the ONE that best
+        serves THIS communication goal.
+    "why_it_helps": ONE short sentence in {_lang(language)} — why this structure
+        strengthens THIS specific communication goal.
+    "phrases": exactly 4 ready-to-use sentences in {_lang(language)}. Short. Concrete.
+        Real lines a person would actually say in a debate. All four must USE the
+        grammar_pattern.
+    "example_from_battle": ONE sentence in {_lang(language)} — a rewritten version of
+        something the learner ACTUALLY said in this battle, showing the grammar_pattern
+        applied.
+- "deeper_content": null OR {{"topic": "<short label>", "why": "<one short line>"}}.
 
-All non-quoted text in {_lang(language)}. Keep everything SHORT.
+REMINDER: everything the learner READS must be in {_lang(language)}, matching level
+{level} complexity. Not English unless English IS the target.
+Keep everything SHORT.
 """
-    data = _ask_json(prompt, language, temperature=0.7, max_tokens=950, check_ru=True) or {}
+    data = _ask_json(prompt, language, temperature=0.7, max_tokens=2000, check_ru=True) or {}
 
-    mistakes = []
-    for m in (data.get("mistakes") or [])[:3]:
-        if isinstance(m, dict):
-            wrong, correct = str(m.get("wrong", "")).strip(), str(m.get("correct", "")).strip()
-            if wrong and correct and wrong.lower() != correct.lower() and _in_text(wrong, user_blob):
-                mistakes.append({"wrong": wrong, "correct": correct})
+    result_state_label = _no_ru(str(data.get("result_state_label") or "").strip())[:40]
+
+    the_moment = None
+    mq = data.get("the_moment")
+    if isinstance(mq, dict):
+        qu = str(mq.get("quote_user", "")).strip()
+        qo = str(mq.get("quote_opponent", "")).strip()
+        why = str(mq.get("why_it_mattered", "")).strip()
+        if qu and why and _in_text(qu, user_blob):
+            the_moment = {
+                "quote_user": qu[:250],
+                "quote_opponent": qo[:250],
+                "why_it_mattered": _no_ru(why)[:400],
+            }
+
+    the_mechanism = _no_ru(str(data.get("the_mechanism") or "").strip())[:600]
+
+    the_shift = None
+    sh = data.get("the_shift")
+    if isinstance(sh, dict):
+        alt = str(sh.get("alternative", "")).strip()
+        why = str(sh.get("why_it_would_work", "")).strip()
+        if alt and why:
+            the_shift = {
+                "alternative": alt[:300],
+                "why_it_would_work": _no_ru(why)[:400],
+            }
+
+    escape_route = None
+    er = data.get("escape_route")
+    if isinstance(er, dict):
+        trap = str(er.get("trap", "")).strip()
+        rule = str(er.get("rule", "")).strip()
+        example = str(er.get("example", "")).strip()
+        if rule:
+            escape_route = {
+                "trap": _no_ru(trap)[:120],
+                "rule": _no_ru(rule)[:260],
+                "example": example[:260],
+            }
 
     tool_used = str(data.get("tool_used") or "").strip().lower()
     if tool_used not in ARSENAL_TOOL_KEYS:
         tool_used = None
 
+    arena_read = None
+    ar = data.get("arena_read")
+    if isinstance(ar, dict):
+        sn = str(ar.get("skill_now", "")).strip()
+        tn = str(ar.get("test_next", "")).strip()
+        if sn or tn:
+            arena_read = {
+                "skill_now": _no_ru(sn)[:400],
+                "test_next": _no_ru(tn)[:200],
+            }
+
+    mistakes = []
+    for m in (data.get("mistakes") or [])[:3]:
+        if isinstance(m, dict):
+            wrong = str(m.get("wrong", "")).strip()
+            correct = str(m.get("correct", "")).strip()
+            if wrong and correct and wrong.lower() != correct.lower() and _in_text(wrong, user_blob):
+                mistakes.append({"wrong": wrong, "correct": correct})
+
+    language_upgrade = None
+    up = data.get("language_upgrade")
+    if isinstance(up, dict):
+        said = str(up.get("said", "")).strip()
+        better = str(up.get("better", "")).strip()
+        why = str(up.get("why", "")).strip()
+        if said and better and why and said.lower() != better.lower() and _in_text(said, user_blob):
+            language_upgrade = {"said": said, "better": better, "why": _no_ru(why)}
+
+    grammar_focus = None
+    gf = data.get("grammar_focus")
+    if isinstance(gf, dict):
+        pat = str(gf.get("pattern", "")).strip()
+        ex_w = str(gf.get("example_wrong", "")).strip()
+        ex_r = str(gf.get("example_right", "")).strip()
+        drill = str(gf.get("drill", "")).strip()
+        if pat and ex_w and ex_r and _in_text(ex_w, user_blob):
+            grammar_focus = {
+                "pattern": pat[:140],
+                "example_wrong": ex_w[:220],
+                "example_right": ex_r[:220],
+                "drill": _no_ru(drill)[:240],
+            }
+
+    grammar_for_goal = None
+    gfg = data.get("grammar_for_goal")
+    if isinstance(gfg, dict):
+        goal = str(gfg.get("goal", "")).strip().lower()
+        pat = str(gfg.get("grammar_pattern", "")).strip()
+        why = str(gfg.get("why_it_helps", "")).strip()
+        phrases_raw = gfg.get("phrases") or []
+        example = str(gfg.get("example_from_battle", "")).strip()
+        phrases = []
+        for p in phrases_raw[:5]:
+            p = str(p).strip()
+            if p and len(p) < 220 and p not in phrases:
+                phrases.append(p)
+        if goal in COMMUNICATION_SKILLS and pat and phrases:
+            grammar_for_goal = {
+                "goal": goal,
+                "grammar_pattern": pat[:140],
+                "why_it_helps": _no_ru(why)[:300],
+                "phrases": phrases,
+                "example_from_battle": _no_ru(example)[:300],
+            }
+
+    deeper_content = None
+    deeper = data.get("deeper_content")
+    if isinstance(deeper, dict):
+        dt = str(deeper.get("topic", "")).strip()
+        dw = str(deeper.get("why", "")).strip()
+        if dt and dw:
+            deeper_content = {"topic": dt[:60], "why": _no_ru(dw)[:200]}
+
     next_target = str(data.get("next_target", "")).strip().lower()
+    if next_target not in COMMUNICATION_SKILLS:
+        criteria_sorted = sorted(criteria.items(), key=lambda kv: kv[1])
+        for k, _ in criteria_sorted:
+            if k in COMMUNICATION_SKILLS:
+                next_target = k
+                break
     if next_target not in COMMUNICATION_SKILLS:
         next_target = ""
 
+    if grammar_for_goal and not grammar_for_goal.get("goal") and next_target:
+        grammar_for_goal["goal"] = next_target
+
+    next_target_label = _no_ru(str(data.get("next_target_label") or "").strip())[:80]
+
     return {
         "result_state": result_state,
+        "result_state_label": result_state_label,
         "result_line": _no_ru(data.get("result_line")),
-        "worked": _no_ru(data.get("worked")),
-        "win_move": _no_ru(data.get("win_move")),
-        "cost": _no_ru(data.get("cost")),
-        "growth": _no_ru(data.get("growth")),
+        "the_moment": the_moment,
+        "the_mechanism": the_mechanism,
+        "the_shift": the_shift,
+        "escape_route": escape_route,
         "tool_used": tool_used,
-        "advice": _no_ru(data.get("advice")),
-        "next_target": next_target,
-        "arena_note": _no_ru(data.get("arena_note")),
+        "arena_read": arena_read,
+        "opponent_advice": _no_ru(data.get("opponent_advice")),
+        "language_upgrade": language_upgrade,
+        "grammar_focus": grammar_focus,
+        "grammar_for_goal": grammar_for_goal,
+        "deeper_content": deeper_content,
         "mistakes": mistakes,
+        "next_target": next_target,
+        "next_target_label": next_target_label,
         "character": person["short_name"],
     }
 
 
 def _memory_block(memory: dict | None) -> str:
-    """
-    Форматирует то, что ARENA помнит об ученике, для промптов Free Talk.
-    favorite_topics — темы, к которым он возвращался НЕСКОЛЬКО раз (частотный учёт),
-    отличаются от recent_topics (просто последние темы, включая разовые).
-    """
     memory = memory or {}
     favorites = [t for t in (memory.get("favorite_topics") or []) if t]
     interests = [t for t in (memory.get("interests") or []) if t]
@@ -727,18 +1017,18 @@ def _memory_block(memory: dict | None) -> str:
 
     lines = []
     if favorites:
-        lines.append(f"Topics they keep coming back to — their real favorites: {', '.join(favorites[:5])}.")
+        lines.append(f"Topics they keep coming back to — favorites: {', '.join(favorites[:5])}.")
     other_recent = [t for t in (recent or interests) if t.lower() not in {f.lower() for f in favorites}]
     if other_recent:
-        lines.append(f"Other things they've mentioned before: {', '.join(other_recent[:4])}.")
+        lines.append(f"Other things they've mentioned: {', '.join(other_recent[:4])}.")
     if said:
         quoted = " / ".join(f'"{s}"' for s in said[:3])
         lines.append(f"The last few things they said to you: {quoted}")
 
     if not lines:
-        return "You don't know this learner yet — this is effectively your first real conversation with them."
+        return "You don't know this learner yet — this is effectively your first conversation."
     return (
-        "What ARENA remembers about this learner (use it naturally, don't recite it as a list):\n"
+        "What ARENA remembers about this learner:\n"
         + "\n".join(f"- {l}" for l in lines)
         + "\nPrefer bringing up a favorite topic if it fits naturally."
     )
@@ -752,10 +1042,9 @@ You start a relaxed free conversation (no grading) with a language learner{f' na
 "Relaxed" means no grading and no conflict is required — it does NOT mean you become a generic warm
 chatbot. Your personality and speech habits above must be just as strong here as in a heated debate.
 {_memory_block(memory)}
-Open in character in 1-2 SHORT sentences: bring up something from what you remember about them (or a topic
-you would naturally raise) and ask ONE engaging question, filtered through YOUR specific personality
-(e.g. the CEO makes it about outcomes, the journalist makes it a probing question, the philosopher makes
-it about meaning). Their level is {level}: {_lv(level)}
+Open in character in 1-2 SHORT sentences: bring up something from what you remember (or a topic you'd
+naturally raise) and ask ONE engaging question, filtered through YOUR personality.
+Their level is {level}: {_lv(level)}
 No stage directions, no emojis.
 """
     return _ask(prompt, language, temperature=0.9, max_tokens=110) or \
@@ -768,8 +1057,7 @@ def generate_ai_response(personality: str, history: str, last_user: str, level: 
 You are {_persona(personality)}
 This is a relaxed free conversation (no grading) with a language learner{f' named {user_name}' if user_name else ''}.
 "Relaxed" means no grading and no conflict is required — it does NOT mean you become a generic warm
-chatbot. Even on plain small talk (food, weekend, weather, hobbies) your specific mannerisms and
-attitude must show through, exactly as described above.
+chatbot. Even on plain small talk your mannerisms and attitude must show through.
 Their level is {level}: {_lv(level)}
 {_memory_block(memory)}
 
@@ -778,11 +1066,13 @@ Conversation so far:
 
 The learner just said: "{last_user}"
 
-Reply in character in 1-3 short sentences. React to what they actually said, keep your personality and
-speech habits, ask at most ONE follow-up question. Do not just agree and validate — react the way THIS
-character specifically would. Do not correct their grammar. No stage directions, no emojis.
+CRITICAL: BEFORE you reply, check — did the learner ask you a DIRECT QUESTION or ask for your
+opinion? If yes, answer it FIRST, in character, from your own concrete view. Do NOT deflect.
+Only after answering may you optionally add ONE follow-up or one opinion of your own.
+If they did NOT ask a question, react to what they actually said — do not just agree and validate.
+Reply in character in 1-3 short sentences. Do not correct their grammar. No stage directions, no emojis.
 """
-    return _ask(prompt, language, temperature=0.9, max_tokens=150)
+    return _ask(prompt, language, temperature=0.9, max_tokens=170)
 
 
 # ==================================================================
@@ -791,10 +1081,6 @@ character specifically would. Do not correct their grammar. No stage directions,
 
 def generate_daily_push(personality: str, topics: list, first_name: str, language: str,
                         topic: str | None = None, level: str = "B1") -> str:
-    """
-    Ежедневный пуш от персонажа. Помнит прошлый разговор, бросает вызов,
-    даёт микро-миссию на сегодня.
-    """
     person = PERSONALITIES.get(personality, {})
     topic = topic or (random.choice(topics) if topics else "the thing you keep avoiding")
     prompt = f"""
@@ -809,3 +1095,117 @@ Rules:
 """
     text = _ask(prompt, language, temperature=0.95, max_tokens=140)
     return text or f"{person.get('phrase', 'Your move.')} — {topic}"
+
+
+# ==================================================================
+# PERSONALIZATION MEMORY: извлечение сигналов
+# ==================================================================
+
+def extract_signals(user_lines: list[str], language: str, source: str,
+                    taxonomy: list[str], catalog: dict) -> dict:
+    lines = [l[:300] for l in user_lines[-12:]]
+    blob = "\n".join(f"- {l}" for l in lines)
+    topics_listing = ", ".join(f'"{t}"' for t in taxonomy)
+    patterns_listing = "\n".join(f'- "{pid}": {m["brief"]}' for pid, m in catalog.items())
+
+    prompt = f"""
+You are ARENA's silent analyst. Below are messages a language learner wrote in a {source.replace('_', ' ')} conversation.
+Extract signals for long-term memory. Be conservative: an empty list is a good answer.
+
+Learner's messages:
+{blob}
+
+Return JSON with:
+- "topics": up to 3 objects {{"cluster": <EXACTLY one of: {topics_listing}>, "example": <1-4 words>}}.
+- "patterns": up to 2 objects {{"id": <EXACTLY one id from the list>, "example": <quote COPIED VERBATIM,
+    max 15 words>}}. A single message is weak evidence — if you are not sure, return [].
+- "professional_context": a SHORT phrase (2-6 words, in {_lang(language)}) if EXPLICITLY stated. Else "".
+- "goals": up to 2 SHORT phrases (max 8 words each, in {_lang(language)}) if EXPLICITLY stated. Else [].
+- "avoids": up to 1 SHORT phrase (max 6 words) if they CLEARLY stepped away from a topic. Else [].
+
+NEVER invent — if not explicitly stated, return empty.
+Pattern ids:
+{patterns_listing}
+"""
+    data = _ask_json(prompt, language, temperature=0.2, max_tokens=600) or {}
+    text = "\n".join(user_lines)
+    by_lower = {t.lower(): t for t in taxonomy}
+
+    topics, seen_c = [], set()
+    for t in (data.get("topics") or [])[:3]:
+        if not isinstance(t, dict):
+            continue
+        cluster = by_lower.get(str(t.get("cluster", "")).strip().lower())
+        if cluster and cluster not in seen_c:
+            seen_c.add(cluster)
+            topics.append({"cluster": cluster, "example": str(t.get("example", "")).strip()[:60]})
+
+    patterns, seen_p = [], set()
+    for p in (data.get("patterns") or [])[:2]:
+        if not isinstance(p, dict):
+            continue
+        pid = str(p.get("id", "")).strip()
+        ex = str(p.get("example", "")).strip()
+        if pid in catalog and pid not in seen_p and ex and _in_text(ex, text):
+            seen_p.add(pid)
+            patterns.append({"id": pid, "example": ex[:160]})
+
+    prof = str(data.get("professional_context", "")).strip()[:60]
+    goals = [str(g).strip()[:80] for g in (data.get("goals") or []) if isinstance(g, str) and g.strip()][:2]
+    avoids = [str(a).strip()[:60] for a in (data.get("avoids") or []) if isinstance(a, str) and a.strip()][:1]
+
+    return {"topics": topics, "patterns": patterns,
+            "professional_context": prof, "goals": goals, "avoids": avoids}
+
+
+# ==================================================================
+# ПЕРСОНАЛИЗИРОВАННОЕ ЕЖЕДНЕВНОЕ НАПОМИНАНИЕ
+# ==================================================================
+
+_GENERIC_REMINDER_PHRASES = (
+    "ready for your daily battle", "improve your english", "time to practice",
+    "your daily challenge is waiting", "daily challenge", "daily battle",
+)
+
+_REMINDER_INSTRUCTIONS = {
+    "interest_hook": "Pull them back through a topic they keep returning to. Ask one sharp question.",
+    "continuation": "Continue the recent conversation: pick up the specific thing and push further.",
+    "arsenal_hook": "Remind them of a move they already own and challenge them to use it today.",
+    "debrief_hook": "Refer to what held them back last time (no scolding) and set today's small target.",
+    "challenge_hook": "Name what they are working on and promise to test exactly that today.",
+    "provocative_question": "Ask ONE provocative question tied to this interest that forces a side.",
+    "battle_invitation": "Invite them to a battle against that specific opponent on that specific topic.",
+    "language_hook": "Give a specific micro-challenge: use the sharper phrasing today.",
+    "goal_hook": "Remind them of the goal they themselves stated, turn it into today's micro-challenge.",
+    "context_hook": "Connect their professional context to a topic they care about — one sharp question.",
+}
+
+
+def generate_personalized_reminder(selection: dict, first_name: str, language: str,
+                                   level: str = "B1") -> str | None:
+    facts = "\n".join(f"- {f}" for f in selection["facts"])
+    prompt = f"""
+You are ARENA — a calm voice that remembers the learner.
+Write ONE short notification (2-3 short lines, at most 45 words) to {first_name or 'the learner'}.
+Their level is {level}: {_lv(level)}
+
+Notification type: {selection['type']}. {_REMINDER_INSTRUCTIONS[selection['type']]}
+
+Facts you may use (ONLY these — never invent):
+{facts}
+
+Rules:
+- They should think "wait — ARENA remembers that?" — refer to the specific fact above.
+- Time words only if consistent with "days ago".
+- Never "ready for your daily battle", "improve your English today", "time to practice".
+- No greeting, no signature, no emojis. Address them as "you".
+- End with a sharp question or a one-line challenge.
+- Write in {_lang(language)} — the learner's target language, matching level {level}.
+"""
+    text = _ask(prompt, language, temperature=0.9, max_tokens=140)
+    if not text:
+        return None
+    low = text.lower()
+    if any(p in low for p in _GENERIC_REMINDER_PHRASES) or len(text) > 420:
+        return None
+    return text

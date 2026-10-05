@@ -1,17 +1,5 @@
 """
 handlers/arena.py — бой, дебрифинг, свободный разговор, арсенал.
-
-Принципы:
-  • Бой — детерминированный. Таймер и старт/стоп — в bot.py. Убеждённость считает
-    LLM (ai.generate_battle_turn), но с жёстким клампом в ai.py.
-  • В бою НЕТ обратной связи. Ни шкал, ни «правильно/неправильно», ни советов.
-    Только реплики персонажа и (по желанию) арсенал оружия.
-  • В бою НЕТ слова STOP. Останавливается сам по таймеру (bot.arena_timeout).
-  • В бою НЕТ префиксов «Victor:», «Richard:» перед каждой репликой.
-  • Debrief — отдельным сообщением, разделами: RESULT / WHAT WORKED /
-    WHAT COST YOU / STEAL THIS / OPPONENT ADVICE / NEXT TARGET.
-  • Free Talk — отдельный режим, без таймера, без миссии, без победы/поражения.
-    Персонаж держит характер, но не оценивает пользователя.
 """
 import asyncio
 import logging
@@ -24,6 +12,7 @@ import ai
 import database as db
 import gamification
 import i18n
+import personalization
 import voice
 from config import (
     BATTLE_DURATION_MINUTES,
@@ -35,6 +24,7 @@ from config import (
     SUPPORTED_LANGUAGES,
     LANGUAGE_DISPLAY,
     LANGUAGE_FLAGS,
+    CHANNEL_URL,
     is_admin,
 )
 from game_data import (
@@ -72,12 +62,6 @@ def _lang_iso(ud: dict, user_id: int) -> str:
 # ==================================================================
 
 async def play_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    ⚔️ BATTLE.
-    • Админ — всегда идёт в daily_battle.
-    • Новичок (не прошёл Храм) — уходит в Храм.
-    • Обычный игрок — в daily_battle (или cooldown, если бой был < 24 ч назад).
-    """
     user_id = update.effective_user.id
 
     if not db.has_completed_first_battle(user_id) and not is_admin(user_id):
@@ -99,11 +83,6 @@ async def play_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ==================================================================
 
 async def start_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    fe_start_battle: минималистичный брифинг боя.
-    На экране — только: оппонент, тема, миссия, таймер, открывающая реплика.
-    Arsenal / Tip / How to win — НЕ показываем. Они внутри системы.
-    """
     query = update.callback_query
     await query.answer()
     user = update.effective_user
@@ -120,7 +99,6 @@ async def start_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     analysis = ud.get("arena_analysis") or db.get_latest_arena_analysis(user_id) or {}
 
-    # Миссия — короткая (максимум 5 слов). Оружие и tip — генерим тихо, внутрь.
     mission, weapons_pack = await asyncio.gather(
         asyncio.to_thread(
             ai.generate_mission_task, topic, personality,
@@ -133,8 +111,9 @@ async def start_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     weapons, tip, win_condition = weapons_pack
 
+    claim = ud.pop("opening_claim", "")
     opening = await asyncio.to_thread(
-        ai.generate_opening_statement, personality, topic, level, language, mission
+        ai.generate_opening_statement, personality, topic, level, language, mission, claim
     )
 
     ud.update({
@@ -144,9 +123,9 @@ async def start_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "personality": personality,
         "topic": topic,
         "mission": mission,
-        "mission_weapons": weapons,       # внутри, для скрытого подсчёта
-        "mission_tip": tip,               # внутри, не показываем
-        "win_condition": win_condition,   # внутри, не показываем
+        "mission_weapons": weapons,
+        "mission_tip": tip,
+        "win_condition": win_condition,
         "used_weapons": [],
         "dialogue": [{"speaker": "AI", "text": opening}],
         "battle_type": "battle",
@@ -158,18 +137,16 @@ async def start_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     from bot import start_arena_timer
     start_arena_timer(context, user_id, update.effective_chat.id, BATTLE_DURATION_MINUTES)
 
-    # --- Минималистичный брифинг ---
-    # Opponent → Mission → Timer → Opening challenge.
-    topic_short = topic.strip().rstrip(".")
+    emoji = person["name"].split(" ")[0]
+    short_name = person["full_name"].split(" —")[0].upper()
 
     text = (
-        f"⚔️ <b>{esc(i18n.t(il, 'BATTLE.BEGINS'))}</b>\n\n"
-        f"<b>{esc(person['full_name'].upper())}</b>\n\n"
+        f"{emoji} <b>{esc(short_name)}</b>\n\n"
+        f"<i>{esc(opening)}</i>\n\n"
+        f"────────────\n\n"
         f"🎯 <b>{esc(i18n.t(il, 'BATTLE.MISSION'))}</b>\n"
         f"<b>{esc(mission)}</b>\n\n"
-        f"⏱ <i>{esc(i18n.t(il, 'BATTLE.TIME_LIMIT', n=BATTLE_DURATION_MINUTES))}</i>\n\n"
-        f"────────────\n\n"
-        f"<i>{esc(opening)}</i>"
+        f"⏱ <i>{esc(i18n.t(il, 'BATTLE.TIME_LIMIT', n=BATTLE_DURATION_MINUTES))}</i>"
     )
 
     keyboard = InlineKeyboardMarkup([
@@ -178,12 +155,13 @@ async def start_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await context.bot.send_message(update.effective_chat.id, text,
                                    reply_markup=keyboard, parse_mode="HTML")
+
+
 # ==================================================================
 # ХОДЫ БОЯ
 # ==================================================================
 
 async def handle_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Ход игрока в бою. Реплика персонажа — без префиксов, без STOP, без фидбэка."""
     user_text = await voice.get_pending_text(update, context)
     if len(user_text) < 2:
         return
@@ -200,7 +178,6 @@ async def handle_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await _continue_round(update, context)
 
-    # Досрочная победа по убеждённости
     if ud.get("conviction", CONVICTION_START) <= CONVICTION_WIN_THRESHOLD:
         ud["early_win"] = True
         await finish_arena(update, context)
@@ -236,7 +213,6 @@ async def _continue_round(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception:
         pass
 
-    # --- Free Talk: отдельная ветка, без миссии и оценки ---
     if ud.get("battle_type") == "free_talk":
         memory = db.get_memory(user_id)
         reply = await asyncio.to_thread(
@@ -244,8 +220,7 @@ async def _continue_round(update: Update, context: ContextTypes.DEFAULT_TYPE):
             language, None, user_name, memory,
         )
         if not reply:
-            logger.warning("generate_ai_response вернул пусто (см. лог ai.py выше) — "
-                           "показываю пользователю понятное сообщение, а не тишину/многоточие")
+            logger.warning("generate_ai_response вернул пусто — показываю fallback")
             reply = i18n.t(il, "ERROR.AI_UNAVAILABLE")
         dialogue.append({"speaker": "AI", "text": reply})
         ud["awaiting_response"] = True
@@ -254,7 +229,6 @@ async def _continue_round(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(reply, parse_mode="HTML")
         return
 
-    # --- Боевой ход ---
     conviction = ud.get("conviction", CONVICTION_START)
     turn = await asyncio.to_thread(
         ai.generate_battle_turn, personality, history, last_user, level,
@@ -262,14 +236,12 @@ async def _continue_round(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     reply = turn["reply"]
     if not reply:
-        logger.warning("generate_battle_turn вернул пусто (см. лог ai.py выше) — "
-                       "показываю пользователю понятное сообщение, а не тишину/многоточие")
+        logger.warning("generate_battle_turn вернул пусто — показываю fallback")
         reply = i18n.t(il, "ERROR.AI_UNAVAILABLE")
     ud["conviction"] = turn["conviction"]
     dialogue.append({"speaker": "AI", "text": reply})
     ud["awaiting_response"] = True
 
-    # Обновляем статус арсенала (тихо, без обращения к пользователю)
     _, used_count, updated_used = _weapons_status(weapons, user_text_full, used_weapons)
     ud["used_weapons"] = updated_used
 
@@ -278,7 +250,6 @@ async def _continue_round(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def _weapons_status(weapons: str, user_text: str, used_weapons: list):
-    """Возвращает (status_line, used_count, updated_used) — используется только в дебрифе."""
     if not weapons:
         return "", 0, used_weapons
     items = [w.strip() for w in weapons.replace("·", "|").split("|") if w.strip()]
@@ -308,7 +279,6 @@ async def finish_arena(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def finish_arena_by_timeout(context, user_id: int, chat_id: int):
-    """Таймер вышел — Арена сама завершает бой."""
     ud = context.application.user_data.get(user_id) or {}
     if not ud.get("dialogue"):
         return
@@ -335,7 +305,6 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
     weapons = ud.get("mission_weapons", "")
     used_weapons = ud.get("used_weapons", [])
 
-    # ---------- FREE TALK: без Debrief, просто напоминаем, что Арена помнит ----------
     if ud.get("battle_type") == "free_talk":
         try:
             analysis = await asyncio.to_thread(
@@ -353,6 +322,13 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
         except Exception:
             pass
 
+        try:
+            await asyncio.to_thread(
+                personalization.record_session, user_id, "free_talk", user_responses, language
+            )
+        except Exception:
+            logger.exception("personalization.record_session(free_talk) упал")
+
         skill = PERSONALITY_TO_SKILL.get(personality, "argumentation")
         db.add_skill_progress(user_id, skill, 5, battles=0)
 
@@ -363,14 +339,12 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
         _reset_state(ud)
         return
 
-    # ---------- БОЕВОЙ ДЕБРИФ ----------
     mission = ud.get("mission", "")
     dialogue_text = "\n".join(
         f"{'Learner' if d['speaker'] == 'User' else person['short_name']}: {d['text']}"
         for d in dialogue
     )
 
-    # 1) Оценка по 10 критериям + результат
     analysis = await asyncio.to_thread(
         ai.analyze_debate, user_responses, dialogue_text, topic, level, language,
         personality, weapons, mission,
@@ -384,8 +358,6 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
     overall = result["overall"]
     win_score = result["win_score"]
 
-    # "Было → стало": снимаем профиль/арсенал ДО того, как этот бой их обновит,
-    # чтобы дебриф мог сравнить, а не оценивать бой в вакууме (My Arena logic).
     try:
         previous_criteria = db.get_criteria(user_id)
         unlocked_tools = db.get_unlocked_tools(user_id)
@@ -393,7 +365,6 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
         logger.exception("Не удалось получить предыдущий профиль/арсенал")
         previous_criteria, unlocked_tools = {}, set()
 
-    # 2) Дебриф от Арены + рабочие цитаты + определение приёма из арсенала
     try:
         fb = await asyncio.to_thread(
             ai.generate_battle_debrief, first_name, language, level, personality,
@@ -406,6 +377,7 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
         fb = {}
     if not fb:
         fb = {"result_state": "VICTORY" if won else "DEFEATED"}
+
     mistakes = fb.get("mistakes", [])
     if mistakes:
         try:
@@ -413,8 +385,6 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
         except Exception:
             logger.exception("add_vocabulary_mistakes упал")
 
-    # 3) Скилл-прогресс, сохранение сессии, level-снапшот.
-    # Каждый шаг — в своём try/except: даже если один упадёт, дебриф всё равно уйдёт.
     skill = PERSONALITY_TO_SKILL.get(personality, "argumentation")
     skill_delta = gamification.calculate_skill_delta(conviction, len(used_weapons), False, won)
     try:
@@ -422,12 +392,13 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
     except Exception:
         logger.exception("add_skill_progress упал")
     try:
-        db.save_game_session(
+        session_id = db.save_game_session(
             user_id, personality, language_iso, level, topic, rounds_completed,
-            criteria, 0, growth_plan=fb.get("growth", ""), conviction_final=conviction,
+            criteria, 0, growth_plan="", conviction_final=conviction,
             won=1 if won else 0, overall=overall, mission=mission,
             result_state=fb.get("result_state", ""),
         )
+        db.save_session_debrief(session_id, fb)
     except Exception:
         logger.exception("save_game_session упал")
     try:
@@ -455,7 +426,6 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
     except Exception:
         logger.exception("mark_first_battle_done/mark_temple_done упали")
 
-    # 4) Немезида + бейджи
     try:
         nemesis = db.get_nemesis(user_id)
         is_nemesis = bool(nemesis and nemesis["personality"] == personality and not nemesis["defeated"])
@@ -468,9 +438,6 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
     except Exception:
         logger.exception("achievements/nemesis упали")
 
-    # 5) Разблокировка приёма из фиксированного арсенала (если ИИ его распознал).
-    # Идемпотентно: если приём уже был разблокирован раньше, unlock_tool вернёт False,
-    # и в дебрифе просто не покажется блок "новый приём" — это не ошибка.
     newly_unlocked_tool = None
     try:
         tool_key = fb.get("tool_used")
@@ -479,8 +446,14 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
     except Exception:
         logger.exception("unlock_tool упал")
 
-    # 6) Debrief-сообщение — это должно дойти до пользователя почти всегда,
-    # даже если что-то выше упало.
+    # Сохраняем грамматические фразы под цель в арсенал
+    try:
+        gfg = fb.get("grammar_for_goal")
+        if isinstance(gfg, dict) and gfg.get("phrases") and gfg.get("goal"):
+            db.add_grammar_phrases(user_id, gfg["goal"], gfg["phrases"])
+    except Exception:
+        logger.exception("add_grammar_phrases упал")
+
     if is_admin(user_id):
         next_battle_text = i18n.t(il, "DEBRIEF.NEXT_BATTLE_NOW")
     elif BATTLE_COOLDOWN_HOURS <= 0:
@@ -491,12 +464,17 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
         next_battle_text = i18n.t(il, "DEBRIEF.NEXT_BATTLE_HOURS").format(h=BATTLE_COOLDOWN_HOURS)
 
     text = _format_debrief(il, fb, result, person, mistakes, next_battle_text, newly_unlocked_tool)
-    keyboard = _debrief_keyboard(il)
+    keyboard = _debrief_keyboard(il, has_deeper=bool(fb.get("deeper_content")))
 
     await bot.send_message(chat_id, text, reply_markup=keyboard, parse_mode="HTML")
 
-    # Важно: сбрасываем состояние боя, иначе Free Talk сразу после боя
-    # решит, что диалог всё ещё идёт ("уже занято").
+    try:
+        await asyncio.to_thread(
+            personalization.record_session, user_id, "battle", user_responses, language
+        )
+    except Exception:
+        logger.exception("personalization.record_session(battle) упал")
+
     _reset_state(ud)
 
 
@@ -504,64 +482,150 @@ def _format_debrief(il: str, fb: dict, result: dict, person: dict, mistakes: lis
                     next_battle_text: str = "", newly_unlocked_tool: str | None = None) -> str:
     lines = [f"🏟 <b>{esc(i18n.t(il, 'DEBRIEF.TITLE'))}</b>"]
 
-    state = fb.get("result_state") or ("VICTORY" if result["won"] else "DEFEATED")
+    # --- RESULT ---
+    state_label = fb.get("result_state_label")
+    if not state_label:
+        state = fb.get("result_state") or ("VICTORY" if result["won"] else "DEFEATED")
+        state_label = i18n.t(il, f"DEBRIEF.{state}")
     stars = gamification.result_stars(result["win_score"])
-    lines.append(
-        f"\n{stars} <b>{esc(i18n.t(il, f'DEBRIEF.{state}'))}</b>"
-        f" · {esc(i18n.t(il, 'DEBRIEF.RESULT'))} {result['win_score']}/100"
-    )
+    lines.append(f"\n{stars} <b>{esc(state_label)}</b>")
     if fb.get("result_line"):
         lines.append(esc(fb["result_line"]))
 
-    if fb.get("worked"):
-        lines.append(f"\n✅ <b>{esc(i18n.t(il, 'DEBRIEF.WHAT_WORKED'))}</b>\n{esc(fb['worked'])}")
+    # --- THE MOMENT ---
+    mq = fb.get("the_moment")
+    if isinstance(mq, dict) and mq.get("quote_user"):
+        lines.append(f"\n🎬 <b>{esc(i18n.t(il, 'DEBRIEF.THE_MOMENT'))}</b>")
+        if mq.get("quote_opponent"):
+            lines.append(f"{esc(person['short_name'])}: «{esc(mq['quote_opponent'])}»")
+        lines.append(f"{esc(i18n.t(il, 'DEBRIEF.YOU_SAID'))}: «{esc(mq['quote_user'])}»")
+        if mq.get("why_it_mattered"):
+            lines.append(f"\n<i>{esc(mq['why_it_mattered'])}</i>")
 
-    if fb.get("win_move"):
-        lines.append(f"\n⚡ <b>{esc(i18n.t(il, 'DEBRIEF.WIN_COST'))}</b>\n{esc(fb['win_move'])}")
+    # --- THE MECHANISM ---
+    if fb.get("the_mechanism"):
+        lines.append(
+            f"\n⚙️ <b>{esc(i18n.t(il, 'DEBRIEF.THE_MECHANISM'))}</b>\n"
+            f"{esc(fb['the_mechanism'])}"
+        )
 
-    if fb.get("cost"):
-        lines.append(f"\n💀 <b>{esc(i18n.t(il, 'DEBRIEF.WHAT_COST_YOU'))}</b>\n{esc(fb['cost'])}")
+    # --- THE SHIFT ---
+    sh = fb.get("the_shift")
+    if isinstance(sh, dict) and sh.get("alternative"):
+        lines.append(f"\n🔀 <b>{esc(i18n.t(il, 'DEBRIEF.THE_SHIFT'))}</b>")
+        lines.append(
+            f"{esc(i18n.t(il, 'DEBRIEF.ALTERNATIVE'))}:\n"
+            f"<b>«{esc(sh['alternative'])}»</b>"
+        )
+        if sh.get("why_it_would_work"):
+            lines.append(f"<i>{esc(sh['why_it_would_work'])}</i>")
 
+    # --- ESCAPE ROUTE ---
+    er = fb.get("escape_route")
+    if isinstance(er, dict) and er.get("rule"):
+        lines.append(f"\n🚪 <b>{esc(i18n.t(il, 'DEBRIEF.ESCAPE_ROUTE'))}</b>")
+        if er.get("trap"):
+            lines.append(f"<i>{esc(er['trap'])}</i>")
+        lines.append(f"<b>{esc(er['rule'])}</b>")
+        if er.get("example"):
+            lines.append(f"💬 «{esc(er['example'])}»")
+
+    # --- THE MOVE ---
     if newly_unlocked_tool:
         emoji = ARSENAL_TOOL_EMOJI.get(newly_unlocked_tool, "⚔️")
         name = i18n.t(il, f"TOOLS.{newly_unlocked_tool}.NAME")
         desc = i18n.t(il, f"TOOLS.{newly_unlocked_tool}.DESC")
         example = i18n.t(il, f"TOOLS.{newly_unlocked_tool}.EXAMPLE")
-        lines.append(f"\n🎉 <b>{esc(i18n.t(il, 'DEBRIEF.NEW_TOOL'))}</b>")
-        lines.append(f"{emoji} <b>{esc(name)}</b>\n{esc(desc)}\n<i>{esc(example)}</i>")
+        lines.append(f"\n{emoji} <b>{esc(i18n.t(il, 'DEBRIEF.THE_MOVE'))}: {esc(name.upper())}</b>")
+        lines.append(esc(desc))
+        lines.append(f"💬 {esc(example)}")
 
-    if fb.get("advice"):
+    # --- OPPONENT ADVICE ---
+    if fb.get("opponent_advice"):
         lines.append(
-            f"\n🎭 <b>{esc(i18n.t(il, 'DEBRIEF.OPPONENT_ADVICE'))} — {esc(person['short_name'])}:</b>\n"
-            f"<i>{esc(fb['advice'])}</i>"
+            f"\n🎭 <b>{esc(person['short_name'])}:</b>\n"
+            f"<i>{esc(fb['opponent_advice'])}</i>"
         )
 
-    if fb.get("arena_note"):
-        lines.append(f"\n🏛 <b>{esc(i18n.t(il, 'DEBRIEF.ARENA_NOTE'))}</b>\n<i>{esc(fb['arena_note'])}</i>")
+    # --- THE ARENA READ ---
+    ar = fb.get("arena_read")
+    if isinstance(ar, dict) and (ar.get("skill_now") or ar.get("test_next")):
+        lines.append(f"\n🏛 <b>{esc(i18n.t(il, 'DEBRIEF.THE_ARENA_READ'))}</b>")
+        if ar.get("skill_now"):
+            lines.append(esc(ar["skill_now"]))
+        if ar.get("test_next"):
+            lines.append(f"→ <b>{esc(ar['test_next'])}</b>")
 
-    if mistakes:
-        mlines = "\n".join(f"  • {esc(m['wrong'])} → <b>{esc(m['correct'])}</b>" for m in mistakes[:5])
-        lines.append(f"\n📚 <b>{esc(i18n.t(il, 'DEBRIEF.LANGUAGE_CHECK'))}</b>\n{mlines}")
+    # --- LANGUAGE UPGRADE ---
+    up = fb.get("language_upgrade")
+    if up:
+        lines.append(
+            f"\n🔧 <b>{esc(i18n.t(il, 'DEBRIEF.LANGUAGE_UPGRADE'))}</b>\n"
+            f"{esc(i18n.t(il, 'DEBRIEF.YOU_SAID'))}: «{esc(up['said'])}»\n"
+            f"{esc(i18n.t(il, 'DEBRIEF.BETTER'))}: <b>«{esc(up['better'])}»</b>\n"
+            f"<i>{esc(up['why'])}</i>"
+        )
+
+    # --- GRAMMAR FOR GOAL (приоритет) или GRAMMAR FOCUS (фолбэк) ---
+    gfg = fb.get("grammar_for_goal")
+    if isinstance(gfg, dict) and gfg.get("grammar_pattern") and gfg.get("phrases"):
+        goal_label = ""
+        if gfg.get("goal"):
+            goal_label = i18n.t(il, f"CRITERIA.{gfg['goal']}")
+        title = i18n.t(il, "DEBRIEF.GRAMMAR_FOR_GOAL")
+        if goal_label:
+            title = f"{title} · {goal_label.upper()}"
+        lines.append(f"\n📐 <b>{esc(title)}</b>")
+        lines.append(f"<b>{esc(gfg['grammar_pattern'])}</b>")
+        if gfg.get("why_it_helps"):
+            lines.append(f"<i>{esc(gfg['why_it_helps'])}</i>")
+        phrases = gfg.get("phrases") or []
+        if phrases:
+            plines = "\n".join(f"  • «{esc(p)}»" for p in phrases[:4])
+            lines.append(plines)
+        if gfg.get("example_from_battle"):
+            lines.append(
+                f"\n{esc(i18n.t(il, 'DEBRIEF.YOU_COULD_SAY'))}: "
+                f"<b>«{esc(gfg['example_from_battle'])}»</b>"
+            )
+    else:
+        gf = fb.get("grammar_focus")
+        if isinstance(gf, dict) and gf.get("pattern"):
+            lines.append(f"\n📐 <b>{esc(i18n.t(il, 'DEBRIEF.GRAMMAR_FOCUS'))}</b>")
+            lines.append(f"<b>{esc(gf['pattern'])}</b>")
+            if gf.get("example_wrong"):
+                lines.append(f"❌ «{esc(gf['example_wrong'])}»")
+            if gf.get("example_right"):
+                lines.append(f"✅ «{esc(gf['example_right'])}»")
+            if gf.get("drill"):
+                lines.append(f"<i>{esc(gf['drill'])}</i>")
+
+    # --- DEEPER ---
+    deeper = fb.get("deeper_content")
+    if isinstance(deeper, dict) and deeper.get("topic") and deeper.get("why"):
+        lines.append(
+            f"\n📖 <b>{esc(i18n.t(il, 'DEBRIEF.WANT_TO_GO_DEEPER'))}</b>\n"
+            f"<i>{esc(deeper['why'])}</i>"
+        )
 
     if next_battle_text:
         lines.append(f"\n⚔️ <b>{esc(i18n.t(il, 'DEBRIEF.NEXT_BATTLE'))}:</b> {esc(next_battle_text)}")
 
     return "\n".join(lines)
 
-def _debrief_keyboard(il: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
+
+def _debrief_keyboard(il: str, has_deeper: bool = False) -> InlineKeyboardMarkup:
+    rows = [
         [InlineKeyboardButton(i18n.t(il, "MENU.MY_ARENA"), callback_data="menu_profile")],
         [InlineKeyboardButton(i18n.t(il, "MENU.FREE_TALK"), callback_data="freetalk")],
-        [InlineKeyboardButton(i18n.t(il, "MENU.BACK"), callback_data="back_to_main")],
-    ])
+    ]
+    if has_deeper:
+        rows.append([InlineKeyboardButton(i18n.t(il, "DEBRIEF.READ_THE_BREAKDOWN"), url=CHANNEL_URL)])
+    rows.append([InlineKeyboardButton(i18n.t(il, "MENU.BACK"), callback_data="back_to_main")])
+    return InlineKeyboardMarkup(rows)
 
 
 async def arsenal_add_pending(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Совместимость: старая кнопка "В мой арсенал" под дебрифом. Новая система
-    разблокирует приёмы автоматически (см. _do_finish), эта кнопка больше нигде
-    не рендерится — но если где-то в bot.py ещё осталась регистрация на неё
-    (например, из-за смешения версий файлов), просто открываем арсенал вместо
-    падения с AttributeError."""
     query = update.callback_query
     await query.answer()
     user_id = update.effective_user.id
@@ -575,16 +639,10 @@ def _build_arsenal_text_compat(user_id: int, il: str) -> str:
 
 
 # ==================================================================
-# FREE TALK — отдельный режим
+# FREE TALK
 # ==================================================================
 
 async def freetalk(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Free Talk. Всегда доступен.
-    1) Сначала — выбор learning_language (не interface!).
-    2) Затем — выбор персонажа.
-    3) Потом — старт разговора; персонаж сам подбирает тему из памяти.
-    """
     query = update.callback_query
     await query.answer()
     user_id = update.effective_user.id
@@ -632,7 +690,6 @@ async def ft_select_language(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def freetalk_pick(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Персонаж выбран. Начинаем свободный разговор — язык и тема из памяти."""
     query = update.callback_query
     await query.answer()
     user = update.effective_user

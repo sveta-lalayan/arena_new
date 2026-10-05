@@ -28,6 +28,7 @@ from config import (
 import ai
 import database as db
 import i18n
+import personalization
 import voice
 from handlers import start, profile, arena, intro, settings
 
@@ -148,19 +149,38 @@ async def send_daily_pushes(context):
 
             level = await asyncio.to_thread(db.get_current_level, p["telegram_id"]) or "B1"
 
-            message = await asyncio.to_thread(
-                ai.generate_daily_push,
-                p["personality"], p["topics"], p["first_name"],
-                learning_key, None, level,
+            # Персонализированное напоминание из Personalization Memory.
+            # Если проверенных данных мало (или LLM вернул шаблон) — прежний нейтральный фолбэк.
+            selection = await asyncio.to_thread(personalization.select_reminder, p["telegram_id"])
+            message = None
+            if selection:
+                message = await asyncio.to_thread(
+                    ai.generate_personalized_reminder, selection, p["first_name"], learning_key, level,
+                )
+            if not message:
+                selection = {"type": "fallback", "topic": "", "refs": {}}
+                message = await asyncio.to_thread(
+                    ai.generate_daily_push,
+                    p["personality"], p["topics"], p["first_name"],
+                    learning_key, None, level,
+                )
+            refs = selection.get("refs") or {}
+
+            # Прошлые напоминания без клика считаем проигнорированными, затем логируем новое
+            await asyncio.to_thread(db.mark_previous_unclicked_dismissed, p["telegram_id"])
+            nid = await asyncio.to_thread(
+                db.log_notification, p["telegram_id"], selection["type"], message,
+                refs.get("interest"), refs.get("pattern"), refs.get("battle"), refs.get("arsenal"),
             )
 
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton(i18n.t(il, "MENU.BATTLE"), callback_data="daily_battle")],
+                [InlineKeyboardButton(i18n.t(il, "MENU.BATTLE"), callback_data=f"daily_battle:{nid}")],
             ])
             await context.bot.send_message(
                 chat_id=p["telegram_id"], text=message, reply_markup=keyboard,
             )
-            await asyncio.to_thread(db.mark_push_sent, p["telegram_id"])
+            # тема напоминания станет темой следующего боя (db.pop_push_topic в intro.daily_battle)
+            await asyncio.to_thread(db.mark_push_sent, p["telegram_id"], selection.get("topic", ""))
         except Exception as e:
             logger.warning("Пуш %s не отправлен: %s", p["telegram_id"], e)
 
@@ -251,7 +271,7 @@ def main():
     app.add_handler(CallbackQueryHandler(intro.enter_arena_menu, pattern="^menu_enter_arena$"))
     app.add_handler(CallbackQueryHandler(intro.select_language,  pattern="^fe_lang_"))
     app.add_handler(CallbackQueryHandler(arena.start_battle,     pattern="^fe_start_battle$"))
-    app.add_handler(CallbackQueryHandler(intro.daily_battle,     pattern="^daily_battle$"))
+    app.add_handler(CallbackQueryHandler(intro.daily_battle,     pattern=r"^daily_battle(:\d+)?$"))
 
     # --- Battle ---
     app.add_handler(CallbackQueryHandler(arena.play_entry,       pattern="^menu_play$"))

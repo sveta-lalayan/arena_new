@@ -1,78 +1,97 @@
 {
   "MENU": {
-    "BATTLE": "⚔️ BATTLE",
+    "BATTLE": "⚔️ 배틀",
     "FREE_TALK": "💬 자유 대화",
     "MY_ARENA": "🏛 나의 아레나",
     "MY_ARSENAL": "🧰 나의 무기고",
     "SETTINGS": "⚙️ 설정",
     "ENTER_ARENA": "🏛 아레나 입장",
     "BACK": "🔙 메뉴로",
-    "ACHIEVEMENTS": "🏆 업적",
-    "NO_ACTIVE": "진행 중인 게임이 없어. BATTLE 또는 자유 대화를 선택해."
+    "NO_ACTIVE": "지금 진행 중인 대화가 없습니다. 메뉴를 열어주세요."
   },
   "START": {
-    "WELCOME_FIRST": "👋 {name}\nARENA에 온 것을 환영해.\n\n🏛 아레나 입장\nARENA가 네 말을 듣고 누구를 만날지 결정할 거야.",
-    "WELCOME_BACK": "👋 {name}\n아레나가 지켜보고 있어. 하루 한 번의 대결, 자유 대화는 언제나."
+    "WELCOME_FIRST": "👋 {name}\nARENA에 오신 것을 환영합니다.\n\n🏛 아레나 입장\nARENA가 당신의 이야기를 듣고, 누구와 만날지 결정합니다.",
+    "WELCOME_BACK": "👋 {name}\n아레나가 지켜보고 있습니다. 하루 한 번의 배틀. 자유 대화는 언제든지."
   },
   "TEMPLE": {
-    "SELECT_LEARNING_LANGUAGE": "어떤 언어로 말할 거야?",
-    "LISTENING": "ARENA가 듣고 있어.",
-    "YOUR_MOVE": "네 차례야.",
-    "HINT": "내가 하는 일 · 내가 좋아하는 것 · 내 생각 · 뭐든지",
-    "THINKING": "ARENA가 생각 중이야…",
-    "HEARD_ENOUGH": "충분히 들었어.",
-    "ENTER_BATTLE": "⚔️ 전투 시작 →",
-    "ALREADY_DONE": "🏛 넌 이미 신전을 경험했어. 다음 대결은 아레나가 결정할 거야."
+    "SELECT_LEARNING_LANGUAGE": "어떤 언어로 말하시겠어요?",
+    "LISTENING": "ARENA가 듣고 있습니다.",
+    "YOUR_MOVE": "당신 차례입니다.",
+    "HINT": "내가 하는 일 · 내가 좋아하는 것 · 내가 생각하는 것 · 아무거나",
+    "THINKING": "ARENA가 생각 중 …",
+    "HEARD_ENOUGH": "충분히 들었습니다.",
+    "ENTER_BATTLE": "⚔️ 배틀 시작 →",
+    "INTRO": "저에게 말해보세요.\n\n당신이 선택해서 말하는 것으로, 당신이 누구인지 결정하겠습니다.",
+    "NOTICED": "한 가지 눈에 띄었습니다.",
+    "LETS_FIND_OUT": "확인해봅시다.",
+    "ALREADY_DONE": "당신은 이미 신전을 통과했습니다. 아레나가 당신을 기억합니다."
   },
   "BATTLE": {
-    "BEGINS": "전투 시작!",
+    "BEGINS": "배틀이 시작됩니다!",
     "MISSION": "미션",
-    "ARSENAL": "무기",
+    "ARSENAL": "무기고",
     "TIP": "팁",
-    "HOW_TO_WIN": "이기는 방법",
-    "TIME_LIMIT": "{n}분 있어.",
-    "PERSUADED": "설득도",
-    "TIME_UP": "시간 끝.",
-    "EARLY_WIN": "일찍 설득했어. 승리!",
-    "COOLDOWN": "다음 대결은 약 {hours}시간 후야."
+    "HOW_TO_WIN": "이기는 법",
+    "TIME_LIMIT": "{n}분 있습니다.",
+    "PERSUADED": "설득됨",
+    "TIME_UP": "시간이 다 됐습니다.",
+    "EARLY_WIN": "일찍 무너뜨렸습니다. 승리!",
+    "COOLDOWN": "다음 배틀은 약 {hours}시간 후입니다."
   },
   "DEBRIEF": {
-    "TITLE": "대결 분석",
+    "TITLE": "배틀 리뷰",
     "RESULT": "결과",
     "VICTORY": "승리",
     "ALMOST": "거의",
     "DEFEATED": "패배",
-    "OUTPLAYED": "완패",
-    "WHAT_WORKED": "잘한 점",
-    "WHAT_COST_YOU": "발목 잡은 점",
+    "OUTPLAYED": "완승",
+    "WHAT_WORKED": "효과가 있었던 것",
+    "WHAT_COST_YOU": "발목을 잡은 것",
     "GROWTH": "성장",
-    "STEAL_THIS": "이걸 훔쳐",
-    "ADD_TO_ARSENAL": "🎒 내 무기고에 추가",
-    "OPPONENT_ADVICE": "상대방의 조언",
-    "NEXT_TARGET": "다음 목표",
     "LANGUAGE_CHECK": "언어 점검",
+    "LANGUAGE_UPGRADE": "언어 업그레이드",
+    "YOU_SAID": "당신은 말했습니다",
+    "BETTER": "더 나은 표현",
+    "STEAL_THIS": "이걸 훔쳐라",
+    "ADD_TO_ARSENAL": "🎒 내 무기고에 추가",
+    "OPPONENT_ADVICE": "상대의 조언",
+    "NEXT_TARGET": "다음 목표",
     "WIN_COST": "승리의 대가",
-    "ARENA_NOTE": "아레나",
+    "ARENA_NOTE": "ARENA",
     "NEXT_BATTLE": "다음 배틀",
-    "NEXT_BATTLE_NOW": "지금 바로 가능",
+    "NEXT_BATTLE_NOW": "지금 가능",
     "NEXT_BATTLE_TOMORROW": "내일",
     "NEXT_BATTLE_HOURS": "{h}시간 후",
-    "NEW_TOOL": "새로운 도구 해제!"
+    "NEW_TOOL": "새 기술 해금!",
+    "THE_MOVE": "이 수",
+    "WANT_TO_GO_DEEPER": "더 깊이 들어가 볼까요?",
+    "READ_THE_BREAKDOWN": "📖 분석 읽기",
+    "TURNING_POINT": "결정적 순간",
+    "GRAMMAR_FOCUS": "문법 집중",
+    "GRAMMAR_FOR_GOAL": "문법 ·",
+    "YOU_COULD_SAY": "이렇게 말할 수 있었어요",
+    "THE_MOMENT": "결정적 순간",
+    "THE_MECHANISM": "메커니즘",
+    "THE_SHIFT": "전환",
+    "ESCAPE_ROUTE": "탈출 경로",
+    "THE_ARENA_READ": "아레나가 읽는 것",
+    "ALTERNATIVE": "대안",
+    "OPPONENT_SAID": "상대가 말했습니다"
   },
   "FT": {
-    "SELECT_LANGUAGE": "💬 자유 대화 — 어떤 언어로 연습할까?",
-    "SELECT_CHARACTER": "누구와 이야기하고 싶어?",
-    "START": "{name}와의 자유 대화. 타이머도 평가도 없어. 편하게 말해.",
-    "DONE": "대화 끝, {name}. ARENA가 기억할게.",
-    "BUSY": "먼저 진행 중인 대화를 끝내줘."
+    "SELECT_LANGUAGE": "💬 자유 대화 — 어떤 언어로 연습할까요?",
+    "SELECT_CHARACTER": "누구와 대화하시겠어요?",
+    "START": "{name}와의 자유 대화. 타이머도, 점수도 없습니다. 그냥 쓰세요.",
+    "DONE": "대화가 끝났습니다, {name}. ARENA는 기억합니다.",
+    "BUSY": "이미 대화 중입니다. 먼저 끝내주세요."
   },
   "SETTINGS": {
     "TITLE": "⚙️ 설정",
     "INTERFACE_LANGUAGE": "인터페이스 언어",
     "LEARNING_LANGUAGE": "학습 언어",
-    "CHANGE_INTERFACE": "인터페이스 언어 바꾸기",
-    "CHANGE_LEARNING": "학습 언어 바꾸기",
-    "SAVED": "저장됐어."
+    "CHANGE_INTERFACE": "인터페이스 언어 변경",
+    "CHANGE_LEARNING": "학습 언어 변경",
+    "SAVED": "저장되었습니다."
   },
   "MY_ARENA": {
     "TITLE": "나의 아레나",
@@ -81,75 +100,120 @@
     "INTERFACE_LANGUAGE": "인터페이스",
     "LEARNING_LANGUAGE": "연습 중",
     "LEVEL": "레벨",
-    "BATTLES": "대결 수",
+    "BATTLES": "배틀",
     "VICTORIES": "승리",
     "CHARACTERS": "만난 캐릭터",
-    "WHAT_ARENA_KNOWS": "ARENA가 아는 것",
+    "WHAT_ARENA_KNOWS": "ARENA가 당신에 대해 아는 것",
+    "WHAT_IVE_SEEN": "내가 보는 것",
+    "TESTING_NOW": "지금 내가 시험하는 것",
+    "CURRENT_WEAPON": "현재 무기",
     "CURRENT_CHALLENGE": "현재 도전",
-    "HOW_WE_TRAIN": "ARENA의 훈련 방식",
-    "YOUR_STRENGTH": "너의 강점",
+    "HOW_WE_TRAIN": "ARENA가 훈련시키는 방식",
+    "YOUR_STRENGTH": "당신의 강점",
     "ARSENAL_SHORTCUT": "🧰 나의 무기고",
-    "BATTLE_HISTORY": "대결 기록"
+    "BATTLE_HISTORY": "배틀 기록",
+    "COMMUNICATION": "커뮤니케이션",
+    "LANGUAGE": "언어"
   },
   "ARSENAL": {
     "TITLE": "🧰 나의 무기고",
-    "EMPTY": "무기고가 비어 있어. 한 번 이겨서 첫 무기를 훔쳐 봐.",
-    "EMPTY_ADD": "이번엔 추가할 게 없어.",
-    "SAVED": "무기고에 저장했어.",
+    "EMPTY": "무기고가 비어 있습니다. 배틀에서 이겨 첫 기술을 얻으세요.",
     "WORD": "단어",
-    "PHRASE": "표현",
-    "MOVE": "대화 기술",
+    "PHRASE": "구문",
+    "MOVE": "커뮤니케이션 기술",
     "STRATEGY": "전략",
     "WHAT_IT_DOES": "무엇을 하는가",
     "HOW_TO_USE": "사용법",
     "EXAMPLE": "예시",
-    "WHEN_TO_USE": "언제 쓸까",
-    "PROGRESS": "{total}개 중 {n}개 해제됨",
-    "LOCKED": "아직 해제되지 않음"
+    "WHEN_TO_USE": "언제 쓰는가",
+    "PROGRESS": "{total}개 중 {n}개 해금",
+    "LOCKED": "아직 해금되지 않음",
+    "MORE_TO_EARN": "또 {n}개의 기술이 당신이 보여주기를 기다리고 있습니다.",
+    "PHRASES_SECTION": "목표별 표현",
+    "CHANNEL_HINT": "이 기술들이 실제 말에서 어떻게 들리는지 — ARENA 채널에서.",
+    "CHANNEL_BUTTON": "📣 ARENA 채널"
+  },
+  "PATTERNS": {
+    "repeats_claim": "누가 말을 끊으면, 새로운 각도를 찾는 대신 같은 주장을 반복합니다.",
+    "develops_argument": "누가 말을 끊으면, 반복 대신 새로운 논거를 더합니다.",
+    "claims_without_evidence": "예시나 숫자 없이 강하게 주장합니다.",
+    "backs_claims_with_evidence": "주장을 구체적인 예시로 뒷받침합니다.",
+    "agrees_too_quickly": "압박을 받으면 너무 빨리 물러서거나 동의합니다.",
+    "holds_position": "압박 속에서도 입장을 지키거나, 영리하게 방향을 바꿉니다.",
+    "imprecise_vocabulary": "더 정확한 단어가 생각을 더 잘 전달할 자리에 일반적인 단어를 씁니다.",
+    "uses_precise_vocabulary": "생각에 맞는 정확한 단어를 고릅니다.",
+    "states_position_clearly": "자신의 입장을 명확하고 직접적으로 말합니다.",
+    "tells_vivid_stories": "생생하고 구체적인 이야기를 합니다.",
+    "adapts_argument": "상대에 맞춰 논거의 각도나 어조를 바꿉니다.",
+    "has_professional_context": "늘 자신의 직업적 맥락으로 되돌아옵니다.",
+    "states_goals": "무엇을 더 잘하고 싶은지 솔직하게 말합니다.",
+    "avoids_topic": "분명히 피하고 싶은 주제에서 벗어나거나 화제를 돌립니다."
+  },
+  "CRITERIA": {
+    "grammar": "문법",
+    "vocabulary": "어휘",
+    "fluency": "유창성",
+    "naturalness": "자연스러움",
+    "clarity": "명료성",
+    "argumentation": "논증",
+    "adaptability": "적응력",
+    "persuasion": "설득력",
+    "evidence": "근거",
+    "control": "대화 주도권"
   },
   "TOOLS": {
     "premise_flip": {
       "NAME": "전제 뒤집기",
-      "DESC": "주장 자체가 아니라 그 근거를 되묻는다.",
-      "EXAMPLE": "「애초에 왜 그래야만 하죠?」"
+      "DESC": "주장 자체와 싸우지 않고, 그 주장이 무엇에 기대고 있는지 의심합니다.",
+      "EXAMPLE": "「왜 굳이 그렇게 되어야 하죠?」"
     },
     "clarifying_question": {
       "NAME": "명확화 질문",
-      "DESC": "모호한 말을 바로 멈추게 하는 정확한 질문.",
+      "DESC": "모호한 주장을 즉시 멈추게 하는 정확한 질문.",
       "EXAMPLE": "「효율적이라는 게 정확히 무슨 뜻이죠?」"
     },
     "emotional_anchor": {
       "NAME": "감정의 닻",
-      "DESC": "휩쓸리지 않고 침착하게 감정을 짚어준다.",
-      "EXAMPLE": "「왜 답답한지 이해해요. 그래도 사실은 이래요.」"
+      "DESC": "휩쓸리지 않고 침착함을 유지하며 감정을 이름 붙입니다.",
+      "EXAMPLE": "「왜 그게 답답한지 알겠어요. 그런데 여기 사실이 있습니다.」"
     },
     "fact_check": {
       "NAME": "사실 확인",
-      "DESC": "주장을 그냥 믿지 않고 소리 내어 검증한다.",
-      "EXAMPLE": "「그 수치는 어디서 나온 거죠? 출처 있나요?」"
+      "DESC": "주장을 그대로 믿지 않고 소리 내어 확인합니다.",
+      "EXAMPLE": "「그 숫자 어디서 나온 거죠? 출처 있어요?」"
     },
     "counterexample": {
       "NAME": "반례",
-      "DESC": "일반화를 깨는 정확한 하나의 예.",
-      "EXAMPLE": "「반대의 경우도 있었잖아요?」"
+      "DESC": "그들의 일반화를 깨는 날카로운 예시 하나.",
+      "EXAMPLE": "「반대로 됐던 그때는요?」"
     },
     "steelman": {
       "NAME": "스틸맨",
-      "DESC": "상대의 주장을 상대보다 더 잘 정리한 뒤 반박한다.",
-      "EXAMPLE": "「제가 맞게 이해했다면... 그래도...」"
+      "DESC": "상대의 입장을 상대보다 더 잘 정리하고, 바로 그것에 반박합니다.",
+      "EXAMPLE": "「제가 제대로 이해했다면, 당신은 이렇게 말하는 거죠… 그런데도…」"
     },
     "short_thesis": {
-      "NAME": "짧은 테제",
-      "DESC": "3분 설명 대신 짧고 단호한 한 문장.",
-      "EXAMPLE": "「네 — 이유는 이렇습니다.」"
+      "NAME": "짧은 논제",
+      "DESC": "3분짜리 설명 대신 짧고 단호한 한 줄.",
+      "EXAMPLE": "「네 — 그리고 바로 이래서요.」"
     },
     "reframe": {
-      "NAME": "프레임 전환",
-      "DESC": "논쟁을 판단하는 기준 자체를 바꾼다.",
-      "EXAMPLE": "「누가 옳은지가 아니라, 무엇이 통하는지가 중요해요.」"
+      "NAME": "재구성",
+      "DESC": "논쟁이 평가되는 기준 자체를 바꿉니다.",
+      "EXAMPLE": "「누가 옳은지의 문제가 아니에요. 진짜로 뭐가 통하는지의 문제죠.」"
     }
   },
   "ERROR": {
-    "AI_UNAVAILABLE": "AI와의 연결이 끊겼어요. 잠시 후 다시 메시지를 보내보세요."
+    "AI_UNAVAILABLE": "AI 연결이 끊겼습니다. 잠시 후 다시 시도해주세요."
+  },
+  "RESET": {
+    "WARNING": "ARENA의 모든 데이터가 삭제됩니다: 배틀, 리뷰, 기억, 무기고, 주제.\n\n계속하시겠어요?",
+    "CONFIRM": "🗑 네, 모두 삭제",
+    "DONE": "완료. 처음부터 다시 시작할 수 있습니다 — /start."
+  },
+  "POLICY": {
+    "INTRO": "시작하기 전에 — ARENA가 당신에 대해 무엇을 저장하는지 짧게.\n\n• 신전, 배틀, 자유 대화에서의 메시지.\n• 음성 메시지는 OpenAI Whisper로 텍스트 변환되며 오디오로 저장되지 않습니다.\n• 프로필: 언어, 레벨, 관심사, 언어 패턴, 리뷰.\n• 이 모든 것은 ARENA 안에서만 사용됩니다 — 다음 대화를 더 정확하게 만들기 위해.\n\n언제든지 /reset으로 데이터를 삭제할 수 있습니다.\n\n계속하시면 이 처리에 동의하는 것으로 간주됩니다.",
+    "ACCEPT": "✅ 동의합니다",
+    "READ_MORE": "📄 전체 정책"
   }
 }

@@ -1,6 +1,5 @@
 """
-БД ARENA: пользователь, раздельные interface/learning языки, бои, 10 критериев,
-арсенал, память, пуши, немезида.
+БД ARENA.
 """
 import sqlite3
 import json
@@ -189,6 +188,63 @@ CREATE TABLE IF NOT EXISTS user_nemesis (
     created_at        TEXT NOT NULL,
     UNIQUE (telegram_id)
 );
+
+CREATE TABLE IF NOT EXISTS user_patterns (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_id         INTEGER NOT NULL,
+    pattern_id          TEXT NOT NULL,
+    category            TEXT NOT NULL,
+    kind                TEXT NOT NULL,
+    status              TEXT NOT NULL DEFAULT 'hypothesis',
+    confidence          REAL NOT NULL DEFAULT 0,
+    evidence_count      INTEGER NOT NULL DEFAULT 0,
+    improve_count       INTEGER NOT NULL DEFAULT 0,
+    supporting_examples TEXT NOT NULL DEFAULT '[]',
+    first_observed_at   TEXT NOT NULL,
+    last_observed_at    TEXT NOT NULL,
+    UNIQUE (telegram_id, pattern_id)
+);
+
+CREATE TABLE IF NOT EXISTS user_interest_clusters (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_id   INTEGER NOT NULL,
+    cluster       TEXT NOT NULL,
+    count         INTEGER NOT NULL DEFAULT 1,
+    examples      TEXT NOT NULL DEFAULT '[]',
+    first_seen_at TEXT NOT NULL,
+    last_seen_at  TEXT NOT NULL,
+    UNIQUE (telegram_id, cluster)
+);
+
+CREATE TABLE IF NOT EXISTS user_goals (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_id   INTEGER NOT NULL,
+    goal          TEXT NOT NULL,
+    created_at    TEXT NOT NULL,
+    UNIQUE (telegram_id, goal)
+);
+
+CREATE TABLE IF NOT EXISTS user_avoids (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_id   INTEGER NOT NULL,
+    topic         TEXT NOT NULL,
+    created_at    TEXT NOT NULL,
+    UNIQUE (telegram_id, topic)
+);
+
+CREATE TABLE IF NOT EXISTS notification_log (
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_id             INTEGER NOT NULL,
+    created_at              TEXT NOT NULL,
+    type                    TEXT NOT NULL,
+    text                    TEXT NOT NULL,
+    referenced_interest     TEXT,
+    referenced_pattern      TEXT,
+    referenced_battle       INTEGER,
+    referenced_arsenal_item TEXT,
+    clicked                 INTEGER NOT NULL DEFAULT 0,
+    dismissed               INTEGER NOT NULL DEFAULT 0
+);
 """
 
 
@@ -230,6 +286,8 @@ def init_db():
             ("title", "TEXT"),
             ("nemesis_defeated", "INTEGER NOT NULL DEFAULT 0"),
             ("last_push_at", "TEXT"),
+            ("professional_context", "TEXT"),
+            ("policy_accepted_at", "TEXT"),
         ]:
             _add_col("users", col, f"ALTER TABLE users ADD COLUMN {col} {ddl}")
 
@@ -247,6 +305,8 @@ def init_db():
         ]:
             _add_col("game_sessions", col, f"ALTER TABLE game_sessions ADD COLUMN {col} {ddl}")
 
+        _add_col("game_sessions", "debrief_json", "ALTER TABLE game_sessions ADD COLUMN debrief_json TEXT")
+
         _add_col("arena_analyses", "recommended_personality",
                  "ALTER TABLE arena_analyses ADD COLUMN recommended_personality TEXT")
         _add_col("arena_analyses", "pattern",
@@ -254,7 +314,6 @@ def init_db():
         _add_col("arena_analyses", "pattern_evidence",
                  "ALTER TABLE arena_analyses ADD COLUMN pattern_evidence TEXT")
 
-        # Переливаем старый users.language в learning_language, если он был
         try:
             conn.execute(
                 "UPDATE users SET learning_language = language "
@@ -263,7 +322,6 @@ def init_db():
         except sqlite3.OperationalError:
             pass
 
-        # Игравшие бой точно прошли Храм
         conn.execute("UPDATE users SET temple_done = 1 WHERE first_battle_done = 1 AND temple_done = 0")
 
 
@@ -352,12 +410,30 @@ def set_user_behaviour_title(telegram_id: int, behaviour: str, title: str):
                      (behaviour, title, _now(), telegram_id))
 
 
+def has_accepted_policy(telegram_id: int) -> bool:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT policy_accepted_at FROM users WHERE telegram_id = ?", (telegram_id,)
+        ).fetchone()
+    return bool(row and row["policy_accepted_at"])
+
+
+def accept_policy(telegram_id: int):
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE users SET policy_accepted_at = ?, updated_at = ? WHERE telegram_id = ?",
+            (_now(), _now(), telegram_id),
+        )
+
+
 def reset_user_data(telegram_id: int):
     with get_conn() as conn:
         for table in (
             "game_sessions", "achievements", "vocabulary_mistakes", "user_level_history",
             "arena_analyses", "freetalk_sessions", "user_criteria", "user_arsenal", "user_nemesis",
             "user_weapons", "user_skills", "user_topics", "user_tools",
+            "user_patterns", "user_interest_clusters", "notification_log",
+            "user_goals", "user_avoids",
         ):
             conn.execute(f"DELETE FROM {table} WHERE telegram_id = ?", (telegram_id,))
         conn.execute("DELETE FROM users WHERE telegram_id = ?", (telegram_id,))
@@ -453,8 +529,6 @@ def add_interests(telegram_id: int, new_topics: list[str], limit: int = 8):
 
 
 def bump_topics(telegram_id: int, topics: list[str]):
-    """Частотный учёт тем: каждое упоминание увеличивает счётчик. Используется,
-    чтобы отличать 'любимые' (часто всплывающие) темы от разово упомянутых."""
     fresh = [t.strip() for t in (topics or []) if isinstance(t, str) and t.strip()]
     if not fresh:
         return
@@ -471,7 +545,6 @@ def bump_topics(telegram_id: int, topics: list[str]):
 
 
 def get_favorite_topics(telegram_id: int, limit: int = 5, min_count: int = 2) -> list[str]:
-    """Темы, к которым пользователь возвращается чаще одного раза, по убыванию частоты."""
     with get_conn() as conn:
         rows = conn.execute(
             "SELECT topic FROM user_topics WHERE telegram_id = ? AND count >= ? "
@@ -545,7 +618,9 @@ def get_user_stats(telegram_id: int) -> dict:
     with get_conn() as conn:
         user = conn.execute("SELECT * FROM users WHERE telegram_id = ?", (telegram_id,)).fetchone()
         sessions = conn.execute(
-            "SELECT * FROM game_sessions WHERE telegram_id = ? ORDER BY id DESC", (telegram_id,)
+            "SELECT id, personality, language, level, topic, mission, won, overall, "
+            "result_state, created_at, debrief_json "
+            "FROM game_sessions WHERE telegram_id = ? ORDER BY id DESC", (telegram_id,)
         ).fetchall()
         achievements = conn.execute(
             "SELECT badge_key FROM achievements WHERE telegram_id = ?", (telegram_id,)
@@ -565,9 +640,9 @@ def get_user_stats(telegram_id: int) -> dict:
         "avg_score": avg_score,
         "achievements": [a["badge_key"] for a in achievements],
         "last_sessions": sessions[:10],
-        "latest_strength": latest["strength"] if latest else "",
-        "latest_growth": latest["growth"] if latest else "",
-        "latest_growth_plan": latest["growth_plan"] if latest else "",
+        "latest_strength": latest["mission"] if latest else "",
+        "latest_growth": latest["mission"] if latest else "",
+        "latest_growth_plan": "",
         "behaviour": user["behaviour"] if user else "",
         "title": user["title"] if user else "",
         "nemesis_defeated": user["nemesis_defeated"] if user else 0,
@@ -619,7 +694,6 @@ def cooldown_hours_left(telegram_id: int) -> float:
 
 
 def get_recent_battle_topics(telegram_id: int, n: int = 3) -> list[str]:
-    """Последние N тем боёв — чтобы daily_battle не выдавал ту же тему подряд."""
     with get_conn() as conn:
         rows = conn.execute(
             "SELECT topic FROM game_sessions WHERE telegram_id = ? AND topic != '' "
@@ -669,7 +743,7 @@ def save_freetalk_session(telegram_id: int, personality: str, language: str,
         )
 
 
-# ---------- Criteria (10 критериев) ----------
+# ---------- Criteria ----------
 
 def update_criteria(telegram_id: int, scores: dict, weight: float = 0.4):
     with get_conn() as conn:
@@ -763,7 +837,7 @@ def get_current_level(telegram_id: int) -> str | None:
     return row["level"] if row else None
 
 
-# ---------- Arena analysis (разбор Храма) ----------
+# ---------- Arena analysis ----------
 
 def save_arena_analysis(telegram_id: int, analysis: dict):
     with get_conn() as conn:
@@ -823,11 +897,9 @@ def get_latest_arena_analysis(telegram_id: int) -> dict | None:
     }
 
 
-# ---------- Skill progress ("Кто что тренирует" в профиле) ----------
+# ---------- Skill progress ----------
 
 def add_skill_progress(telegram_id: int, skill: str, delta: int, battles: int = 1):
-    """Копит XP по коммуникационному скиллу. Раньше эта функция отсутствовала —
-    её вызов ронял _do_finish ДО отправки дебрифа (AttributeError)."""
     if not skill:
         return
     delta = max(0, int(delta))
@@ -858,14 +930,9 @@ def get_all_skills(telegram_id: int) -> dict:
     return {r["skill"]: {"points": r["points"], "rank": r["rank"], "battles": r["battles"]} for r in rows}
 
 
-# ---------- Инструменты арсенала (фиксированный набор из 8, см. game_data.ARSENAL_TOOLS) ----------
-#
-# В отличие от старого свободного "оружия", это закрытый список: разблокируется, когда
-# ИИ реально распознал приём в диалоге боя. Идемпотентно — повторная разблокировка того
-# же приёма просто возвращает False (уже был), а не дублирует запись.
+# ---------- Arsenal tools ----------
 
 def unlock_tool(telegram_id: int, tool_key: str) -> bool:
-    """True, если это НОВАЯ разблокировка (приёма ещё не было в арсенале)."""
     if not tool_key:
         return False
     with get_conn() as conn:
@@ -887,14 +954,18 @@ def get_unlocked_tools(telegram_id: int) -> set[str]:
     return {r["tool_key"] for r in rows}
 
 
-# ---------- Оружие ("Мой арсенал") ----------
-#
-# ОДНО оружие за бой, привязанное к тому, что реально произошло, а не выданное
-# просто за победу. Если у пользователя уже есть оружие в этой skill_area —
-# новое должно быть следующим tier (усложнённая версия), а не дублем.
+def get_last_unlocked_tool(telegram_id: int) -> str | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT tool_key FROM user_tools WHERE telegram_id = ? "
+            "ORDER BY unlocked_at DESC LIMIT 1", (telegram_id,)
+        ).fetchone()
+    return row["tool_key"] if row else None
+
+
+# ---------- Weapons ----------
 
 def get_weapon_tier(telegram_id: int, skill_area: str) -> int:
-    """Максимальный tier уже освоенного оружия в этой области (0, если ещё нет)."""
     with get_conn() as conn:
         row = conn.execute(
             "SELECT MAX(tier) AS t FROM user_weapons WHERE telegram_id = ? AND skill_area = ?",
@@ -940,7 +1011,6 @@ def get_weapons(telegram_id: int, limit: int = 50) -> list[dict]:
 
 
 def get_weapon_tiers(telegram_id: int) -> dict:
-    """{skill_area: max_tier} — чтобы промпту было видно, что уже освоено."""
     with get_conn() as conn:
         rows = conn.execute(
             "SELECT skill_area, MAX(tier) AS t FROM user_weapons WHERE telegram_id = ? GROUP BY skill_area",
@@ -949,10 +1019,9 @@ def get_weapon_tiers(telegram_id: int) -> dict:
     return {r["skill_area"]: r["t"] for r in rows}
 
 
-# ---------- Arsenal (устаревшее хранилище steal-фраз, оставлено для совместимости) ----------
+# ---------- Arsenal (user_arsenal, в т.ч. грамматические фразы) ----------
 
 def add_arsenal_item(telegram_id: int, kind: str, content: str, source: str = "") -> bool:
-    """kind: word | phrase | move | strategy."""
     content = (content or "").strip()
     if not content:
         return False
@@ -978,6 +1047,51 @@ def get_arsenal(telegram_id: int, kind: str | None = None) -> list[dict]:
     with get_conn() as conn:
         rows = conn.execute(query, params).fetchall()
     return [{"kind": r["kind"], "content": r["content"], "source": r["source"] or ""} for r in rows]
+
+
+def add_grammar_phrases(telegram_id: int, goal: str, phrases: list[str]) -> int:
+    """Складывает готовые фразы под коммуникационную цель в user_arsenal.
+    Возвращает количество новых записей (уже существующие не дублируются)."""
+    if not phrases or not goal:
+        return 0
+    added = 0
+    with get_conn() as conn:
+        for p in phrases:
+            p = (p or "").strip()
+            if not p:
+                continue
+            try:
+                conn.execute(
+                    "INSERT INTO user_arsenal (telegram_id, kind, content, source, created_at) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (telegram_id, f"grammar:{goal}", p[:300], "battle_debrief", _now()),
+                )
+                added += 1
+            except sqlite3.IntegrityError:
+                pass
+    return added
+
+
+def get_grammar_phrases(telegram_id: int, goal: str | None = None, limit: int = 40) -> list[dict]:
+    """Возвращает фразы из арсенала, у которых kind начинается с 'grammar:'."""
+    with get_conn() as conn:
+        if goal:
+            rows = conn.execute(
+                "SELECT kind, content, source, created_at FROM user_arsenal "
+                "WHERE telegram_id = ? AND kind = ? ORDER BY id DESC LIMIT ?",
+                (telegram_id, f"grammar:{goal}", limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT kind, content, source, created_at FROM user_arsenal "
+                "WHERE telegram_id = ? AND kind LIKE 'grammar:%' ORDER BY id DESC LIMIT ?",
+                (telegram_id, limit),
+            ).fetchall()
+    return [
+        {"goal": r["kind"].replace("grammar:", ""), "phrase": r["content"],
+         "source": r["source"] or "", "created_at": r["created_at"]}
+        for r in rows
+    ]
 
 
 # ---------- Nemesis ----------
@@ -1028,3 +1142,265 @@ def mark_nemesis_fought(telegram_id: int, defeated: bool = False):
                 "UPDATE users SET nemesis_defeated = nemesis_defeated + 1 WHERE telegram_id = ?",
                 (telegram_id,),
             )
+
+
+# ==================================================================
+# PERSONALIZATION MEMORY
+# ==================================================================
+
+DEBRIEF_KEYS = ("result_line", "worked", "win_move", "cost", "growth", "tool_used",
+                "next_target", "language_upgrade", "result_state", "deeper_content",
+                "the_mechanism", "the_moment", "the_shift", "escape_route",
+                "arena_read", "grammar_for_goal")
+
+
+def save_session_debrief(session_id: int | None, fb: dict):
+    if not session_id or not fb:
+        return
+    slim = {k: fb.get(k) for k in DEBRIEF_KEYS if fb.get(k)}
+    with get_conn() as conn:
+        conn.execute("UPDATE game_sessions SET debrief_json = ? WHERE id = ?",
+                     (json.dumps(slim, ensure_ascii=False), session_id))
+
+
+def get_last_session(telegram_id: int) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, personality, topic, mission, result_state, won, created_at, debrief_json "
+            "FROM game_sessions WHERE telegram_id = ? ORDER BY id DESC LIMIT 1", (telegram_id,)
+        ).fetchone()
+    if not row:
+        return None
+    try:
+        debrief = json.loads(row["debrief_json"]) if row["debrief_json"] else {}
+    except ValueError:
+        debrief = {}
+    return {
+        "id": row["id"], "personality": row["personality"], "topic": row["topic"] or "",
+        "mission": row["mission"] or "", "result_state": row["result_state"] or "",
+        "won": bool(row["won"]), "created_at": row["created_at"], "debrief": debrief,
+    }
+
+
+def get_last_freetalk(telegram_id: int) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT topic, created_at FROM freetalk_sessions WHERE telegram_id = ? AND topic != '' "
+            "ORDER BY id DESC LIMIT 1", (telegram_id,)
+        ).fetchone()
+    return {"topic": row["topic"], "created_at": row["created_at"]} if row else None
+
+
+def record_interest_clusters(telegram_id: int, items: list[dict]):
+    merged: dict[str, list[str]] = {}
+    for it in items or []:
+        c = (it.get("cluster") or "").strip()
+        if not c:
+            continue
+        merged.setdefault(c, [])
+        ex = (it.get("example") or "").strip()
+        if ex and ex.lower() not in [e.lower() for e in merged[c]]:
+            merged[c].append(ex)
+    if not merged:
+        return
+    now = _now()
+    with get_conn() as conn:
+        for cluster, examples in merged.items():
+            row = conn.execute(
+                "SELECT count, examples FROM user_interest_clusters WHERE telegram_id = ? AND cluster = ?",
+                (telegram_id, cluster)).fetchone()
+            if row:
+                try:
+                    old = json.loads(row["examples"] or "[]")
+                except ValueError:
+                    old = []
+                seen = {e.lower() for e in old}
+                allx = (old + [e for e in examples if e.lower() not in seen])[-5:]
+                conn.execute(
+                    "UPDATE user_interest_clusters SET count = count + 1, examples = ?, last_seen_at = ? "
+                    "WHERE telegram_id = ? AND cluster = ?",
+                    (json.dumps(allx, ensure_ascii=False), now, telegram_id, cluster))
+            else:
+                conn.execute(
+                    "INSERT INTO user_interest_clusters (telegram_id, cluster, count, examples, "
+                    "first_seen_at, last_seen_at) VALUES (?, ?, 1, ?, ?, ?)",
+                    (telegram_id, cluster, json.dumps(examples[-5:], ensure_ascii=False), now, now))
+
+
+def get_interest_clusters(telegram_id: int, limit: int = 6) -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT cluster, count, examples, last_seen_at FROM user_interest_clusters "
+            "WHERE telegram_id = ? ORDER BY last_seen_at DESC, count DESC LIMIT ?",
+            (telegram_id, limit)).fetchall()
+    out = []
+    for r in rows:
+        try:
+            ex = json.loads(r["examples"] or "[]")
+        except ValueError:
+            ex = []
+        out.append({"cluster": r["cluster"], "count": r["count"], "examples": ex,
+                    "last_seen_at": r["last_seen_at"]})
+    return out
+
+
+def _status_for_count(n: int) -> str:
+    return "hypothesis" if n <= 1 else ("emerging" if n == 2 else "confirmed")
+
+
+def observe_pattern(telegram_id: int, pattern_id: str, category: str, kind: str,
+                    example: str = "", counter_of: str | None = None) -> str:
+    now = _now()
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM user_patterns WHERE telegram_id = ? AND pattern_id = ?",
+                           (telegram_id, pattern_id)).fetchone()
+        if row:
+            count = row["evidence_count"] + 1
+            try:
+                examples = json.loads(row["supporting_examples"] or "[]")
+            except ValueError:
+                examples = []
+            if example and example not in examples:
+                examples = (examples + [example])[-3:]
+            status, improve = row["status"], row["improve_count"]
+            if status in ("improving", "resolved") and kind == "growth":
+                status, improve = ("confirmed" if count >= 3 else _status_for_count(count)), 0
+            elif status not in ("improving", "resolved"):
+                status = _status_for_count(count)
+            conn.execute(
+                "UPDATE user_patterns SET evidence_count = ?, status = ?, improve_count = ?, confidence = ?, "
+                "supporting_examples = ?, last_observed_at = ? WHERE id = ?",
+                (count, status, improve, round(min(1.0, count / 4), 2),
+                 json.dumps(examples, ensure_ascii=False), now, row["id"]))
+        else:
+            status = "hypothesis"
+            conn.execute(
+                "INSERT INTO user_patterns (telegram_id, pattern_id, category, kind, status, confidence, "
+                "evidence_count, improve_count, supporting_examples, first_observed_at, last_observed_at) "
+                "VALUES (?, ?, ?, ?, 'hypothesis', 0.25, 1, 0, ?, ?, ?)",
+                (telegram_id, pattern_id, category, kind,
+                 json.dumps([example] if example else [], ensure_ascii=False), now, now))
+
+        if counter_of:
+            g = conn.execute("SELECT id, status, improve_count FROM user_patterns "
+                             "WHERE telegram_id = ? AND pattern_id = ?", (telegram_id, counter_of)).fetchone()
+            if g and g["status"] in ("confirmed", "improving"):
+                imp = g["improve_count"] + 1
+                conn.execute("UPDATE user_patterns SET improve_count = ?, status = ? WHERE id = ?",
+                             (imp, "resolved" if imp >= 3 else "improving", g["id"]))
+    return status
+
+
+def get_patterns(telegram_id: int, statuses: tuple | None = None) -> list[dict]:
+    sql = "SELECT * FROM user_patterns WHERE telegram_id = ?"
+    args: list = [telegram_id]
+    if statuses:
+        sql += f" AND status IN ({','.join('?' * len(statuses))})"
+        args += list(statuses)
+    sql += " ORDER BY evidence_count DESC, last_observed_at DESC"
+    with get_conn() as conn:
+        rows = conn.execute(sql, args).fetchall()
+    out = []
+    for r in rows:
+        try:
+            ex = json.loads(r["supporting_examples"] or "[]")
+        except ValueError:
+            ex = []
+        out.append({
+            "pattern_id": r["pattern_id"], "category": r["category"], "kind": r["kind"],
+            "status": r["status"], "confidence": r["confidence"], "evidence_count": r["evidence_count"],
+            "supporting_examples": ex, "first_observed_at": r["first_observed_at"],
+            "last_observed_at": r["last_observed_at"],
+        })
+    return out
+
+
+# ---------- Notification history ----------
+
+def mark_previous_unclicked_dismissed(telegram_id: int):
+    with get_conn() as conn:
+        conn.execute("UPDATE notification_log SET dismissed = 1 WHERE telegram_id = ? AND clicked = 0",
+                     (telegram_id,))
+
+
+def log_notification(telegram_id: int, ntype: str, text: str, interest: str | None = None,
+                     pattern: str | None = None, battle: int | None = None,
+                     arsenal_item: str | None = None) -> int:
+    with get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO notification_log (telegram_id, created_at, type, text, referenced_interest, "
+            "referenced_pattern, referenced_battle, referenced_arsenal_item) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (telegram_id, _now(), ntype, text, interest, pattern, battle, arsenal_item))
+        return cur.lastrowid
+
+
+def get_recent_notifications(telegram_id: int, n: int = 7) -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM notification_log WHERE telegram_id = ? ORDER BY id DESC LIMIT ?",
+            (telegram_id, n)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def mark_notification_clicked(notification_id: int, telegram_id: int):
+    with get_conn() as conn:
+        conn.execute("UPDATE notification_log SET clicked = 1, dismissed = 0 WHERE id = ? AND telegram_id = ?",
+                     (notification_id, telegram_id))
+
+
+# ---------- Goals / professional context / avoids ----------
+
+def set_professional_context(telegram_id: int, context: str):
+    context = (context or "").strip()
+    if not context:
+        return
+    with get_conn() as conn:
+        conn.execute("UPDATE users SET professional_context = ?, updated_at = ? WHERE telegram_id = ?",
+                     (context[:120], _now(), telegram_id))
+
+
+def get_professional_context(telegram_id: int) -> str:
+    with get_conn() as conn:
+        row = conn.execute("SELECT professional_context FROM users WHERE telegram_id = ?",
+                           (telegram_id,)).fetchone()
+    return (row["professional_context"] if row and row["professional_context"] else "")
+
+
+def add_goal(telegram_id: int, goal: str):
+    goal = (goal or "").strip()
+    if not goal:
+        return
+    with get_conn() as conn:
+        try:
+            conn.execute("INSERT INTO user_goals (telegram_id, goal, created_at) VALUES (?, ?, ?)",
+                         (telegram_id, goal[:120], _now()))
+        except sqlite3.IntegrityError:
+            pass
+
+
+def get_goals(telegram_id: int, limit: int = 5) -> list[str]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT goal FROM user_goals WHERE telegram_id = ? ORDER BY id DESC LIMIT ?",
+            (telegram_id, limit)).fetchall()
+    return [r["goal"] for r in rows]
+
+
+def add_avoids(telegram_id: int, topic: str):
+    topic = (topic or "").strip()
+    if not topic:
+        return
+    with get_conn() as conn:
+        try:
+            conn.execute("INSERT INTO user_avoids (telegram_id, topic, created_at) VALUES (?, ?, ?)",
+                         (telegram_id, topic[:80], _now()))
+        except sqlite3.IntegrityError:
+            pass
+
+
+def get_avoids(telegram_id: int, limit: int = 3) -> list[str]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT topic FROM user_avoids WHERE telegram_id = ? ORDER BY id DESC LIMIT ?",
+            (telegram_id, limit)).fetchall()
+    return [r["topic"] for r in rows]

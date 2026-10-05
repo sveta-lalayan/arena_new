@@ -6,20 +6,25 @@
     "MY_ARSENAL": "🧰 MY ARSENAL",
     "SETTINGS": "⚙️ SETTINGS",
     "ENTER_ARENA": "🏛 ENTER ARENA",
-    "BACK": "🔙 Back to menu"
+    "BACK": "🔙 Back to menu",
+    "NO_ACTIVE": "There's no active conversation. Open the menu."
   },
   "START": {
     "WELCOME_FIRST": "👋 {name}\nWelcome to ARENA.\n\n🏛 ENTER ARENA\nLet ARENA listen and decide who you meet.",
-    "WELCOME_BACK": "👋 {name}\nThe Arena is watching. One battle per day. Free talk — any time."
+    "WELCOME_BACK": "👋 {name}\nThe Arena is watching. One battle per day. Free talk — anytime."
   },
   "TEMPLE": {
-    "SELECT_LEARNING_LANGUAGE": "Which language will you speak?",
+    "SELECT_LEARNING_LANGUAGE": "Which language are you speaking?",
     "LISTENING": "ARENA IS LISTENING.",
     "YOUR_MOVE": "Your move.",
     "HINT": "what I do · what I love · what I think · anything",
-    "THINKING": "ARENA is thinking…",
+    "THINKING": "ARENA is thinking …",
     "HEARD_ENOUGH": "I'VE HEARD ENOUGH.",
-    "ENTER_BATTLE": "⚔️ ENTER BATTLE →"
+    "ENTER_BATTLE": "⚔️ ENTER BATTLE →",
+    "INTRO": "Talk to me.\n\nI'll decide who you are from what you choose to say.",
+    "NOTICED": "I noticed something.",
+    "LETS_FIND_OUT": "Let's find out.",
+    "ALREADY_DONE": "You've already been through the Temple. The Arena remembers you."
   },
   "BATTLE": {
     "BEGINS": "THE BATTLE BEGINS!",
@@ -30,7 +35,7 @@
     "TIME_LIMIT": "You have {n} min.",
     "PERSUADED": "Persuaded",
     "TIME_UP": "Time's up.",
-    "EARLY_WIN": "You broke them early. Victory!",
+    "EARLY_WIN": "You cracked him early. Victory!",
     "COOLDOWN": "Next battle in about {hours} h."
   },
   "DEBRIEF": {
@@ -44,23 +49,41 @@
     "WHAT_COST_YOU": "WHAT COST YOU",
     "GROWTH": "GROWTH",
     "LANGUAGE_CHECK": "LANGUAGE CHECK",
+    "LANGUAGE_UPGRADE": "LANGUAGE UPGRADE",
+    "YOU_SAID": "You said",
+    "BETTER": "Better",
     "STEAL_THIS": "STEAL THIS",
     "ADD_TO_ARSENAL": "🎒 ADD TO MY ARSENAL",
-    "OPPONENT_ADVICE": "OPPONENT'S ADVICE",
+    "OPPONENT_ADVICE": "OPPONENT ADVICE",
     "NEXT_TARGET": "NEXT TARGET",
-    "WIN_COST": "WHAT THE WIN COST YOU",
+    "WIN_COST": "WHAT THE WIN COST",
     "ARENA_NOTE": "ARENA",
     "NEXT_BATTLE": "Next battle",
-    "NEXT_BATTLE_NOW": "available right now",
+    "NEXT_BATTLE_NOW": "available now",
     "NEXT_BATTLE_TOMORROW": "tomorrow",
     "NEXT_BATTLE_HOURS": "in {h} h",
-    "NEW_TOOL": "NEW TOOL UNLOCKED!"
+    "NEW_TOOL": "NEW TOOL UNLOCKED!",
+    "THE_MOVE": "THE MOVE",
+    "WANT_TO_GO_DEEPER": "WANT TO GO DEEPER?",
+    "READ_THE_BREAKDOWN": "📖 Read the breakdown",
+    "TURNING_POINT": "THE TURNING POINT",
+    "GRAMMAR_FOCUS": "GRAMMAR FOCUS",
+    "GRAMMAR_FOR_GOAL": "GRAMMAR FOR",
+    "YOU_COULD_SAY": "You could have said",
+    "THE_MOMENT": "THE MOMENT THAT MATTERED",
+    "THE_MECHANISM": "THE MECHANISM",
+    "THE_SHIFT": "THE SHIFT",
+    "ESCAPE_ROUTE": "ESCAPE ROUTE",
+    "THE_ARENA_READ": "THE ARENA READ",
+    "ALTERNATIVE": "An alternative",
+    "OPPONENT_SAID": "The opponent said"
   },
   "FT": {
-    "SELECT_LANGUAGE": "💬 Free Talk — which language will you practise?",
+    "SELECT_LANGUAGE": "💬 Free talk — which language are we practising?",
     "SELECT_CHARACTER": "Who do you want to talk to?",
-    "START": "Free talk with {name}. No timer, no score. Type anything.",
-    "DONE": "Conversation over, {name}. ARENA remembers."
+    "START": "Free talk with {name}. No timer, no grading. Just write.",
+    "DONE": "Conversation ended, {name}. ARENA remembers.",
+    "BUSY": "You're already in a conversation. Finish it first."
   },
   "SETTINGS": {
     "TITLE": "⚙️ SETTINGS",
@@ -80,70 +103,117 @@
     "BATTLES": "Battles",
     "VICTORIES": "Victories",
     "CHARACTERS": "Characters met",
-    "WHAT_ARENA_KNOWS": "WHAT ARENA KNOWS",
+    "WHAT_ARENA_KNOWS": "WHAT ARENA KNOWS ABOUT YOU",
+    "WHAT_IVE_SEEN": "WHAT I'VE SEEN",
+    "TESTING_NOW": "WHAT I'M TESTING NOW",
+    "CURRENT_WEAPON": "CURRENT WEAPON",
     "CURRENT_CHALLENGE": "CURRENT CHALLENGE",
-    "HOW_WE_TRAIN": "HOW ARENA IS TRAINING IT",
+    "HOW_WE_TRAIN": "HOW ARENA TRAINS IT",
     "YOUR_STRENGTH": "YOUR STRENGTH",
     "ARSENAL_SHORTCUT": "🧰 My Arsenal",
-    "BATTLE_HISTORY": "BATTLE HISTORY"
+    "BATTLE_HISTORY": "BATTLE HISTORY",
+    "COMMUNICATION": "COMMUNICATION",
+    "LANGUAGE": "LANGUAGE"
   },
   "ARSENAL": {
     "TITLE": "🧰 MY ARSENAL",
-    "EMPTY": "Your arsenal is empty. Win a battle to steal your first weapon.",
+    "EMPTY": "Your arsenal is empty. Win a battle to earn your first move.",
     "WORD": "Word",
     "PHRASE": "Phrase",
     "MOVE": "Communication move",
     "STRATEGY": "Strategy",
     "WHAT_IT_DOES": "What it does",
-    "HOW_TO_USE": "How to use",
+    "HOW_TO_USE": "How to use it",
     "EXAMPLE": "Example",
     "WHEN_TO_USE": "When to use",
     "PROGRESS": "{n} of {total} unlocked",
-    "LOCKED": "not yet unlocked"
+    "LOCKED": "not unlocked yet",
+    "MORE_TO_EARN": "{n} more moves are waiting for you to reveal them.",
+    "PHRASES_SECTION": "PHRASES FOR YOUR GOALS",
+    "CHANNEL_HINT": "See how these moves sound in real speech — on the ARENA channel.",
+    "CHANNEL_BUTTON": "📣 ARENA channel"
+  },
+  "PATTERNS": {
+    "repeats_claim": "When someone interrupts you, you repeat the same point instead of finding a new angle.",
+    "develops_argument": "When someone interrupts you, you add a new argument instead of repeating.",
+    "claims_without_evidence": "You make strong claims without an example or a number.",
+    "backs_claims_with_evidence": "You back up your claims with a concrete example.",
+    "agrees_too_quickly": "You give in or agree too quickly when pushed.",
+    "holds_position": "You hold your position, or cleverly redirect it, under pressure.",
+    "imprecise_vocabulary": "You reach for general words where a precise one would carry the idea better.",
+    "uses_precise_vocabulary": "You choose precise words that fit the idea.",
+    "states_position_clearly": "You state your position clearly and directly.",
+    "tells_vivid_stories": "You tell vivid, concrete stories.",
+    "adapts_argument": "You change the angle or tone of your argument to fit the other person.",
+    "has_professional_context": "You keep referring to a clear professional context.",
+    "states_goals": "You openly say what you want to get better at.",
+    "avoids_topic": "You step away from or redirect a topic you clearly don't want to discuss."
+  },
+  "CRITERIA": {
+    "grammar": "Grammar",
+    "vocabulary": "Vocabulary",
+    "fluency": "Fluency",
+    "naturalness": "Naturalness",
+    "clarity": "Clarity",
+    "argumentation": "Argumentation",
+    "adaptability": "Adaptability",
+    "persuasion": "Persuasion",
+    "evidence": "Evidence",
+    "control": "Conversation control"
   },
   "TOOLS": {
     "premise_flip": {
       "NAME": "Premise Flip",
-      "DESC": "You don't argue the claim — you challenge what it's standing on.",
-      "EXAMPLE": "\"Why does it even have to work that way?\""
+      "DESC": "You don't argue the claim — you question what it rests on.",
+      "EXAMPLE": "\"Why does it have to work that way at all?\""
     },
     "clarifying_question": {
       "NAME": "Clarifying Question",
-      "DESC": "A precise question that stops vague talk in its tracks.",
-      "EXAMPLE": "\"What exactly do you mean by 'efficient'?\""
+      "DESC": "A precise question that stops vague statements dead.",
+      "EXAMPLE": "\"What exactly do you mean by efficient?\""
     },
     "emotional_anchor": {
       "NAME": "Emotional Anchor",
-      "DESC": "You stay steady and name the emotion instead of getting swept up in it.",
-      "EXAMPLE": "\"I get why that's frustrating. Here's what the facts say.\""
+      "DESC": "You stay calm and name the emotion instead of getting swept up in it.",
+      "EXAMPLE": "\"I get why that's frustrating. Here are the facts.\""
     },
     "fact_check": {
       "NAME": "Fact Check",
-      "DESC": "You don't take a claim on faith — you check it out loud.",
-      "EXAMPLE": "\"Where's that number from? Got a source?\""
+      "DESC": "You don't take a claim at face value — you check it out loud.",
+      "EXAMPLE": "\"Where does that number come from? Do you have a source?\""
     },
     "counterexample": {
       "NAME": "Counterexample",
       "DESC": "One sharp example that breaks their generalization.",
-      "EXAMPLE": "\"What about the time it went the other way?\""
+      "EXAMPLE": "\"And what about the time it went the other way?\""
     },
     "steelman": {
       "NAME": "Steelman",
-      "DESC": "You state their position better than they did — then take that version down.",
-      "EXAMPLE": "\"If I'm getting this right, you mean... And yet...\""
+      "DESC": "You state your opponent's position better than they did — then counter exactly that.",
+      "EXAMPLE": "\"If I understand you right, you're saying… And still…\""
     },
     "short_thesis": {
       "NAME": "Short Thesis",
-      "DESC": "One short, decisive line instead of three minutes of explaining.",
+      "DESC": "One short, decisive line instead of a three-minute explanation.",
       "EXAMPLE": "\"Yes — and here's why.\""
     },
     "reframe": {
       "NAME": "Reframe",
-      "DESC": "You change the terms the argument is judged by.",
+      "DESC": "You change the criteria the debate is being judged by.",
       "EXAMPLE": "\"It's not about who's right. It's about what actually works.\""
     }
   },
   "ERROR": {
-    "AI_UNAVAILABLE": "Lost connection to the AI. Try sending your message again in a minute."
+    "AI_UNAVAILABLE": "Lost the connection to the AI. Try again in a minute."
+  },
+  "RESET": {
+    "WARNING": "This will delete all your data in ARENA: battles, debriefs, memory, arsenal, topics.\n\nContinue?",
+    "CONFIRM": "🗑 Yes, delete everything",
+    "DONE": "Done. You can start over — /start."
+  },
+  "POLICY": {
+    "INTRO": "Before we start — a short note on what ARENA stores about you.\n\n• Your messages in Temple, Battle and Free Talk.\n• Voice messages — converted to text via OpenAI Whisper and NOT kept as audio.\n• Profile: language, level, interests, speech patterns, debriefs.\n• All of this is used only inside ARENA — to make the next conversation sharper.\n\nYou can clear your data at any time with /reset.\n\nBy continuing, you agree to this processing.",
+    "ACCEPT": "✅ I accept",
+    "READ_MORE": "📄 Full policy"
   }
 }
