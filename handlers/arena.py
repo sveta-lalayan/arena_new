@@ -1,5 +1,14 @@
 """
 handlers/arena.py — бой, дебрифинг, свободный разговор, арсенал.
+
+Принципы:
+  • Бой — детерминированный. Таймер и старт/стоп — в bot.py.
+  • В бою НЕТ обратной связи.
+  • Debrief — расследование одного разговора.
+    Форма (single_insight / focused / full) выбирается LLM.
+    Дополнительно LLM возвращает arena_file_update (Living My Arena) и grammar_used
+    (использование grammar-фразы из арсенала).
+  • Free Talk — отдельный режим.
 """
 import asyncio
 import logging
@@ -366,17 +375,42 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
         previous_criteria, unlocked_tools = {}, set()
 
     try:
+        unsolved_now = [q["question"] for q in db.get_unsolved(user_id, limit=5)]
+    except Exception:
+        unsolved_now = []
+
+    try:
+        grammar_phrases_now = [p["phrase"] for p in db.get_grammar_phrases(user_id, limit=40)]
+    except Exception:
+        grammar_phrases_now = []
+
+    try:
         fb = await asyncio.to_thread(
             ai.generate_battle_debrief, first_name, language, level, personality,
             topic, mission, won, win_score, conviction, criteria, dialogue,
             ud.get("arena_analysis", {}).get("pattern", ""),
             previous_criteria, unlocked_tools,
+            unsolved_now, grammar_phrases_now,
         )
     except Exception:
         logger.exception("generate_battle_debrief упал — используем безопасный фолбэк")
         fb = {}
     if not fb:
-        fb = {"result_state": "VICTORY" if won else "DEFEATED"}
+        fb = {"result_state": "VICTORY" if won else "DEFEATED", "debrief_shape": "full"}
+
+    afu = fb.get("arena_file_update")
+    if isinstance(afu, dict):
+        try:
+            if afu.get("current_read") and afu.get("current_read_changed"):
+                db.set_current_read(user_id, afu["current_read"])
+            if afu.get("under_pressure"):
+                db.set_under_pressure(user_id, afu["under_pressure"])
+            for q in afu.get("unsolved_add") or []:
+                db.add_unsolved(user_id, q)
+            for q in afu.get("unsolved_resolve") or []:
+                db.resolve_unsolved(user_id, q)
+        except Exception:
+            logger.exception("arena_file_update не применён")
 
     mistakes = fb.get("mistakes", [])
     if mistakes:
@@ -438,15 +472,26 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
     except Exception:
         logger.exception("achievements/nemesis упали")
 
+    # Приём применён в этом бою — увеличиваем счётчик и, если это НОВЫЙ приём, разблокируем.
     newly_unlocked_tool = None
     try:
         tool_key = fb.get("tool_used")
-        if tool_key and db.unlock_tool(user_id, tool_key):
-            newly_unlocked_tool = tool_key
+        if tool_key:
+            # unlock_tool вернёт True только если это первое появление приёма
+            if db.unlock_tool(user_id, tool_key):
+                newly_unlocked_tool = tool_key
+            db.record_tool_use(user_id, tool_key, won=won, source=f"battle")
     except Exception:
-        logger.exception("unlock_tool упал")
+        logger.exception("tool_used / record_tool_use упали")
 
-    # Сохраняем грамматические фразы под цель в арсенал
+    # Grammar-фраза использована в бою — увеличиваем счётчик usage.
+    try:
+        gu = fb.get("grammar_used")
+        if gu:
+            db.record_phrase_use(user_id, gu, won=won)
+    except Exception:
+        logger.exception("record_phrase_use упал")
+
     try:
         gfg = fb.get("grammar_for_goal")
         if isinstance(gfg, dict) and gfg.get("phrases") and gfg.get("goal"):
@@ -480,9 +525,25 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
 
 def _format_debrief(il: str, fb: dict, result: dict, person: dict, mistakes: list,
                     next_battle_text: str = "", newly_unlocked_tool: str | None = None) -> str:
+    shape = (fb.get("debrief_shape") or "full").strip().lower()
+
+    if shape == "single_insight":
+        insight = fb.get("single_insight") or fb.get("notification_line") or fb.get("result_line") or ""
+        headline = fb.get("headline") or i18n.t(il, "DEBRIEF.ARENA_NOTICED")
+        lines = [f"🏟 <b>{esc(headline)}</b>", ""]
+        if insight:
+            lines.append(f"<i>{esc(insight)}</i>")
+        lines.append(f"\n— {esc(person['short_name'])}")
+        if newly_unlocked_tool:
+            emoji = ARSENAL_TOOL_EMOJI.get(newly_unlocked_tool, "⚔️")
+            name = i18n.t(il, f"TOOLS.{newly_unlocked_tool}.NAME")
+            lines.append(f"\n{emoji} <b>{esc(name)}</b>")
+        if next_battle_text:
+            lines.append(f"\n⚔️ <b>{esc(i18n.t(il, 'DEBRIEF.NEXT_BATTLE'))}:</b> {esc(next_battle_text)}")
+        return "\n".join(lines)
+
     lines = [f"🏟 <b>{esc(i18n.t(il, 'DEBRIEF.TITLE'))}</b>"]
 
-    # --- RESULT ---
     state_label = fb.get("result_state_label")
     if not state_label:
         state = fb.get("result_state") or ("VICTORY" if result["won"] else "DEFEATED")
@@ -492,7 +553,6 @@ def _format_debrief(il: str, fb: dict, result: dict, person: dict, mistakes: lis
     if fb.get("result_line"):
         lines.append(esc(fb["result_line"]))
 
-    # --- THE MOMENT ---
     mq = fb.get("the_moment")
     if isinstance(mq, dict) and mq.get("quote_user"):
         lines.append(f"\n🎬 <b>{esc(i18n.t(il, 'DEBRIEF.THE_MOMENT'))}</b>")
@@ -502,14 +562,12 @@ def _format_debrief(il: str, fb: dict, result: dict, person: dict, mistakes: lis
         if mq.get("why_it_mattered"):
             lines.append(f"\n<i>{esc(mq['why_it_mattered'])}</i>")
 
-    # --- THE MECHANISM ---
     if fb.get("the_mechanism"):
         lines.append(
             f"\n⚙️ <b>{esc(i18n.t(il, 'DEBRIEF.THE_MECHANISM'))}</b>\n"
             f"{esc(fb['the_mechanism'])}"
         )
 
-    # --- THE SHIFT ---
     sh = fb.get("the_shift")
     if isinstance(sh, dict) and sh.get("alternative"):
         lines.append(f"\n🔀 <b>{esc(i18n.t(il, 'DEBRIEF.THE_SHIFT'))}</b>")
@@ -520,7 +578,6 @@ def _format_debrief(il: str, fb: dict, result: dict, person: dict, mistakes: lis
         if sh.get("why_it_would_work"):
             lines.append(f"<i>{esc(sh['why_it_would_work'])}</i>")
 
-    # --- ESCAPE ROUTE ---
     er = fb.get("escape_route")
     if isinstance(er, dict) and er.get("rule"):
         lines.append(f"\n🚪 <b>{esc(i18n.t(il, 'DEBRIEF.ESCAPE_ROUTE'))}</b>")
@@ -530,7 +587,6 @@ def _format_debrief(il: str, fb: dict, result: dict, person: dict, mistakes: lis
         if er.get("example"):
             lines.append(f"💬 «{esc(er['example'])}»")
 
-    # --- THE MOVE ---
     if newly_unlocked_tool:
         emoji = ARSENAL_TOOL_EMOJI.get(newly_unlocked_tool, "⚔️")
         name = i18n.t(il, f"TOOLS.{newly_unlocked_tool}.NAME")
@@ -540,14 +596,12 @@ def _format_debrief(il: str, fb: dict, result: dict, person: dict, mistakes: lis
         lines.append(esc(desc))
         lines.append(f"💬 {esc(example)}")
 
-    # --- OPPONENT ADVICE ---
     if fb.get("opponent_advice"):
         lines.append(
             f"\n🎭 <b>{esc(person['short_name'])}:</b>\n"
             f"<i>{esc(fb['opponent_advice'])}</i>"
         )
 
-    # --- THE ARENA READ ---
     ar = fb.get("arena_read")
     if isinstance(ar, dict) and (ar.get("skill_now") or ar.get("test_next")):
         lines.append(f"\n🏛 <b>{esc(i18n.t(il, 'DEBRIEF.THE_ARENA_READ'))}</b>")
@@ -556,7 +610,6 @@ def _format_debrief(il: str, fb: dict, result: dict, person: dict, mistakes: lis
         if ar.get("test_next"):
             lines.append(f"→ <b>{esc(ar['test_next'])}</b>")
 
-    # --- LANGUAGE UPGRADE ---
     up = fb.get("language_upgrade")
     if up:
         lines.append(
@@ -566,7 +619,6 @@ def _format_debrief(il: str, fb: dict, result: dict, person: dict, mistakes: lis
             f"<i>{esc(up['why'])}</i>"
         )
 
-    # --- GRAMMAR FOR GOAL (приоритет) или GRAMMAR FOCUS (фолбэк) ---
     gfg = fb.get("grammar_for_goal")
     if isinstance(gfg, dict) and gfg.get("grammar_pattern") and gfg.get("phrases"):
         goal_label = ""
@@ -600,7 +652,6 @@ def _format_debrief(il: str, fb: dict, result: dict, person: dict, mistakes: lis
             if gf.get("drill"):
                 lines.append(f"<i>{esc(gf['drill'])}</i>")
 
-    # --- DEEPER ---
     deeper = fb.get("deeper_content")
     if isinstance(deeper, dict) and deeper.get("topic") and deeper.get("why"):
         lines.append(

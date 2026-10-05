@@ -76,7 +76,8 @@
     "ESCAPE_ROUTE": "탈출 경로",
     "THE_ARENA_READ": "아레나가 읽는 것",
     "ALTERNATIVE": "대안",
-    "OPPONENT_SAID": "상대가 말했습니다"
+    "OPPONENT_SAID": "상대가 말했습니다",
+    "ARENA_NOTICED": "ARENA가 뭔가를 알아챘습니다."
   },
   "FT": {
     "SELECT_LANGUAGE": "💬 자유 대화 — 어떤 언어로 연습할까요?",
@@ -113,7 +114,15 @@
     "ARSENAL_SHORTCUT": "🧰 나의 무기고",
     "BATTLE_HISTORY": "배틀 기록",
     "COMMUNICATION": "커뮤니케이션",
-    "LANGUAGE": "언어"
+    "LANGUAGE": "언어",
+    "CURRENT_READ": "현재 해석",
+    "SIGNALS": "ARENA 신호",
+    "UNDER_PRESSURE": "압박 아래에서",
+    "UNSOLVED": "미해결",
+    "CONTEXT": "맥락",
+    "EVOLUTION": "진화",
+    "BATTLE_N": "배틀 {n}",
+    "BASED_ON": "{n}번의 배틀을 바탕으로"
   },
   "ARSENAL": {
     "TITLE": "🧰 나의 무기고",
@@ -131,7 +140,15 @@
     "MORE_TO_EARN": "또 {n}개의 기술이 당신이 보여주기를 기다리고 있습니다.",
     "PHRASES_SECTION": "목표별 표현",
     "CHANNEL_HINT": "이 기술들이 실제 말에서 어떻게 들리는지 — ARENA 채널에서.",
-    "CHANNEL_BUTTON": "📣 ARENA 채널"
+    "CHANNEL_BUTTON": "📣 ARENA 채널",
+    "STATUS": {
+      "discovered": "발견",
+      "practising": "연습 중",
+      "acquired": "습득",
+      "strong": "강함",
+      "mastered": "숙달"
+    },
+    "USED_N_TIMES": "{n}회 사용 · {w}회 승리"
   },
   "PATTERNS": {
     "repeats_claim": "누가 말을 끊으면, 새로운 각도를 찾는 대신 같은 주장을 반복합니다.",
@@ -148,6 +165,48 @@
     "has_professional_context": "늘 자신의 직업적 맥락으로 되돌아옵니다.",
     "states_goals": "무엇을 더 잘하고 싶은지 솔직하게 말합니다.",
     "avoids_topic": "분명히 피하고 싶은 주제에서 벗어나거나 화제를 돌립니다."
+  },
+  "SIGNALS": {
+    "explainer": {
+      "NAME": "설명하는 사람",
+      "BRIEF": "생각을 설명 없이 두는 일이 거의 없습니다."
+    },
+    "reframer": {
+      "NAME": "재구성하는 사람",
+      "BRIEF": "도전을 받으면 입장을 버리는 대신 각도를 바꿉니다."
+    },
+    "pushback_response": {
+      "NAME": "반박에 대한 반응",
+      "BRIEF": "누가 반대하면 먼저 설명하고 — 그다음 전략을 바꿉니다."
+    },
+    "closer": {
+      "NAME": "마무리하는 사람",
+      "BRIEF": "어디로 가는지 알면, 그 지점을 어떻게 끝낼지도 압니다."
+    },
+    "precision_under_pressure": {
+      "NAME": "압박 속의 정확성",
+      "BRIEF": "판이 커지면 더 정확해집니다."
+    },
+    "retreats_from_frames": {
+      "NAME": "프레임을 잃음",
+      "BRIEF": "상대가 처음의 프레임을 받아들이지 않으면 흐름을 잃습니다."
+    },
+    "evidence_first": {
+      "NAME": "먼저 근거",
+      "BRIEF": "주장 전에 구체적인 사실로 손이 갑니다."
+    },
+    "story_driven": {
+      "NAME": "이야기로 밀어붙임",
+      "BRIEF": "예시와 이야기를 통해 논지를 앞으로 밀고 갑니다."
+    },
+    "hedges_too_early": {
+      "NAME": "너무 일찍 완화",
+      "BRIEF": "주장이 자리 잡기도 전에 부드럽게 만듭니다."
+    },
+    "controls_direction": {
+      "NAME": "대화를 이끎",
+      "BRIEF": "하고 싶은 지점으로 대화를 끌고 갑니다."
+    }
   },
   "CRITERIA": {
     "grammar": "문법",

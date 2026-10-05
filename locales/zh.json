@@ -76,7 +76,8 @@
     "ESCAPE_ROUTE": "脱困路线",
     "THE_ARENA_READ": "竞技场的解读",
     "ALTERNATIVE": "另一种说法",
-    "OPPONENT_SAID": "对手说"
+    "OPPONENT_SAID": "对手说",
+    "ARENA_NOTICED": "ARENA 注意到了什么。"
   },
   "FT": {
     "SELECT_LANGUAGE": "💬 自由交谈 — 我们练习哪种语言?",
@@ -113,7 +114,15 @@
     "ARSENAL_SHORTCUT": "🧰 我的武器库",
     "BATTLE_HISTORY": "对战历史",
     "COMMUNICATION": "沟通",
-    "LANGUAGE": "语言"
+    "LANGUAGE": "语言",
+    "CURRENT_READ": "当前解读",
+    "SIGNALS": "ARENA 信号",
+    "UNDER_PRESSURE": "压力之下",
+    "UNSOLVED": "未解决",
+    "CONTEXT": "语境",
+    "EVOLUTION": "演变",
+    "BATTLE_N": "对战 {n}",
+    "BASED_ON": "基于 {n} 场对战"
   },
   "ARSENAL": {
     "TITLE": "🧰 我的武器库",
@@ -131,7 +140,15 @@
     "MORE_TO_EARN": "还有 {n} 个招式,等你去展现它们。",
     "PHRASES_SECTION": "目标语句",
     "CHANNEL_HINT": "这些招式在真实言语中听起来如何 — 在 ARENA 频道。",
-    "CHANNEL_BUTTON": "📣 ARENA 频道"
+    "CHANNEL_BUTTON": "📣 ARENA 频道",
+    "STATUS": {
+      "discovered": "已发现",
+      "practising": "练习中",
+      "acquired": "已掌握",
+      "strong": "熟练",
+      "mastered": "精通"
+    },
+    "USED_N_TIMES": "使用 {n} 次 · {w} 次胜利"
   },
   "PATTERNS": {
     "repeats_claim": "被打断时,你会重复同一个观点,而不是换一个新的角度。",
@@ -148,6 +165,48 @@
     "has_professional_context": "你总是会回到自己清晰的职业语境。",
     "states_goals": "你会公开说出自己想要变强的地方。",
     "avoids_topic": "你会从一个明显不愿谈论的话题上退开或转移。"
+  },
+  "SIGNALS": {
+    "explainer": {
+      "NAME": "解释者",
+      "BRIEF": "你几乎从不留下未解释的想法。"
+    },
+    "reframer": {
+      "NAME": "重框者",
+      "BRIEF": "被挑战时,你会改变角度,而不是放弃立场。"
+    },
+    "pushback_response": {
+      "NAME": "对反驳的反应",
+      "BRIEF": "别人不同意时,你先解释 — 然后才改变策略。"
+    },
+    "closer": {
+      "NAME": "收尾者",
+      "BRIEF": "你知道要去哪时,也知道怎么把这个点说完。"
+    },
+    "precision_under_pressure": {
+      "NAME": "压力下的精确",
+      "BRIEF": "赌注变高时,你变得更精确。"
+    },
+    "retreats_from_frames": {
+      "NAME": "丢失框架",
+      "BRIEF": "当对方不接受你的初始框架时,你会失去势头。"
+    },
+    "evidence_first": {
+      "NAME": "先找事实",
+      "BRIEF": "在论证之前,你会先抓一个具体事实。"
+    },
+    "story_driven": {
+      "NAME": "靠故事推进",
+      "BRIEF": "你通过例子和故事推进论点。"
+    },
+    "hedges_too_early": {
+      "NAME": "过早缓和",
+      "BRIEF": "你的主张还没落地,就已经被你自己软化了。"
+    },
+    "controls_direction": {
+      "NAME": "掌控方向",
+      "BRIEF": "你把对话引到你想强调的那一点上。"
+    }
   },
   "CRITERIA": {
     "grammar": "语法",

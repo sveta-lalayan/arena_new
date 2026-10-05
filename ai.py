@@ -1,19 +1,5 @@
 """
 ai.py — GPT-слой ARENA.
-
-Правила:
- 1. Всё, что «говорят» Арена и персонажи, пишется СТРОГО на learning_language.
- 2. Debrief: заголовки секций — на interface_language (в arena.py через i18n),
-    содержимое — на learning_language. Debrief описывает МЕХАНИКУ, а не ошибки:
-    THE MOMENT / THE MECHANISM / THE SHIFT / ESCAPE ROUTE / THE MOVE /
-    THE ARENA READ. Плюс grammar_for_goal — грамматика, подчинённая
-    коммуникационной цели, которая хромает.
- 3. Сложность речи подгоняется под CEFR-уровень (для боя и дебрифа).
- 4. UI — только локали в locales/*.json.
- 5. OpenAI недоступен — функции возвращают безопасные значения, бот не падает.
- 6. Храм (Temple) использует свой system (_TEMPLE_SYSTEM) и живую манеру:
-    turn 1-2 — обычный собеседник; turn 3-6 — простые связки; turn 7 — проверка.
-    REVEAL (generate_arena_observation) — вау-инсайт о человеке, не описание стиля.
 """
 import json
 import logging
@@ -28,7 +14,7 @@ from game_data import (
     LANG_PROMPT_NAME, LEVELS, LEVEL_PROMPTS, PERSONALITIES, PERSONA_BRIEFS, SPEECH_STYLE,
     MISSION_FORMAT_BY_PERSONALITY, SKILL_TO_PERSONALITY, COMMUNICATION_SKILLS,
     LANGUAGE_CRITERIA, ALL_CRITERIA, BEHAVIOUR_BRIEFS, BEGINNER_LEVELS, ARENA_RANKS,
-    ARSENAL_TOOL_KEYS, ARSENAL_TOOL_DEFS,
+    ARSENAL_TOOL_KEYS, ARSENAL_TOOL_DEFS, ARENA_SIGNALS,
 )
 
 logger = logging.getLogger(__name__)
@@ -37,10 +23,6 @@ _client = None
 _CYRILLIC = re.compile(r"[\u0400-\u04FF]")
 BEHAVIOURS = list(BEHAVIOUR_BRIEFS)
 
-
-# ==================================================================
-# НИЗКОУРОВНЕВЫЕ ХЕЛПЕРЫ
-# ==================================================================
 
 def _get_client():
     global _client
@@ -267,14 +249,11 @@ Pick ONE of these moves and commit to it — the more natural one for THIS messa
 
   B) SHARE YOUR VIEW — say ONE short line about what you actually think, then optionally ask.
      "I'd have picked the other one." / "That's not how I'd do it." / "Same here."
-     Not a lecture. One sentence.
 
   C) PICK UP THE HUMOUR — if they said something with a joke, irony, or self-deprecation,
      play along in the same tone. Do NOT ignore the joke and do NOT top it.
-     Short, dry, same register as theirs.
 
   D) GENTLE NEEDLE — a light, friendly jab at something small they just said.
-     Not mean. Not sarcastic-as-attack. Just noticed.
      "That's the humble version." / "Very modest." / "Sure."
 
 HARD BANS:
@@ -432,8 +411,7 @@ Return a JSON object with EXACTLY these keys:
 - "main_topic": the ONE topic they care about most, 2-5 words, in {lang}
 - "recommended_personality": one of {list(PERSONALITIES)}. Pick the character who best fits BOTH their main
   topic AND their weakest communication skill. Do NOT default to hr_manager unless she's genuinely the best
-  fit. If two characters are equally good fits, pick the one that will SURPRISE the learner — the less
-  obvious choice.
+  fit. If two characters are equally good fits, pick the one that will SURPRISE the learner.
 - "pattern": the ONE pattern phrase (from the list above), lowercase, exactly as written
 - "pattern_evidence": list of 2-4 short quotes (VERBATIM) that justify the pattern
 - "claim": ONE concrete opinion the learner actually stated, short phrase in {lang}, or ""
@@ -512,10 +490,7 @@ from what they actually said.
 
 Paragraph 1 — the observation. 2-3 sentences. Short. Specific.
 Paragraph 2 — one short closing line that keeps the doubt and signals you'll keep
-watching. Max 10 words. Examples of the shape:
-  "I'll keep watching."
-  "We'll see if it holds."
-  "I might be wrong."
+watching. Max 10 words.
 
 Write ONLY in the target language.
 """
@@ -718,7 +693,13 @@ def generate_battle_debrief(user_name: str, language: str, level: str, personali
                             topic: str, mission: str, won: bool, win_score: int,
                             conviction: int, criteria: dict, dialogue: list,
                             pattern: str = "", previous_criteria: dict | None = None,
-                            unlocked_tools: set | None = None) -> dict:
+                            unlocked_tools: set | None = None,
+                            unsolved_questions: list | None = None,
+                            grammar_phrases: list | None = None) -> dict:
+    """
+    Debrief + arena_file_update + grammar_used.
+    grammar_used: VERBATIM одна из фраз из арсенала пользователя, если он её реально применил.
+    """
     person = PERSONALITIES.get(personality, PERSONALITIES["devil_advocate"])
     user_lines = [d["text"] for d in dialogue if d["speaker"] == "User"]
     char_lines = [d["text"] for d in dialogue if d["speaker"] != "User"]
@@ -749,6 +730,15 @@ def generate_battle_debrief(user_name: str, language: str, level: str, personali
         if unlocked_tools else "They haven't unlocked any of these yet."
     )
 
+    signals_listing = "\n".join(f'- "{k}": {v["brief"]}' for k, v in ARENA_SIGNALS.items())
+    unsolved_listing = "\n".join(f"- {q}" for q in (unsolved_questions or [])) or "(none)"
+
+    phrases_list = grammar_phrases or []
+    if phrases_list:
+        phrases_listing = "\n".join(f'- «{p}»' for p in phrases_list[:40])
+    else:
+        phrases_listing = "(none yet)"
+
     prompt = f"""
 You are ARENA writing the debrief after a debate battle. Voice: terse, sharp, but fair.
 Short sentences. Never gushing. Never a school report.
@@ -761,11 +751,16 @@ Match complexity to level {level}: {_lv(level)}.
 
 === THE CORE IDEA ===
 The debrief must reveal the MECHANISM of what happened — NOT list mistakes.
-Bad (Level 1 AI trainer): "You didn't provide enough evidence. Add more examples."
-Good (ARENA): "You corrected the answer. You didn't develop it."
-
 The learner should learn WHAT TO DO at the moment the conversation stopped going their way.
 NEVER announce a permanent trait from one battle.
+
+=== DEBRIEF SHAPE ===
+You decide how big the debrief is. Use "debrief_shape":
+  • "single_insight" — short battle or only ONE precise thing is worth saying.
+    Fill ONLY "single_insight" with that one line, leave every other content field empty.
+  • "focused" — one coherent story. Pick exactly TWO content fields.
+  • "full" — material for a rich debrief. Fill several fields.
+Even in "full", do not pad.
 
 === CONTEXT ===
 Learner: {user_name}. Character: {_persona(personality)} — stay IN CHARACTER for advice.
@@ -783,76 +778,74 @@ The learner's messages (in {_lang(language)}):
 The character's lines:
 {char_blob}
 
+CURRENT UNSOLVED QUESTIONS ARENA HAS ABOUT THEM (for reference — if THIS battle
+resolves any, list it in arena_file_update.unsolved_resolve; otherwise []):
+{unsolved_listing}
+
+=== GRAMMAR PHRASES FROM THEIR ARSENAL ===
+These are phrases the learner has previously saved from their own debriefs:
+{phrases_listing}
+
+If, in THIS battle, the learner actually used one of these phrases (or a close paraphrase
+of one), return it VERBATIM in "grammar_used". If not, return null. Do not invent.
+
 === CRITICAL RULES ===
 - Quote REAL words from the learner. Paraphrasing kills the value.
 - Every critique and every praise must be tied to a specific sentence they wrote.
-- NEVER invent facts about the learner. If they never mentioned numbers — do not say
-  "you always use numbers". Every claim must be verifiable against their messages.
+- NEVER invent facts about the learner.
 - NEVER say "you need to provide more detail" — SHOW what was missing, with the exact line.
 - Do NOT invent grammar mistakes that aren't in the transcript.
-- Do NOT correct something that was fine for their level.
 
 === JSON KEYS (ALL VALUES in {_lang(language)}) ===
-- "result_state_label": SHORT label of the outcome (1-2 words, natural, no emoji).
-- "result_state": "VICTORY"|"ALMOST"|"DEFEATED"|"OUTPLAYED" — internal key.
-- "result_line": 1-2 sentences on what actually happened — NOT a score recap.
-- "the_moment": the ONE concrete episode that best explains the result. Object:
-    "quote_user": VERBATIM line from the learner that mattered most,
-    "quote_opponent": VERBATIM line from the character, or "",
-    "why_it_mattered": 1-2 sentences — WHY this moment decided the battle, as a mechanism.
-- "the_mechanism": 3-4 sentences covering BOTH sides:
-    (a) WHAT WAS GENUINELY GOOD in the learner's speech in THIS battle — quote or
-        reference an actual line.
-    (b) WHAT HELD THEM BACK — the mechanism of behaviour.
-    Both parts must be tied to real lines the learner wrote.
-- "the_shift": ONE alternative move with a concrete line. Object:
-    "alternative": a rewritten line — what the learner could have said instead.
-    "why_it_would_work": 1-2 sentences — why that alternative would have worked.
-- "escape_route": ONE generic pattern for getting out of the trap. Object:
-    "trap": short label of the situation,
-    "rule": a short reusable rule (1 sentence) — an action, not a description,
-    "example": one example line that shows the rule in action.
-- "tool_used": which ONE of these 8 fixed techniques the learner ACTUALLY demonstrated, or null:
+- "debrief_shape": "single_insight" | "focused" | "full".
+- "headline": SHORT label for the summary line. 1-2 words + period.
+- "single_insight": if shape=="single_insight", ONE short line. Otherwise "".
+- "notification_line": ONE short sentence — same insight as single_insight,
+    phrased as ARENA showing it. "" for "full".
+- "result_state_label": SHORT label of the outcome (1-2 words, no emoji).
+- "result_state": "VICTORY"|"ALMOST"|"DEFEATED"|"OUTPLAYED".
+- "result_line": 1-2 sentences on what actually happened. "" for single_insight.
+- "the_moment": Object with "quote_user", "quote_opponent", "why_it_mattered". Or null.
+- "the_mechanism": 3-4 sentences: (a) what was genuinely good, (b) what held them back.
+- "the_shift": Object with "alternative" and "why_it_would_work". Or null.
+- "escape_route": Object with "trap", "rule", "example". Or null.
+- "tool_used": one of these 8 keys, or null:
 {tools_listing}
     Ground it in something they ACTUALLY did. {owned_note}
-- "arena_read": forward-looking. Object:
-    "skill_now": 1-2 sentences — which skill is currently maturing (or stuck) and why.
-    "test_next": ONE line — what to test in the next battle.
-- "opponent_advice": 1-2 sentences spoken IN CHARACTER.
-- "language_upgrade": ONE language improvement tied to THIS battle — or null.
-    Object {{"said": VERBATIM, "better": stronger version, "why": ONE short sentence}}.
-- "grammar_focus": the ONE recurring grammar mistake visible in THIS battle — or null.
-    Object {{
-      "pattern": plain-word name of the mistake,
-      "example_wrong": VERBATIM from learner,
-      "example_right": corrected sentence,
-      "drill": ONE short sentence — a micro-practice
-    }}
-- "grammar_for_goal": ONE grammar pattern that directly supports the learner's weakest
-    communication skill — the one that is `next_target`. Object:
-    "goal": the same value as next_target (one of {COMMUNICATION_SKILLS}), internal key,
-    "grammar_pattern": a SHORT, concrete grammar structure name, in {_lang(language)}.
-        Not "grammar in general". Not "tenses". Specific: "present perfect for effects",
-        "conditionals for hypotheticals", "relative clauses for definitions",
-        "contrast connectors (although / whereas)", "passive voice for focus",
-        "causative have/get", "reported speech for sources". Pick the ONE that best
-        serves THIS communication goal.
-    "why_it_helps": ONE short sentence in {_lang(language)} — why this structure
-        strengthens THIS specific communication goal.
-    "phrases": exactly 4 ready-to-use sentences in {_lang(language)}. Short. Concrete.
-        Real lines a person would actually say in a debate. All four must USE the
-        grammar_pattern.
-    "example_from_battle": ONE sentence in {_lang(language)} — a rewritten version of
-        something the learner ACTUALLY said in this battle, showing the grammar_pattern
-        applied.
-- "deeper_content": null OR {{"topic": "<short label>", "why": "<one short line>"}}.
+- "grammar_used": VERBATIM one phrase from the list above that the learner ACTUALLY
+    used in this battle, or null. Do NOT invent. Do NOT paraphrase.
+- "arena_read": Object with "skill_now" and "test_next". Or null.
+- "opponent_advice": 1-2 sentences IN CHARACTER. Or "".
+- "language_upgrade": Object {{"said", "better", "why"}} or null.
+- "grammar_focus": Object {{"pattern", "example_wrong", "example_right", "drill"}} or null.
+- "grammar_for_goal": Object {{"goal", "grammar_pattern", "why_it_helps", "phrases"
+    (exactly 4 ready-to-use sentences), "example_from_battle"}} or null.
+- "deeper_content": Object {{"topic", "why"}} or null.
+
+=== ARENA FILE UPDATE ===
+- "arena_file_update": Object with:
+    "current_read": ONE sentence — a fresh interpretation of who this person is as a
+        communicator. In ARENA's voice, a HYPOTHESIS. "" if unchanged.
+    "current_read_changed": true only if new read is materially different.
+    "under_pressure": short trajectory as a chain: "push back → explain → defend → reframe".
+    "unsolved_add": up to 2 SHORT questions this battle raised. [] if none.
+    "unsolved_resolve": list of EXISTING questions (verbatim) that this battle answered. [].
+    "signals_hint": up to 2 signal ids visible in this battle. [].
+        Available: {signals_listing}
 
 REMINDER: everything the learner READS must be in {_lang(language)}, matching level
 {level} complexity. Not English unless English IS the target.
 Keep everything SHORT.
 """
-    data = _ask_json(prompt, language, temperature=0.7, max_tokens=2000, check_ru=True) or {}
+    data = _ask_json(prompt, language, temperature=0.7, max_tokens=2200, check_ru=True) or {}
 
+    shape = str(data.get("debrief_shape") or "full").strip().lower()
+    if shape not in ("single_insight", "focused", "full"):
+        shape = "full"
+
+    headline = _no_ru(str(data.get("headline") or "").strip())[:60]
+    single_insight = _no_ru(str(data.get("single_insight") or "").strip())[:400]
+    notification_line = _no_ru(str(data.get("notification_line") or "").strip())[:300]
     result_state_label = _no_ru(str(data.get("result_state_label") or "").strip())[:40]
 
     the_moment = None
@@ -897,6 +890,20 @@ Keep everything SHORT.
     tool_used = str(data.get("tool_used") or "").strip().lower()
     if tool_used not in ARSENAL_TOOL_KEYS:
         tool_used = None
+
+    # grammar_used — только если это реально фраза из арсенала пользователя
+    grammar_used = None
+    gu = data.get("grammar_used")
+    if isinstance(gu, str) and gu.strip() and phrases_list:
+        gu_clean = gu.strip()
+        for p in phrases_list:
+            pl = p.lower().strip()
+            gul = gu_clean.lower().strip()
+            if pl and (pl in gul or gul in pl):
+                # фраза действительно из арсенала; проверим, что она или её кусок есть в блобе
+                if _in_text(p, user_blob) or _in_text(gu_clean, user_blob):
+                    grammar_used = p[:300]
+                    break
 
     arena_read = None
     ar = data.get("arena_read")
@@ -986,7 +993,30 @@ Keep everything SHORT.
 
     next_target_label = _no_ru(str(data.get("next_target_label") or "").strip())[:80]
 
+    # --- arena_file_update ---
+    arena_file_update = None
+    afu = data.get("arena_file_update")
+    if isinstance(afu, dict):
+        unsolved_add = [str(q).strip()[:200] for q in (afu.get("unsolved_add") or [])
+                        if isinstance(q, str) and q.strip()][:2]
+        unsolved_resolve = [str(q).strip()[:200] for q in (afu.get("unsolved_resolve") or [])
+                            if isinstance(q, str) and q.strip()][:5]
+        signals_hint = [str(s).strip().lower() for s in (afu.get("signals_hint") or [])
+                        if isinstance(s, str) and s.strip() and s.strip().lower() in ARENA_SIGNALS][:2]
+        arena_file_update = {
+            "current_read": _no_ru(str(afu.get("current_read") or "").strip())[:300],
+            "current_read_changed": bool(afu.get("current_read_changed")),
+            "under_pressure": _no_ru(str(afu.get("under_pressure") or "").strip())[:200],
+            "unsolved_add": unsolved_add,
+            "unsolved_resolve": unsolved_resolve,
+            "signals_hint": signals_hint,
+        }
+
     return {
+        "debrief_shape": shape,
+        "headline": headline,
+        "single_insight": single_insight,
+        "notification_line": notification_line,
         "result_state": result_state,
         "result_state_label": result_state_label,
         "result_line": _no_ru(data.get("result_line")),
@@ -995,6 +1025,7 @@ Keep everything SHORT.
         "the_shift": the_shift,
         "escape_route": escape_route,
         "tool_used": tool_used,
+        "grammar_used": grammar_used,
         "arena_read": arena_read,
         "opponent_advice": _no_ru(data.get("opponent_advice")),
         "language_upgrade": language_upgrade,
@@ -1004,6 +1035,7 @@ Keep everything SHORT.
         "mistakes": mistakes,
         "next_target": next_target,
         "next_target_label": next_target_label,
+        "arena_file_update": arena_file_update,
         "character": person["short_name"],
     }
 

@@ -76,7 +76,8 @@
     "ESCAPE_ROUTE": "AUSWEG",
     "THE_ARENA_READ": "WAS DIE ARENA LIEST",
     "ALTERNATIVE": "Eine Alternative",
-    "OPPONENT_SAID": "Der Gegner sagte"
+    "OPPONENT_SAID": "Der Gegner sagte",
+    "ARENA_NOTICED": "ARENA IST ETWAS AUFGEFALLEN."
   },
   "FT": {
     "SELECT_LANGUAGE": "💬 Freies Gespräch — in welcher Sprache üben wir?",
@@ -113,7 +114,15 @@
     "ARSENAL_SHORTCUT": "🧰 Mein Arsenal",
     "BATTLE_HISTORY": "KAMPFVERLAUF",
     "COMMUNICATION": "KOMMUNIKATION",
-    "LANGUAGE": "SPRACHE"
+    "LANGUAGE": "SPRACHE",
+    "CURRENT_READ": "AKTUELLE LESART",
+    "SIGNALS": "ARENA-SIGNALE",
+    "UNDER_PRESSURE": "UNTER DRUCK",
+    "UNSOLVED": "UNGELÖST",
+    "CONTEXT": "Kontext",
+    "EVOLUTION": "ENTWICKLUNG",
+    "BATTLE_N": "Kampf {n}",
+    "BASED_ON": "Auf Basis von {n} Kämpfen"
   },
   "ARSENAL": {
     "TITLE": "🧰 MEIN ARSENAL",
@@ -131,7 +140,15 @@
     "MORE_TO_EARN": "{n} weitere Züge warten darauf, dass du sie zeigst.",
     "PHRASES_SECTION": "PHRASEN FÜR DEINE ZIELE",
     "CHANNEL_HINT": "Wie diese Züge in echter Sprache klingen — auf dem ARENA-Kanal.",
-    "CHANNEL_BUTTON": "📣 ARENA-Kanal"
+    "CHANNEL_BUTTON": "📣 ARENA-Kanal",
+    "STATUS": {
+      "discovered": "entdeckt",
+      "practising": "in Übung",
+      "acquired": "erworben",
+      "strong": "stark",
+      "mastered": "gemeistert"
+    },
+    "USED_N_TIMES": "{n}× verwendet · {w} Siege"
   },
   "PATTERNS": {
     "repeats_claim": "Wenn man dich unterbricht, wiederholst du denselben Punkt, statt einen neuen Winkel zu finden.",
@@ -148,6 +165,48 @@
     "has_professional_context": "Du kommst immer wieder auf einen klaren beruflichen Kontext zurück.",
     "states_goals": "Du sagst offen, worin du besser werden willst.",
     "avoids_topic": "Du gehst von einem Thema weg oder lenkst ab, wenn du es offensichtlich nicht besprechen willst."
+  },
+  "SIGNALS": {
+    "explainer": {
+      "NAME": "DER ERKLÄRER",
+      "BRIEF": "Du lässt einen Gedanken selten unerklärt."
+    },
+    "reframer": {
+      "NAME": "DER UMDEUTER",
+      "BRIEF": "Wenn man dich herausfordert, wechselst du den Winkel, statt die Position aufzugeben."
+    },
+    "pushback_response": {
+      "NAME": "REAKTION AUF WIDERSPRUCH",
+      "BRIEF": "Wenn jemand widerspricht, erklärst du erst — und änderst dann die Strategie."
+    },
+    "closer": {
+      "NAME": "DER ABSCHLIESSER",
+      "BRIEF": "Wenn du weißt, wohin du willst, weißt du auch, wie du den Punkt beendest."
+    },
+    "precision_under_pressure": {
+      "NAME": "PRÄZISION UNTER DRUCK",
+      "BRIEF": "Wenn die Einsätze steigen, wirst du präziser."
+    },
+    "retreats_from_frames": {
+      "NAME": "VERLIERT DEN RAHMEN",
+      "BRIEF": "Du verlierst den Schwung, wenn dein Gegenüber deinen Rahmen nicht akzeptiert."
+    },
+    "evidence_first": {
+      "NAME": "ERST DER FAKT",
+      "BRIEF": "Vor dem Argument greifst du zu einer konkreten Tatsache."
+    },
+    "story_driven": {
+      "NAME": "ÜBER DIE GESCHICHTE",
+      "BRIEF": "Du treibst das Argument über Beispiele und Geschichten voran."
+    },
+    "hedges_too_early": {
+      "NAME": "ZU FRÜH ABGESCHWÄCHT",
+      "BRIEF": "Du milderst die Aussage, bevor sie überhaupt landen konnte."
+    },
+    "controls_direction": {
+      "NAME": "LENKT DAS GESPRÄCH",
+      "BRIEF": "Du steuerst das Gespräch dorthin, wo du hin willst."
+    }
   },
   "CRITERIA": {
     "grammar": "Grammatik",

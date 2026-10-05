@@ -1,5 +1,13 @@
 """
 handlers/profile.py — MY ARENA, MY ARSENAL, достижения.
+
+MY ARENA — живой файл ARENA о человеке:
+  • CURRENT READ, ARENA SIGNALS, UNDER PRESSURE, CURRENT WEAPON,
+    UNSOLVED, WHAT ARENA KNOWS, EVOLUTION.
+
+MY ARSENAL — что человек реально научился делать:
+  • 8 приёмов со статусами DISCOVERED → PRACTISING → ACQUIRED → STRONG → MASTERED;
+  • фразы под коммуникационные цели со статусами и счётчиками.
 """
 import json
 
@@ -10,7 +18,8 @@ import database as db
 import i18n
 from config import LANGUAGE_DISPLAY, LANGUAGE_FLAGS, CHANNEL_URL
 from game_data import (
-    BADGES, PERSONALITIES, ARSENAL_TOOLS, CRITERIA_LABELS_RU,
+    BADGES, PERSONALITIES, ARSENAL_TOOLS, CRITERIA_LABELS_RU, ARENA_SIGNALS,
+    ARSENAL_STATUS_ORDER, ARSENAL_STATUS_EMOJI,
 )
 from handlers.ui import send_or_edit, esc, progress_bar
 
@@ -29,72 +38,58 @@ def _back_keyboard(il: str, back_cb: str = "back_to_main") -> InlineKeyboardMark
 # MY ARENA
 # ==================================================================
 
-def _pick_current_challenge(user_id: int) -> tuple[str, str]:
-    patterns = db.get_patterns(user_id, ("confirmed", "improving"))
-    growth = [p for p in patterns if p["kind"] == "growth"]
-    if growth:
-        cat = growth[0]["category"]
-        return cat, CRITERIA_LABELS_RU.get(cat, cat)
-
-    last = db.get_last_session(user_id)
-    if last and last["debrief"].get("next_target"):
-        cat = last["debrief"]["next_target"]
-        return cat, CRITERIA_LABELS_RU.get(cat, cat)
-
-    criteria = db.get_criteria(user_id)
-    from game_data import COMMUNICATION_SKILLS
-    comm = {k: v for k, v in criteria.items() if k in COMMUNICATION_SKILLS}
-    if comm:
-        weakest = min(comm, key=comm.get)
-        return weakest, CRITERIA_LABELS_RU.get(weakest, weakest)
-
-    analysis = db.get_latest_arena_analysis(user_id) or {}
-    weakest = analysis.get("weakest_skill") or "clarity"
-    return weakest, CRITERIA_LABELS_RU.get(weakest, weakest)
+def _signal_label(il: str, pid: str) -> tuple[str, str]:
+    name = i18n.t(il, f"SIGNALS.{pid}.NAME")
+    if name == f"SIGNALS.{pid}.NAME":
+        name = pid.upper()
+    brief = i18n.t(il, f"SIGNALS.{pid}.BRIEF")
+    if brief == f"SIGNALS.{pid}.BRIEF":
+        brief = ARENA_SIGNALS.get(pid, {}).get("brief", "")
+    return name, brief
 
 
 def _build_my_arena_text(user_id: int, first_name: str, il: str) -> str:
     stats = db.get_user_stats(user_id)
-    il_code = db.get_interface_language(user_id)
-    ll_code = db.get_learning_language(user_id)
     cefr = db.get_current_level(user_id) or "—"
 
     lines = [f"🏛 <b>{esc(i18n.t(il, 'MY_ARENA.TITLE'))}</b>"]
 
-    lines.append(f"\n<b>{esc(i18n.t(il, 'MY_ARENA.PROFILE'))}</b>")
-    lines.append(f"  {esc(i18n.t(il, 'MY_ARENA.NAME'))}: <b>{esc(first_name or '')}</b>")
-    lines.append(f"  {esc(i18n.t(il, 'MY_ARENA.LEARNING_LANGUAGE'))}: {esc(_label_lang(ll_code))}")
-    lines.append(f"  {esc(i18n.t(il, 'MY_ARENA.LEVEL'))}: <b>{esc(cefr)}</b>")
-    lines.append(
-        f"  {esc(i18n.t(il, 'MY_ARENA.BATTLES'))}: {stats['games_played']} · "
-        f"{esc(i18n.t(il, 'MY_ARENA.VICTORIES'))}: {stats['wins']}"
-    )
+    cr = db.get_current_read(user_id)
+    if cr and cr.get("read_text"):
+        lines.append(f"\n<b>{esc(i18n.t(il, 'MY_ARENA.CURRENT_READ'))}</b>")
+        lines.append(f"{esc(cr['read_text'])}")
+        if stats["games_played"]:
+            lines.append(
+                f"<i>{esc(i18n.t(il, 'MY_ARENA.BASED_ON', n=stats['games_played']))}</i>"
+            )
 
-    patterns = db.get_patterns(user_id, ("confirmed", "improving"))
-    strengths = [p for p in patterns if p["kind"] == "strength"]
-    if strengths:
-        lines.append(f"\n<b>{esc(i18n.t(il, 'MY_ARENA.WHAT_IVE_SEEN'))}</b>")
-        for p in strengths[:3]:
-            lines.append(f"  ✅ {esc(i18n.t(il, 'PATTERNS.' + p['pattern_id']))}")
-
-    skill_key, skill_human = _pick_current_challenge(user_id)
-    focus_line = f"<b>{esc(skill_human.upper())}</b>"
-    last = db.get_last_session(user_id)
-    if last and last["debrief"].get("cost"):
-        focus_line += f"\n  <i>{esc(last['debrief']['cost'])}</i>"
-    lines.append(f"\n<b>{esc(i18n.t(il, 'MY_ARENA.TESTING_NOW'))}</b>")
-    lines.append(f"  {focus_line}")
-
-    clusters = db.get_interest_clusters(user_id, limit=6)
-    real_interests = [c for c in clusters if c["count"] >= 2]
-    if real_interests:
-        lines.append(f"\n<b>{esc(i18n.t(il, 'MY_ARENA.WHAT_ARENA_KNOWS'))}</b>")
-        for c in real_interests[:4]:
-            ex = c["examples"][-1] if c["examples"] else ""
-            if ex:
-                lines.append(f"  • <b>{esc(c['cluster'])}</b> — «{esc(ex)}»")
+    patterns = db.get_patterns(user_id, ("confirmed", "emerging", "improving"))
+    signals = [p for p in patterns if p["pattern_id"] in ARENA_SIGNALS]
+    if signals:
+        signals.sort(key=lambda p: (
+            ARENA_SIGNALS[p["pattern_id"]].get("kind") != "strength",
+            p["status"] != "improving",
+            -p["evidence_count"],
+        ))
+        lines.append(f"\n<b>{esc(i18n.t(il, 'MY_ARENA.SIGNALS'))}</b>")
+        for p in signals[:4]:
+            meta = ARENA_SIGNALS.get(p["pattern_id"], {})
+            kind = meta.get("kind", "pattern")
+            if kind == "strength":
+                mark = "✅"
+            elif p["status"] == "improving":
+                mark = "↗"
             else:
-                lines.append(f"  • {esc(c['cluster'])}")
+                mark = "🔄"
+            name, brief = _signal_label(il, p["pattern_id"])
+            lines.append(f"  {mark} <b>{esc(name)}</b>")
+            if brief:
+                lines.append(f"     <i>{esc(brief)}</i>")
+
+    up = db.get_under_pressure(user_id)
+    if up and up.get("trajectory"):
+        lines.append(f"\n<b>{esc(i18n.t(il, 'MY_ARENA.UNDER_PRESSURE'))}</b>")
+        lines.append(f"  <i>{esc(up['trajectory'])}</i>")
 
     tool_key = db.get_last_unlocked_tool(user_id)
     if tool_key:
@@ -103,22 +98,54 @@ def _build_my_arena_text(user_id: int, first_name: str, il: str) -> str:
         lines.append(f"\n<b>{esc(i18n.t(il, 'MY_ARENA.CURRENT_WEAPON'))}</b>")
         lines.append(f"  {emoji} <b>{esc(name.upper())}</b>")
 
-    sessions = stats.get("last_sessions", [])[:5]
-    if sessions:
-        lines.append(f"\n<b>{esc(i18n.t(il, 'MY_ARENA.BATTLE_HISTORY'))}</b>")
-        for s in sessions:
-            person_key = s["personality"]
-            person = PERSONALITIES.get(person_key, {})
-            name = person.get("short_name", person_key)
-            won = bool(s["won"])
-            state = "🏆" if won else "💀"
+    unsolved = db.get_unsolved(user_id, limit=3)
+    if unsolved:
+        lines.append(f"\n<b>{esc(i18n.t(il, 'MY_ARENA.UNSOLVED'))}</b>")
+        for q in unsolved:
+            lines.append(f"  ? <i>{esc(q['question'])}</i>")
+
+    clusters = db.get_interest_clusters(user_id, limit=6)
+    real_interests = [c for c in clusters if c["count"] >= 2]
+    professional = db.get_professional_context(user_id)
+    if real_interests or professional:
+        lines.append(f"\n<b>{esc(i18n.t(il, 'MY_ARENA.WHAT_ARENA_KNOWS'))}</b>")
+        if real_interests:
+            topics_line = " · ".join(c["cluster"] for c in real_interests[:4])
+            lines.append(f"  {esc(topics_line)}")
+        if professional:
+            lines.append(
+                f"  <i>{esc(i18n.t(il, 'MY_ARENA.CONTEXT'))}: {esc(professional)}</i>"
+            )
+
+    sessions = list(stats.get("last_sessions", []))
+    if len(sessions) >= 3:
+        lines.append(f"\n<b>{esc(i18n.t(il, 'MY_ARENA.EVOLUTION'))}</b>")
+        picks = [sessions[i] for i in range(len(sessions) - 1, -1, -3)][:4]
+        picks.reverse()
+        total = len(sessions)
+        for idx, s in enumerate(picks):
+            battle_no = total - (idx * 3)
             try:
                 debrief = json.loads(s["debrief_json"]) if s["debrief_json"] else {}
             except (ValueError, TypeError):
                 debrief = {}
-            line = s["mission"] or debrief.get("win_move") or s["topic"] or "—"
-            lines.append(f'  {state} <b>{esc(name)}</b> — «{esc(line)}»')
+            line = (
+                (debrief.get("arena_read") or {}).get("skill_now")
+                or s["mission"]
+                or s["topic"]
+                or ""
+            )
+            if not line:
+                continue
+            lines.append(
+                f"  <b>{esc(i18n.t(il, 'MY_ARENA.BATTLE_N', n=battle_no))}</b> — {esc(line[:140])}"
+            )
 
+    lines.append(
+        f"\n<i>{esc(first_name or '')} · {esc(cefr)} · "
+        f"{esc(i18n.t(il, 'MY_ARENA.BATTLES'))}: {stats['games_played']} · "
+        f"{esc(i18n.t(il, 'MY_ARENA.VICTORIES'))}: {stats['wins']}</i>"
+    )
     return "\n".join(lines)
 
 
@@ -139,49 +166,83 @@ my_language_profile = my_arena
 
 
 # ==================================================================
-# MY ARSENAL
+# MY ARSENAL — что человек научился делать
 # ==================================================================
 
+def _status_label(il: str, status: str) -> str:
+    label = i18n.t(il, f"ARSENAL.STATUS.{status}")
+    if label == f"ARSENAL.STATUS.{status}":
+        return status
+    return label
+
+
 def _build_arsenal_text(user_id: int, il: str) -> str:
-    unlocked = db.get_unlocked_tools(user_id)
-    total = len(ARSENAL_TOOLS)
+    stats = db.get_all_tool_stats(user_id)
+    phrases = db.get_grammar_phrases_with_stats(user_id, limit=60)
+    total_tools = len(ARSENAL_TOOLS)
+
+    # Сводка по статусам приёмов
+    statuses = {s: 0 for s in ARSENAL_STATUS_ORDER}
+    for t in stats.values():
+        if t.get("uses", 0) > 0:
+            statuses[t["status"]] = statuses.get(t["status"], 0) + 1
+
     lines = [f"🧰 <b>{esc(i18n.t(il, 'ARSENAL.TITLE'))}</b>"]
 
-    bar = progress_bar(len(unlocked), total)
-    lines.append(f"\n{bar}  <b>{len(unlocked)}/{total}</b>")
+    mastered = statuses.get("mastered", 0) + statuses.get("strong", 0)
+    bar = progress_bar(mastered, total_tools)
+    lines.append(f"\n{bar}  <b>{mastered}/{total_tools}</b>")
 
-    phrases = db.get_grammar_phrases(user_id, limit=40)
+    status_bits = []
+    for s in ARSENAL_STATUS_ORDER:
+        n = statuses.get(s, 0)
+        if n:
+            emoji = ARSENAL_STATUS_EMOJI[s]
+            label = _status_label(il, s)
+            status_bits.append(f"{emoji} {n} {label}")
+    if status_bits:
+        lines.append("  " + " · ".join(status_bits))
 
-    if not unlocked and not phrases:
+    if not stats and not phrases:
         lines.append(f"\n<i>{esc(i18n.t(il, 'ARSENAL.EMPTY'))}</i>")
         lines.append(f"\n📣 <i>{esc(i18n.t(il, 'ARSENAL.CHANNEL_HINT'))}</i>")
         return "\n".join(lines)
 
-    # Фразы под цели (из debrief grammar_for_goal)
+    # Приёмы
+    for tool in ARSENAL_TOOLS:
+        key, emoji = tool["key"], tool["emoji"]
+        t = stats.get(key)
+        if not t or t.get("uses", 0) == 0:
+            continue
+        status = t["status"]
+        status_emoji = ARSENAL_STATUS_EMOJI.get(status, "🔍")
+        status_label = _status_label(il, status)
+        name = i18n.t(il, f"TOOLS.{key}.NAME")
+        desc = i18n.t(il, f"TOOLS.{key}.DESC")
+        example = i18n.t(il, f"TOOLS.{key}.EXAMPLE")
+
+        lines.append(f"\n{emoji} <b>{esc(name.upper())}</b>  {status_emoji} <i>{esc(status_label)}</i>")
+        lines.append(f"<i>{esc(desc)}</i>")
+        lines.append(f"💬 {esc(example)}")
+        lines.append(
+            f"   <i>{esc(i18n.t(il, 'ARSENAL.USED_N_TIMES', n=t['uses'], w=t['wins']))}</i>"
+        )
+
+    # Фразы под цели
     if phrases:
-        by_goal: dict[str, list[str]] = {}
+        by_goal: dict[str, list[dict]] = {}
         for p in phrases:
-            by_goal.setdefault(p["goal"], []).append(p["phrase"])
+            by_goal.setdefault(p["goal"], []).append(p)
         lines.append(f"\n📐 <b>{esc(i18n.t(il, 'ARSENAL.PHRASES_SECTION'))}</b>")
         for goal, plist in list(by_goal.items())[:4]:
             goal_label = i18n.t(il, f"CRITERIA.{goal}") if goal else goal
             lines.append(f"\n<b>{esc(goal_label.upper())}</b>")
             for p in plist[:4]:
-                lines.append(f"  • «{esc(p)}»")
+                status_emoji = ARSENAL_STATUS_EMOJI.get(p["status"], "🔍")
+                suffix = f" <i>×{p['uses']}</i>" if p["uses"] else ""
+                lines.append(f"  {status_emoji} «{esc(p['phrase'])}»{suffix}")
 
-    # 8 фиксированных приёмов — только заработанные
-    for tool in ARSENAL_TOOLS:
-        key, emoji = tool["key"], tool["emoji"]
-        if key not in unlocked:
-            continue
-        name = i18n.t(il, f"TOOLS.{key}.NAME")
-        desc = i18n.t(il, f"TOOLS.{key}.DESC")
-        example = i18n.t(il, f"TOOLS.{key}.EXAMPLE")
-        lines.append(f"\n{emoji} <b>{esc(name)}</b>")
-        lines.append(f"<i>{esc(desc)}</i>")
-        lines.append(f"💬 {esc(example)}")
-
-    remaining = total - len(unlocked)
+    remaining = total_tools - len([t for t in stats.values() if t.get("uses", 0) > 0])
     if remaining > 0:
         lines.append(f"\n✨ <i>{esc(i18n.t(il, 'ARSENAL.MORE_TO_EARN', n=remaining))}</i>")
 

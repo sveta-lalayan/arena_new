@@ -7,14 +7,14 @@ personalization.py — единый слой Personalization Memory + выбор
     Battle ──► Debrief ──► game_sessions.debrief_json
     всё вместе ──► select_reminder() ──► ai.generate_personalized_reminder() ──► notification_log
 
-Четыре слоя не смешиваются:
-    Debrief      — что случилось сегодня            (game_sessions.debrief_json)
-    My Arena     — что ARENA знает о человеке       (подтверждённые user_patterns)
-    My Arsenal   — что он может применить           (user_tools)
-    Reminder     — зачем вернуться сегодня           (notification_log)
+Каталоги паттернов:
+    PATTERN_CATALOG  — поведенческие паттерны (repeats_claim, develops_argument, ...)
+    ARENA_SIGNALS    — человекочитаемые коммуникационные сигналы для My Arena
+                       (explainer, reframer, pushback_response, ...)
+    ALL_PATTERNS     — объединение, передаётся в ai.extract_signals.
 
 Фокус (что тренируем сейчас):
-    1. Подтверждённый growth-паттерн (status in confirmed/improving) — приоритет.
+    1. Подтверждённый growth-паттерн (status in confirmed/improving).
     2. next_target последнего дебрифа (≤14 дней).
     3. Самый слабый communication-критерий.
 """
@@ -26,6 +26,7 @@ import ai
 import database as db
 from game_data import (
     ARSENAL_TOOL_DEFS, COMMUNICATION_SKILLS, PERSONALITIES, SKILL_TO_PERSONALITY,
+    ARENA_SIGNALS,
 )
 
 logger = logging.getLogger(__name__)
@@ -90,19 +91,23 @@ PATTERN_CATALOG = {
         "brief": "Steps away from or redirects a topic they clearly don't want to discuss."},
 }
 
+# Объединённый каталог — передаётся в extract_signals. ID сигналов не пересекаются
+# с ID поведенческих паттернов, поэтому объединение безопасно.
+ALL_PATTERNS = {**PATTERN_CATALOG, **ARENA_SIGNALS}
+
 MIN_LINES_FOR_PATTERNS = 3
 
 
 def record_session(user_id: int, source: str, user_lines: list[str], language: str) -> dict:
     """
     Единая точка входа для Temple / Free Talk / Battle. Блокирующая (LLM) — вызывать через to_thread.
-    Ничего не показывает пользователю. Возвращает счётчики для логов/тестов.
+    Ничего не показывает пользователю.
     """
     lines = [l.strip() for l in (user_lines or []) if isinstance(l, str) and len(l.strip()) >= 3]
     if not lines:
         return {"topics": 0, "patterns": 0, "goals": 0}
 
-    signals = ai.extract_signals(lines, language, source, TOPIC_TAXONOMY, PATTERN_CATALOG)
+    signals = ai.extract_signals(lines, language, source, TOPIC_TAXONOMY, ALL_PATTERNS)
     topics = signals.get("topics") or []
     patterns = signals.get("patterns") or []
 
@@ -112,9 +117,13 @@ def record_session(user_id: int, source: str, user_lines: list[str], language: s
     applied = 0
     if len(lines) >= MIN_LINES_FOR_PATTERNS:
         for p in patterns:
-            meta = PATTERN_CATALOG[p["id"]]
-            db.observe_pattern(user_id, p["id"], meta["category"], meta["kind"],
-                               p.get("example", ""), meta.get("counter_of"))
+            meta = ALL_PATTERNS[p["id"]]
+            category = meta.get("category", "communication")
+            db.observe_pattern(
+                user_id, p["id"], category, meta["kind"],
+                p.get("example", ""), meta.get("counter_of"),
+                display_name=p["id"],
+            )
             applied += 1
 
     if signals.get("professional_context"):
@@ -168,12 +177,6 @@ def _when(days: int | None) -> str:
 
 
 def _pick_focus(user_id: int, patterns: list[dict], last: dict | None) -> str:
-    """
-    Что сейчас тренируем — приоритет:
-      1. Подтверждённый growth-паттерн (это уже «знание» о человеке).
-      2. next_target последнего дебрифа (≤14 дней).
-      3. Самый слабый communication-критерий.
-    """
     growth = [p for p in patterns if p["kind"] == "growth" and p["status"] in ("confirmed", "improving")]
     if growth:
         return growth[0]["category"]
@@ -189,7 +192,6 @@ def _pick_focus(user_id: int, patterns: list[dict], last: dict | None) -> str:
 
 
 def build_context(user_id: int) -> dict:
-    """Компактный срез Personalization Memory (всё — из существующих таблиц + трёх новых)."""
     last = db.get_last_session(user_id)
     patterns = db.get_patterns(user_id, ("emerging", "confirmed", "improving"))
     focus = _pick_focus(user_id, patterns, last)
@@ -208,11 +210,6 @@ def build_context(user_id: int) -> dict:
 
 
 def select_reminder(user_id: int, rng: random.Random | None = None) -> dict | None:
-    """
-    Выбирает ОДИН тип напоминания и «якорь» — конкретный факт из памяти.
-    Возвращает None, если проверенных данных недостаточно (тогда бот использует нейтральный фолбэк).
-    Гипотезы (status=hypothesis) в напоминаниях не используются — это ещё не знание.
-    """
     rng = rng or random
     ctx = build_context(user_id)
     recent = db.get_recent_notifications(user_id, REF_WINDOW)
@@ -284,7 +281,7 @@ def select_reminder(user_id: int, rng: random.Random | None = None) -> dict | No
         for p in ctx["patterns"]:
             if (p["kind"] == "growth" and p["category"] == ctx["focus"]
                     and p["status"] in ("confirmed", "improving") and p["pattern_id"] not in used_pattern):
-                facts.append(f"Confirmed over several conversations: {PATTERN_CATALOG[p['pattern_id']]['brief']}")
+                facts.append(f"Confirmed over several conversations: {ALL_PATTERNS[p['pattern_id']]['brief']}")
                 ref = p["pattern_id"]
                 break
         cand["challenge_hook"] = {"facts": facts, "pattern": ref}
@@ -302,7 +299,7 @@ def select_reminder(user_id: int, rng: random.Random | None = None) -> dict | No
             if (p["kind"] == "growth" and p["category"] not in COMMUNICATION_SKILLS
                     and p["pattern_id"] not in used_pattern):
                 cand["language_hook"] = {
-                    "facts": [f"Language gap seen across conversations: {PATTERN_CATALOG[p['pattern_id']]['brief']}"],
+                    "facts": [f"Language gap seen across conversations: {ALL_PATTERNS[p['pattern_id']]['brief']}"],
                     "pattern": p["pattern_id"]}
                 break
 
@@ -318,7 +315,7 @@ def select_reminder(user_id: int, rng: random.Random | None = None) -> dict | No
                           f"A topic they care about: \"{topic}\"."],
                 "topic": topic, "interest": topic}
 
-    # --- goal_hook: то, что человек САМ сказал, что хочет прокачать ---
+    # --- goal_hook ---
     if ctx["goals"]:
         goal = ctx["goals"][0]
         cand["goal_hook"] = {
@@ -326,7 +323,7 @@ def select_reminder(user_id: int, rng: random.Random | None = None) -> dict | No
             "topic": "",
         }
 
-    # --- context_hook: профессиональный контекст ---
+    # --- context_hook ---
     if ctx["professional_context"] and ctx["clusters"]:
         c = ctx["clusters"][0]
         ex = c["examples"][-1] if c["examples"] else c["cluster"]

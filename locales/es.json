@@ -76,7 +76,8 @@
     "ESCAPE_ROUTE": "RUTA DE ESCAPE",
     "THE_ARENA_READ": "LO QUE LEE LA ARENA",
     "ALTERNATIVE": "Una alternativa",
-    "OPPONENT_SAID": "El oponente dijo"
+    "OPPONENT_SAID": "El oponente dijo",
+    "ARENA_NOTICED": "ARENA NOTÓ ALGO."
   },
   "FT": {
     "SELECT_LANGUAGE": "💬 Charla libre — ¿en qué idioma practicamos?",
@@ -113,7 +114,15 @@
     "ARSENAL_SHORTCUT": "🧰 Mi arsenal",
     "BATTLE_HISTORY": "HISTORIAL DE BATALLAS",
     "COMMUNICATION": "COMUNICACIÓN",
-    "LANGUAGE": "IDIOMA"
+    "LANGUAGE": "IDIOMA",
+    "CURRENT_READ": "LECTURA ACTUAL",
+    "SIGNALS": "SEÑALES DE LA ARENA",
+    "UNDER_PRESSURE": "BAJO PRESIÓN",
+    "UNSOLVED": "SIN RESOLVER",
+    "CONTEXT": "Contexto",
+    "EVOLUTION": "EVOLUCIÓN",
+    "BATTLE_N": "Batalla {n}",
+    "BASED_ON": "Basado en {n} batallas"
   },
   "ARSENAL": {
     "TITLE": "🧰 MI ARSENAL",
@@ -131,7 +140,15 @@
     "MORE_TO_EARN": "Otros {n} movimientos esperan a que los muestres.",
     "PHRASES_SECTION": "FRASES PARA TUS OBJETIVOS",
     "CHANNEL_HINT": "Cómo suenan estos movimientos en habla real — en el canal de ARENA.",
-    "CHANNEL_BUTTON": "📣 Canal ARENA"
+    "CHANNEL_BUTTON": "📣 Canal ARENA",
+    "STATUS": {
+      "discovered": "descubierto",
+      "practising": "practicando",
+      "acquired": "adquirido",
+      "strong": "fuerte",
+      "mastered": "dominado"
+    },
+    "USED_N_TIMES": "Usado {n} veces · {w} victorias"
   },
   "PATTERNS": {
     "repeats_claim": "Cuando te interrumpen, repites el mismo punto en lugar de buscar un ángulo nuevo.",
@@ -148,6 +165,48 @@
     "has_professional_context": "Vuelves una y otra vez a un contexto profesional claro.",
     "states_goals": "Dices abiertamente en qué quieres mejorar.",
     "avoids_topic": "Te alejas o desvías un tema que claramente no quieres tratar."
+  },
+  "SIGNALS": {
+    "explainer": {
+      "NAME": "EL EXPLICADOR",
+      "BRIEF": "Rara vez dejas una idea sin explicar."
+    },
+    "reframer": {
+      "NAME": "EL REENCUADRADOR",
+      "BRIEF": "Cuando te desafían, cambias el ángulo en lugar de abandonar la posición."
+    },
+    "pushback_response": {
+      "NAME": "RESPUESTA A LA RÉPLICA",
+      "BRIEF": "Cuando alguien te contradice, primero explicas — y luego cambias de estrategia."
+    },
+    "closer": {
+      "NAME": "EL QUE CIERRA",
+      "BRIEF": "Cuando sabes hacia dónde vas, sabes cómo terminar el punto."
+    },
+    "precision_under_pressure": {
+      "NAME": "PRECISIÓN BAJO PRESIÓN",
+      "BRIEF": "Cuando sube la apuesta, te vuelves más preciso."
+    },
+    "retreats_from_frames": {
+      "NAME": "PIERDE EL MARCO",
+      "BRIEF": "Pierdes el impulso cuando la otra persona rechaza tu marco inicial."
+    },
+    "evidence_first": {
+      "NAME": "PRIMERO EL DATO",
+      "BRIEF": "Antes del argumento, echas mano de un dato concreto."
+    },
+    "story_driven": {
+      "NAME": "A TRAVÉS DE LA HISTORIA",
+      "BRIEF": "Haces avanzar el argumento con ejemplos e historias."
+    },
+    "hedges_too_early": {
+      "NAME": "SUAVIZA DEMASIADO PRONTO",
+      "BRIEF": "Suavizas la afirmación antes de que tenga ocasión de aterrizar."
+    },
+    "controls_direction": {
+      "NAME": "DIRIGE LA CONVERSACIÓN",
+      "BRIEF": "Llevas la conversación hacia el punto que quieres defender."
+    }
   },
   "CRITERIA": {
     "grammar": "Gramática",

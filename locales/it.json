@@ -76,7 +76,8 @@
     "ESCAPE_ROUTE": "VIA D'USCITA",
     "THE_ARENA_READ": "CIÒ CHE LEGGE L'ARENA",
     "ALTERNATIVE": "Un'alternativa",
-    "OPPONENT_SAID": "L'avversario ha detto"
+    "OPPONENT_SAID": "L'avversario ha detto",
+    "ARENA_NOTICED": "ARENA HA NOTATO QUALCOSA."
   },
   "FT": {
     "SELECT_LANGUAGE": "💬 Chiacchierata libera — in che lingua ci esercitiamo?",
@@ -113,7 +114,15 @@
     "ARSENAL_SHORTCUT": "🧰 Il mio arsenale",
     "BATTLE_HISTORY": "STORICO BATTAGLIE",
     "COMMUNICATION": "COMUNICAZIONE",
-    "LANGUAGE": "LINGUA"
+    "LANGUAGE": "LINGUA",
+    "CURRENT_READ": "LETTURA ATTUALE",
+    "SIGNALS": "SEGNALI DELL'ARENA",
+    "UNDER_PRESSURE": "SOTTO PRESSIONE",
+    "UNSOLVED": "NON RISOLTO",
+    "CONTEXT": "Contesto",
+    "EVOLUTION": "EVOLUZIONE",
+    "BATTLE_N": "Battaglia {n}",
+    "BASED_ON": "Su {n} battaglie"
   },
   "ARSENAL": {
     "TITLE": "🧰 IL MIO ARSENALE",
@@ -131,7 +140,15 @@
     "MORE_TO_EARN": "Altre {n} mosse aspettano che tu le mostri.",
     "PHRASES_SECTION": "FRASI PER I TUOI OBIETTIVI",
     "CHANNEL_HINT": "Come suonano queste mosse nel parlato reale — sul canale ARENA.",
-    "CHANNEL_BUTTON": "📣 Canale ARENA"
+    "CHANNEL_BUTTON": "📣 Canale ARENA",
+    "STATUS": {
+      "discovered": "scoperto",
+      "practising": "in pratica",
+      "acquired": "acquisito",
+      "strong": "forte",
+      "mastered": "padroneggiato"
+    },
+    "USED_N_TIMES": "Usato {n} volte · {w} vittorie"
   },
   "PATTERNS": {
     "repeats_claim": "Quando ti interrompono, ripeti lo stesso punto invece di trovare un'angolazione nuova.",
@@ -148,6 +165,48 @@
     "has_professional_context": "Torni sempre su un chiaro contesto professionale.",
     "states_goals": "Dici apertamente in cosa vuoi migliorare.",
     "avoids_topic": "Ti allontani o devii un argomento che chiaramente non vuoi affrontare."
+  },
+  "SIGNALS": {
+    "explainer": {
+      "NAME": "LO SPIEGATORE",
+      "BRIEF": "Raramente lasci un'idea senza spiegazione."
+    },
+    "reframer": {
+      "NAME": "IL RIFORMULATORE",
+      "BRIEF": "Quando vieni sfidato, cambi l'angolazione invece di abbandonare la posizione."
+    },
+    "pushback_response": {
+      "NAME": "RISPOSTA ALLA REPLICA",
+      "BRIEF": "Quando qualcuno ti contraddice, prima spieghi — poi cambi strategia."
+    },
+    "closer": {
+      "NAME": "IL CHIUSORE",
+      "BRIEF": "Quando sai dove stai andando, sai come chiudere il punto."
+    },
+    "precision_under_pressure": {
+      "NAME": "PRECISIONE SOTTO PRESSIONE",
+      "BRIEF": "Quando sale la posta, diventi più preciso."
+    },
+    "retreats_from_frames": {
+      "NAME": "PERDE IL FRAME",
+      "BRIEF": "Perdi slancio quando l'altra persona rifiuta il tuo frame iniziale."
+    },
+    "evidence_first": {
+      "NAME": "PRIMA IL DATO",
+      "BRIEF": "Prima dell'argomento, cerchi un dato concreto."
+    },
+    "story_driven": {
+      "NAME": "ATTRAVERSO LA STORIA",
+      "BRIEF": "Porti avanti l'argomento attraverso esempi e storie."
+    },
+    "hedges_too_early": {
+      "NAME": "AMMORBIDISCE TROPPO PRESTO",
+      "BRIEF": "Ammorbidisci l'affermazione prima che abbia la possibilità di atterrare."
+    },
+    "controls_direction": {
+      "NAME": "GUIDA LA CONVERSAZIONE",
+      "BRIEF": "Porti la conversazione verso il punto che vuoi sostenere."
+    }
   },
   "CRITERIA": {
     "grammar": "Grammatica",

@@ -1,18 +1,8 @@
 """
-game_data.py — данные ARENA: языки, уровни, персонажи, 10 критериев,
-бейджи, шаблоны миссий, голоса, вспомогательные мапы.
-
-Ключевое изменение по сравнению со старой версией:
-  • Языки теперь адресуются короткими ISO-кодами (en/ru/de/es/it/ko/zh) —
-    это те же значения, что в interface_language и learning_language в БД.
-  • Внутренний ключ промпта (english/russian/...) доступен через
-    config.ISO_TO_LANG_KEY. game_data использует ISO везде, где можно.
+game_data.py — данные ARENA: языки, уровни, персонажи, критерии, бейджи,
+шаблоны миссий, голоса, вспомогательные мапы, ARENA_SIGNALS, ARSENAL_STATUS.
 """
 
-# ============================================================
-# ЯЗЫКИ
-# ============================================================
-# Основной словарь для UI: ISO-код → флаг + название на самом себе.
 LANGUAGES = {
     "en": {"flag": "🇬🇧", "name": "English"},
     "ru": {"flag": "🇷🇺", "name": "Русский"},
@@ -23,7 +13,6 @@ LANGUAGES = {
     "zh": {"flag": "🇨🇳", "name": "中文"},
 }
 
-# Название языка для промптов GPT — всегда по-английски.
 LANG_PROMPT_NAME = {
     "en": "English",
     "ru": "Russian",
@@ -34,21 +23,9 @@ LANG_PROMPT_NAME = {
     "zh": "Simplified Chinese",
 }
 
-# ISO для подсказки Whisper (совпадает со стандартным ISO-639-1).
-LANG_TO_ISO = {
-    "en": "en",
-    "ru": "ru",
-    "de": "de",
-    "es": "es",
-    "it": "it",
-    "ko": "ko",
-    "zh": "zh",
-}
+LANG_TO_ISO = {"en": "en", "ru": "ru", "de": "de", "es": "es",
+               "it": "it", "ko": "ko", "zh": "zh"}
 
-
-# ============================================================
-# УРОВНИ CEFR
-# ============================================================
 
 LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"]
 
@@ -60,26 +37,15 @@ LEVEL_PROMPTS = {
     "B1": "Use medium-complexity sentences, everyday and some abstract vocabulary (~2000 words), "
           "a variety of common tenses, connectors like 'however', 'although', 'therefore'.",
     "B2": "Use complex sentences, all common tenses, modal verbs, passive voice, intermediate "
-          "idioms and a wide vocabulary (~4000 words) — but keep it sounding SPOKEN, like a real "
-          "person talking, not written prose.",
+          "idioms and a wide vocabulary (~4000 words) — but keep it sounding SPOKEN.",
     "C1": "Use sophisticated structures, precise and wide vocabulary, idioms, abstract ideas, "
-          "nuanced argumentation — but this is still spoken, natural speech, not an essay. Real "
-          "people at this level use contractions, interrupt themselves, throw in casual asides.",
+          "nuanced argumentation — but this is still spoken, natural speech, not an essay.",
     "C2": "Use native-like, richly nuanced language, advanced idioms and stylistic devices, subtle "
-          "rhetoric — but stay natural and conversational, the way a sharp native speaker actually "
-          "talks, not a lecture or a written text. More vocabulary does NOT mean more formal.",
+          "rhetoric — but stay natural and conversational.",
 }
-# Совместимость со старым именем.
 LEVEL_DESCRIPTIONS = LEVEL_PROMPTS
-
 BEGINNER_LEVELS = {"A1", "A2"}
 
-
-# ============================================================
-# ПЕРСОНАЖИ
-# ============================================================
-# character personality ≠ language difficulty.
-# Персонаж остаётся собой на любом CEFR-уровне — меняется только сложность речи.
 
 ROLE_STYLE = {
     "ceo": "ask about strategy, risk, money, leadership; demand numbers and structure",
@@ -90,12 +56,11 @@ ROLE_STYLE = {
     "devil_advocate": "always look at the opposite side and argue, find weak spots in arguments",
 }
 
-# Описание характера для GPT — по-английски, чтобы модель не уходила в другой язык.
 PERSONA_BRIEFS = {
     "ceo": "Richard, a blunt CEO who built three international companies. Hates fluff and long "
-           "intros, demands numbers, structure and a clear benefit. Short, dry sentences. Never gushes.",
+           "intros, demands numbers, structure and a clear benefit. Short, dry sentences.",
     "journalist": "Kate, a sharp investigative journalist. Hunts for contradictions and weak spots, "
-                  "asks uncomfortable follow-ups, never accepts the first answer, loves a surprising honest angle.",
+                  "asks uncomfortable follow-ups, never accepts the first answer.",
     "professor": "Professor Adams, a strict academic. Demands thesis → argument → conclusion, "
                  "corrects imprecision, keeps asking to elaborate.",
     "hr_manager": "Sarah, an HR director. Turns any topic into behavioural questions and wants "
@@ -106,32 +71,19 @@ PERSONA_BRIEFS = {
                       "secretly agrees. Probes weak points, respects people who hold their ground.",
 }
 
-# Конкретные речевые привычки — без них персонаж звучит generic-дружелюбно даже
-# в свободном разговоре, когда нет явного конфликта, за который можно зацепиться.
-# Это должно работать в МЕЛОЧАХ (small talk), а не только в спорных моментах.
 SPEECH_STYLE = {
-    "ceo": "Clipped, transactional sentences, rarely more than 8-10 words. Often opens a reply with "
-           "'Bottom line —' or 'So, the number is?' or 'Fine, but —'. Gets visibly impatient with small "
-           "talk and redirects it toward outcomes, time, or money within a line or two, even when the "
-           "topic is something casual like food or weekend plans. Almost never asks how someone feels.",
-    "journalist": "Turns statements into questions back at the person ('You liked it? Or you're just "
-                  "being polite?'). Repeats a suspicious word before pressing on it. Drops in a quick "
-                  "'Really?' or 'Says who?' even about trivial claims. Curious about specifics — names, "
-                  "numbers, exact moments — and calls out vagueness immediately.",
-    "professor": "Formal, precise vocabulary, occasional dry academic humor. Asks for definitions of "
-                 "casual words ('what do you mean by \"good\", exactly?'). Mild condescension — corrects "
-                 "loose reasoning even in idle chat, then softens it with a small compliment.",
-    "hr_manager": "Warm surface tone but structured underneath. Reflexively asks for a concrete example "
-                  "of anything mentioned ('walk me through that', 'give me a specific moment'). Uses "
-                  "workplace-adjacent framing even for unrelated topics (calls a hobby a 'strength', a "
-                  "trip a 'growth experience').",
-    "philosopher": "Answers questions with questions more often than with answers. Slows the pace down, "
-                   "sometimes trails off mid-thought ('...though maybe that's not quite it'). Redirects "
-                   "small talk toward meaning or purpose without being asked to.",
-    "devil_advocate": "Reflexively takes the contrarian position on nearly anything, including trivial "
-                      "opinions like favorite food or a movie — playful, not hostile, but relentless. "
-                      "Often opens with 'I'd actually disagree' or 'See, that's exactly the problem' "
-                      "even when he privately agrees.",
+    "ceo": "Clipped, transactional sentences, rarely more than 8-10 words. Gets visibly impatient "
+           "with small talk and redirects it toward outcomes, time, or money within a line or two.",
+    "journalist": "Turns statements into questions back at the person. Repeats a suspicious word "
+                  "before pressing on it. Drops in a quick 'Really?' or 'Says who?'.",
+    "professor": "Formal, precise vocabulary, occasional dry academic humor. Asks for definitions "
+                 "of casual words. Mild condescension.",
+    "hr_manager": "Warm surface tone but structured underneath. Reflexively asks for a concrete "
+                  "example of anything mentioned.",
+    "philosopher": "Answers questions with questions more often than with answers. Slows the pace "
+                   "down, sometimes trails off mid-thought.",
+    "devil_advocate": "Reflexively takes the contrarian position on nearly anything, including "
+                      "trivial opinions — playful, not hostile, but relentless.",
 }
 
 PERSONALITIES = {
@@ -203,9 +155,6 @@ PERSONALITIES = {
     },
 }
 
-# Защита от задвоенного emoji-префикса в имени персонажа (например, если где-то
-# в данных случайно оказалось "👑 👑 Richard the CEO" вместо "👑 Richard the CEO") —
-# нормализуем один раз здесь, а не там, где имя выводится.
 import re as _re
 _DUP_EMOJI_PREFIX_RE = _re.compile(r"^(\S+)(\s+\1)+(\s+)")
 
@@ -224,20 +173,10 @@ for _p in PERSONALITIES.values():
 del _p, _field
 
 
-# ============================================================
-# 10 КРИТЕРИЕВ ОЦЕНКИ
-# ============================================================
-# 4 языковых + 6 коммуникационных = 10.
-
 LANGUAGE_CRITERIA = ["grammar", "vocabulary", "fluency", "naturalness"]
 
 COMMUNICATION_SKILLS = [
-    "clarity",
-    "argumentation",
-    "adaptability",
-    "persuasion",
-    "evidence",
-    "control",
+    "clarity", "argumentation", "adaptability", "persuasion", "evidence", "control",
 ]
 HIDDEN_SKILLS = ["resilience"]
 
@@ -245,12 +184,8 @@ ALL_CRITERIA = LANGUAGE_CRITERIA + COMMUNICATION_SKILLS
 
 
 # ============================================================
-# АРСЕНАЛ: фиксированный набор из 8 приёмов
+# ARSENAL: 8 фиксированных приёмов
 # ============================================================
-# Это не свободная генерация оружия — это закрытый список конкретных техник.
-# Витрина (имя/описание/пример на языке интерфейса) живёт в locales/*.json → TOOLS.
-# Здесь — только порядок, эмодзи и внутреннее (английское) определение для промпта
-# классификации в ai.py: "какой из этих 8 приёмов реально продемонстрировал игрок".
 
 ARSENAL_TOOLS = [
     {"key": "premise_flip", "emoji": "⚔️"},
@@ -265,7 +200,6 @@ ARSENAL_TOOLS = [
 ARSENAL_TOOL_KEYS = [t["key"] for t in ARSENAL_TOOLS]
 ARSENAL_TOOL_EMOJI = {t["key"]: t["emoji"] for t in ARSENAL_TOOLS}
 
-# Только для промпта классификации (ai.py) — не показывается пользователю.
 ARSENAL_TOOL_DEFS = {
     "premise_flip": "Challenging the underlying assumption a claim rests on, instead of arguing "
                     "on the opponent's terms (e.g. 'why does it have to work that way at all?').",
@@ -284,20 +218,76 @@ ARSENAL_TOOL_DEFS = {
 }
 
 
-CRITERIA_LABELS_RU = {
-    "grammar": "Грамматика",
-    "vocabulary": "Словарный запас",
-    "fluency": "Беглость",
-    "naturalness": "Естественность",
-    "clarity": "Ясность",
-    "argumentation": "Аргументация",
-    "adaptability": "Гибкость",
-    "persuasion": "Убедительность",
-    "evidence": "Доказательность",
-    "control": "Контроль разговора",
+# ============================================================
+# ARSENAL STATUS LEVELS — жизненный цикл приёма
+# ============================================================
+ARSENAL_STATUS_ORDER = ["discovered", "practising", "acquired", "strong", "mastered"]
+
+ARSENAL_STATUS_EMOJI = {
+    "discovered": "🔍",
+    "practising": "🎯",
+    "acquired": "✅",
+    "strong": "💪",
+    "mastered": "🏆",
 }
 
-# Какой персонаж прокачивает какой communication-скилл.
+ARSENAL_STATUS_THRESHOLDS = {
+    "discovered": 1,
+    "practising": 2,
+    "acquired": 4,
+    "strong": 7,
+    "mastered": 12,
+}
+
+
+def arsenal_status_for_count(uses: int) -> str:
+    """Статус приёма по числу успешных применений (или появлений) в боях."""
+    status = "discovered"
+    for key in ARSENAL_STATUS_ORDER:
+        if uses >= ARSENAL_STATUS_THRESHOLDS[key]:
+            status = key
+    return status
+
+
+# ============================================================
+# ARENA SIGNALS
+# ============================================================
+ARENA_SIGNALS = {
+    "explainer": {"kind": "pattern", "category": "clarity",
+                  "brief": "Rarely leaves an idea unexplained."},
+    "reframer": {"kind": "strength", "category": "argumentation",
+                 "brief": "When challenged, changes the angle instead of abandoning the position."},
+    "pushback_response": {"kind": "growth", "category": "adaptability",
+                          "brief": "Explains before changing strategy when disagreed with."},
+    "closer": {"kind": "strength", "category": "control",
+               "brief": "Knows how to finish the point once the direction is clear."},
+    "precision_under_pressure": {"kind": "strength", "category": "clarity",
+                                 "brief": "Becomes more precise when the stakes rise."},
+    "retreats_from_frames": {"kind": "growth", "category": "adaptability",
+                             "brief": "Loses momentum when the other person refuses the initial frame."},
+    "evidence_first": {"kind": "strength", "category": "evidence",
+                       "brief": "Reaches for a concrete fact before arguing."},
+    "story_driven": {"kind": "strength", "category": "fluency",
+                     "brief": "Moves the argument forward through examples and stories."},
+    "hedges_too_early": {"kind": "growth", "category": "persuasion",
+                         "brief": "Softens the claim before giving it a chance to land."},
+    "controls_direction": {"kind": "strength", "category": "control",
+                           "brief": "Steers the conversation toward the point they want to make."},
+}
+
+
+# ============================================================
+# ОБЩИЕ МАПЫ
+# ============================================================
+
+CRITERIA_LABELS_RU = {
+    "grammar": "Грамматика", "vocabulary": "Словарный запас",
+    "fluency": "Беглость", "naturalness": "Естественность",
+    "clarity": "Ясность", "argumentation": "Аргументация",
+    "adaptability": "Гибкость", "persuasion": "Убедительность",
+    "evidence": "Доказательность", "control": "Контроль разговора",
+}
+
 SKILL_TO_PERSONALITY = {
     "clarity": "journalist",
     "argumentation": "devil_advocate",
@@ -310,21 +300,15 @@ PERSONALITY_TO_SKILL = {person: skill for skill, person in SKILL_TO_PERSONALITY.
 SKILL_TO_PERSONALITY_REVERSE = SKILL_TO_PERSONALITY
 
 
-# ============================================================
-# ARENA RANKS / BEHAVIOURS
-# ============================================================
-
 ARENA_RANKS = {
-    "clarity": {"rank": "I", "name": "SPEAK",
-                "goal": "state your opinion", "tools": "words"},
-    "argumentation": {"rank": "II", "name": "BUILD",
-                      "goal": "explain your position", "tools": "phrases + connectors"},
-    "evidence": {"rank": "III", "name": "DEFEND",
-                 "goal": "answer objections", "tools": "collocations + argument structures"},
-    "persuasion": {"rank": "IV", "name": "PERSUADE",
-                   "goal": "change their mind", "tools": "persuasive language + natural expressions"},
-    "adaptability": {"rank": "V", "name": "ADAPT",
-                     "goal": "respond when your first approach fails",
+    "clarity": {"rank": "I", "name": "SPEAK", "goal": "state your opinion", "tools": "words"},
+    "argumentation": {"rank": "II", "name": "BUILD", "goal": "explain your position",
+                      "tools": "phrases + connectors"},
+    "evidence": {"rank": "III", "name": "DEFEND", "goal": "answer objections",
+                 "tools": "collocations + argument structures"},
+    "persuasion": {"rank": "IV", "name": "PERSUADE", "goal": "change their mind",
+                   "tools": "persuasive language + natural expressions"},
+    "adaptability": {"rank": "V", "name": "ADAPT", "goal": "respond when your first approach fails",
                      "tools": "nuanced language + reframing"},
     "control": {"rank": "VI", "name": "CONTROL",
                 "goal": "lead the conversation toward an outcome",
@@ -348,10 +332,6 @@ BEHAVIOUR_BRIEFS = {
 }
 
 
-# ============================================================
-# ПЕРСОНАЛЬНЫЕ ПОДСКАЗКИ
-# ============================================================
-
 PERSONA_TIP_FALLBACK = {
     "ceo": "Start with a number or a concrete result — no intro.",
     "journalist": "Give her something unexpected in your first sentence.",
@@ -371,10 +351,6 @@ MISSION_FORMAT_BY_PERSONALITY = {
 }
 
 
-# ============================================================
-# БЕЙДЖИ
-# ============================================================
-
 BADGES = {
     "first_debate": {"name": "🏆 First battle", "description": "Completed your first battle"},
     "first_victory": {"name": "🥇 First victory", "description": "Won your first battle"},
@@ -388,37 +364,19 @@ BADGES = {
 }
 
 
-# ============================================================
-# UI-СТРОКИ
-# ============================================================
-# Всё, что видит пользователь как интерфейс, теперь живёт в locales/*.json.
-# Здесь — только те строки, которые нужны AI-слою (названия фаз и т.п.).
-
 ARENA_UI_STRINGS = {
     "en": {"heard_enough": "I'VE HEARD ENOUGH.", "enter_battle": "⚔️ ENTER BATTLE →"},
     "ru": {"heard_enough": "Я УСЛЫШАЛА ДОСТАТОЧНО.", "enter_battle": "⚔️ ВОЙТИ В БОЙ →"},
 }
 
 
-# ============================================================
-# VOICE (TTS)
-# ============================================================
-# У каждого персонажа свой голос. Храм говорит своим.
 VOICE_BY_PERSONALITY = {
-    "ceo": "onyx",
-    "journalist": "nova",
-    "professor": "echo",
-    "hr_manager": "shimmer",
-    "philosopher": "fable",
-    "devil_advocate": "alloy",
-    "_temple": "onyx",
+    "ceo": "onyx", "journalist": "nova", "professor": "echo",
+    "hr_manager": "shimmer", "philosopher": "fable",
+    "devil_advocate": "alloy", "_temple": "onyx",
 }
 TEMPLE_VOICE = "onyx"
 
-
-# ============================================================
-# ДИСКУССИОННЫЕ ПРАВИЛА ПО УРОВНЮ
-# ============================================================
 
 DISCUSSION_RULES = {
     "A1": "Speak in short sentences, but always add WHY you think so.",
@@ -430,46 +388,24 @@ DISCUSSION_RULES = {
 }
 
 
-# ============================================================
-# НЕМЕЗИДА
-# ============================================================
-
 NEMESIS_MAP = {
-    "analyst": "philosopher",
-    "challenger": "philosopher",
-    "explorer": "devil_advocate",
-    "precise": "hr_manager",
-    "defender": "ceo",
+    "analyst": "philosopher", "challenger": "philosopher",
+    "explorer": "devil_advocate", "precise": "hr_manager", "defender": "ceo",
 }
 
-# ============================================================
-# СОВМЕСТИМОСТЬ: словари, которые ждёт gamification.py
-# ============================================================
 
-# Русские названия коммуникационных скиллов — для внутренних подписей.
 SKILL_LABELS_RU = {
-    "clarity": "ясность речи",
-    "argumentation": "аргументацию",
-    "evidence": "доказательность",
-    "persuasion": "убедительность",
-    "adaptability": "гибкость в споре",
-    "control": "контроль разговора",
+    "clarity": "ясность речи", "argumentation": "аргументацию",
+    "evidence": "доказательность", "persuasion": "убедительность",
+    "adaptability": "гибкость в споре", "control": "контроль разговора",
 }
 
-# Английские названия — на будущее (gamification может использовать
-# их для не-русского интерфейса, но пока он берёт только русские).
 SKILL_LABELS_EN = {
-    "clarity": "clarity",
-    "argumentation": "argumentation",
-    "evidence": "evidence",
-    "persuasion": "persuasion",
-    "adaptability": "adaptability",
-    "control": "conversation control",
+    "clarity": "clarity", "argumentation": "argumentation",
+    "evidence": "evidence", "persuasion": "persuasion",
+    "adaptability": "adaptability", "control": "conversation control",
 }
 
-# Комментарии персонажей (используются в дебрифе для советов "в характере").
-# Оставляем на английском — это не UI, а внутренний текст, который сейчас
-# нигде активно не показывается.
 PERSONALITY_COMMENTS = {
     "ceo": "You came with facts — good. Next time add concrete numbers.",
     "journalist": "Interesting, but I'm still waiting for that unexpected angle.",

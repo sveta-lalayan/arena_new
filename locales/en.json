@@ -76,7 +76,8 @@
     "ESCAPE_ROUTE": "ESCAPE ROUTE",
     "THE_ARENA_READ": "THE ARENA READ",
     "ALTERNATIVE": "An alternative",
-    "OPPONENT_SAID": "The opponent said"
+    "OPPONENT_SAID": "The opponent said",
+    "ARENA_NOTICED": "ARENA NOTICED SOMETHING."
   },
   "FT": {
     "SELECT_LANGUAGE": "💬 Free talk — which language are we practising?",
@@ -113,7 +114,15 @@
     "ARSENAL_SHORTCUT": "🧰 My Arsenal",
     "BATTLE_HISTORY": "BATTLE HISTORY",
     "COMMUNICATION": "COMMUNICATION",
-    "LANGUAGE": "LANGUAGE"
+    "LANGUAGE": "LANGUAGE",
+    "CURRENT_READ": "CURRENT READ",
+    "SIGNALS": "ARENA SIGNALS",
+    "UNDER_PRESSURE": "UNDER PRESSURE",
+    "UNSOLVED": "UNSOLVED",
+    "CONTEXT": "Context",
+    "EVOLUTION": "EVOLUTION",
+    "BATTLE_N": "Battle {n}",
+    "BASED_ON": "Based on {n} battles"
   },
   "ARSENAL": {
     "TITLE": "🧰 MY ARSENAL",
@@ -131,7 +140,15 @@
     "MORE_TO_EARN": "{n} more moves are waiting for you to reveal them.",
     "PHRASES_SECTION": "PHRASES FOR YOUR GOALS",
     "CHANNEL_HINT": "See how these moves sound in real speech — on the ARENA channel.",
-    "CHANNEL_BUTTON": "📣 ARENA channel"
+    "CHANNEL_BUTTON": "📣 ARENA channel",
+    "STATUS": {
+      "discovered": "discovered",
+      "practising": "practising",
+      "acquired": "acquired",
+      "strong": "strong",
+      "mastered": "mastered"
+    },
+    "USED_N_TIMES": "Used {n} times · {w} wins"
   },
   "PATTERNS": {
     "repeats_claim": "When someone interrupts you, you repeat the same point instead of finding a new angle.",
@@ -148,6 +165,48 @@
     "has_professional_context": "You keep referring to a clear professional context.",
     "states_goals": "You openly say what you want to get better at.",
     "avoids_topic": "You step away from or redirect a topic you clearly don't want to discuss."
+  },
+  "SIGNALS": {
+    "explainer": {
+      "NAME": "THE EXPLAINER",
+      "BRIEF": "You rarely leave an idea unexplained."
+    },
+    "reframer": {
+      "NAME": "THE REFRAMER",
+      "BRIEF": "When challenged, you change the angle rather than abandon the position."
+    },
+    "pushback_response": {
+      "NAME": "PUSHBACK RESPONSE",
+      "BRIEF": "When someone disagrees, you explain before changing strategy."
+    },
+    "closer": {
+      "NAME": "THE CLOSER",
+      "BRIEF": "Once you know where you are going, you know how to finish the point."
+    },
+    "precision_under_pressure": {
+      "NAME": "PRECISION UNDER PRESSURE",
+      "BRIEF": "You become more precise when the stakes rise."
+    },
+    "retreats_from_frames": {
+      "NAME": "LOSES THE FRAME",
+      "BRIEF": "You lose momentum when the other person refuses your initial frame."
+    },
+    "evidence_first": {
+      "NAME": "EVIDENCE FIRST",
+      "BRIEF": "You reach for a concrete fact before arguing."
+    },
+    "story_driven": {
+      "NAME": "STORY-DRIVEN",
+      "BRIEF": "You move the argument forward through examples and stories."
+    },
+    "hedges_too_early": {
+      "NAME": "HEDGES TOO EARLY",
+      "BRIEF": "You soften the claim before giving it a chance to land."
+    },
+    "controls_direction": {
+      "NAME": "CONTROLS DIRECTION",
+      "BRIEF": "You steer the conversation toward the point you want to make."
+    }
   },
   "CRITERIA": {
     "grammar": "Grammar",
