@@ -245,6 +245,22 @@ async def _reveal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await asyncio.to_thread(personalization.record_session, user_id, "temple", user_responses, language)
     except Exception:
         logger.exception("personalization.record_session(temple) упал")
+
+    # Evidence для Discovery Engine
+    try:
+        ev = await asyncio.to_thread(
+            ai.extract_evidence, user_responses, "temple", language, [], [],
+            user.first_name or "",
+        )
+        for item in ev:
+            db.add_evidence(
+                user_id, "temple", item["text_excerpt"],
+                item.get("detected", ""), item.get("interpretation", ""),
+                item.get("confidence", 0.5),
+            )
+    except Exception:
+        logger.exception("extract_evidence(temple) упал")
+
     _reset_fe_state(context)
 
 

@@ -283,6 +283,39 @@ CREATE TABLE IF NOT EXISTS notification_log (
     clicked                 INTEGER NOT NULL DEFAULT 0,
     dismissed               INTEGER NOT NULL DEFAULT 0
 );
+
+-- ==================================================================
+-- DISCOVERY ENGINE
+-- ==================================================================
+CREATE TABLE IF NOT EXISTS user_evidence (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_id     INTEGER NOT NULL,
+    interaction_id  TEXT NOT NULL,
+    text_excerpt    TEXT NOT NULL,
+    detected        TEXT,
+    interpretation  TEXT,
+    confidence      REAL DEFAULT 0,
+    created_at      TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS user_discoveries (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    telegram_id   INTEGER NOT NULL,
+    kind          TEXT NOT NULL,
+    headline      TEXT NOT NULL,
+    body          TEXT NOT NULL,
+    evidence      TEXT,
+    shown         INTEGER NOT NULL DEFAULT 0,
+    created_at    TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS user_notification_state (
+    telegram_id       INTEGER PRIMARY KEY,
+    last_sent_at      TEXT,
+    sent_today_count  INTEGER NOT NULL DEFAULT 0,
+    last_day          TEXT,
+    last_type         TEXT
+);
 """
 
 
@@ -355,7 +388,6 @@ def init_db():
         _add_col("user_patterns", "display_name",
                  "ALTER TABLE user_patterns ADD COLUMN display_name TEXT")
 
-        # Миграции для user_tools (итерация 3)
         _add_col("user_tools", "uses", "ALTER TABLE user_tools ADD COLUMN uses INTEGER NOT NULL DEFAULT 0")
         _add_col("user_tools", "wins", "ALTER TABLE user_tools ADD COLUMN wins INTEGER NOT NULL DEFAULT 0")
         _add_col("user_tools", "last_used_at", "ALTER TABLE user_tools ADD COLUMN last_used_at TEXT")
@@ -482,6 +514,7 @@ def reset_user_data(telegram_id: int):
             "user_patterns", "user_interest_clusters", "notification_log",
             "user_goals", "user_avoids",
             "user_current_read", "user_under_pressure", "user_unsolved",
+            "user_evidence", "user_discoveries", "user_notification_state",
         ):
             conn.execute(f"DELETE FROM {table} WHERE telegram_id = ?", (telegram_id,))
         conn.execute("DELETE FROM users WHERE telegram_id = ?", (telegram_id,))
@@ -981,8 +1014,6 @@ def get_all_skills(telegram_id: int) -> dict:
 # ---------- Arsenal tools ----------
 
 def unlock_tool(telegram_id: int, tool_key: str) -> bool:
-    """True, если это НОВЫЙ приём (ещё не было в арсенале).
-    Счётчик uses не увеличивается здесь — это делает record_tool_use()."""
     if not tool_key:
         return False
     with get_conn() as conn:
@@ -1015,8 +1046,6 @@ def get_last_unlocked_tool(telegram_id: int) -> str | None:
 
 
 def record_tool_use(telegram_id: int, tool_key: str, won: bool, source: str = "") -> dict | None:
-    """Отмечает применение приёма в бою: +1 uses, +1 wins если won.
-    Если приёма ещё нет — создаёт запись (первое появление = DISCOVERED с uses=1)."""
     if not tool_key:
         return None
     now = _now()
@@ -1191,7 +1220,6 @@ def add_grammar_phrases(telegram_id: int, goal: str, phrases: list[str]) -> int:
 
 
 def get_grammar_phrases(telegram_id: int, goal: str | None = None, limit: int = 40) -> list[dict]:
-    """Простой список фраз без статистики (для промптов и выбора)."""
     with get_conn() as conn:
         if goal:
             rows = conn.execute(
@@ -1213,7 +1241,6 @@ def get_grammar_phrases(telegram_id: int, goal: str | None = None, limit: int = 
 
 
 def record_phrase_use(telegram_id: int, phrase: str, won: bool) -> dict | None:
-    """Отмечает применение grammar-фразы в бою."""
     phrase = (phrase or "").strip()
     if not phrase:
         return None
@@ -1243,7 +1270,6 @@ def record_phrase_use(telegram_id: int, phrase: str, won: bool) -> dict | None:
 
 
 def get_grammar_phrases_with_stats(telegram_id: int, goal: str | None = None, limit: int = 40) -> list[dict]:
-    """Фразы с их статусами и счётчиками."""
     with get_conn() as conn:
         if goal:
             rows = conn.execute(
@@ -1696,3 +1722,102 @@ def get_unsolved(telegram_id: int, limit: int = 5) -> list[dict]:
             "ORDER BY id DESC LIMIT ?",
             (telegram_id, limit)).fetchall()
     return [{"id": r["id"], "question": r["question"], "created_at": r["created_at"]} for r in rows]
+
+
+# ==================================================================
+# DISCOVERY ENGINE
+# ==================================================================
+
+def add_evidence(telegram_id: int, interaction_id: str, text_excerpt: str,
+                 detected: str = "", interpretation: str = "", confidence: float = 0.5) -> int:
+    with get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO user_evidence (telegram_id, interaction_id, text_excerpt, detected, "
+            "interpretation, confidence, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (telegram_id, interaction_id, text_excerpt[:400], detected[:300],
+             interpretation[:400], float(confidence), _now()),
+        )
+        return cur.lastrowid
+
+
+def get_recent_evidence(telegram_id: int, since_hours: int = 48, limit: int = 40) -> list[dict]:
+    since = (datetime.now(timezone.utc) - timedelta(hours=since_hours)).isoformat()
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT id, interaction_id, text_excerpt, detected, interpretation, confidence, created_at "
+            "FROM user_evidence WHERE telegram_id = ? AND created_at >= ? "
+            "ORDER BY id DESC LIMIT ?",
+            (telegram_id, since, limit),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def log_discovery(telegram_id: int, kind: str, headline: str, body: str,
+                  evidence: list | None = None) -> int:
+    with get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO user_discoveries (telegram_id, kind, headline, body, evidence, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (telegram_id, kind, headline[:120], body[:600],
+             json.dumps(evidence or [], ensure_ascii=False), _now()),
+        )
+        return cur.lastrowid
+
+
+def get_last_discovery(telegram_id: int) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, kind, headline, body, evidence, shown, created_at FROM user_discoveries "
+            "WHERE telegram_id = ? ORDER BY id DESC LIMIT 1", (telegram_id,)
+        ).fetchone()
+    if not row:
+        return None
+    try:
+        ev = json.loads(row["evidence"] or "[]")
+    except ValueError:
+        ev = []
+    return {"id": row["id"], "kind": row["kind"], "headline": row["headline"],
+            "body": row["body"], "evidence": ev, "shown": bool(row["shown"]),
+            "created_at": row["created_at"]}
+
+
+def mark_discovery_shown(discovery_id: int, telegram_id: int):
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE user_discoveries SET shown = 1 WHERE id = ? AND telegram_id = ?",
+            (discovery_id, telegram_id))
+
+
+def get_notification_state(telegram_id: int) -> dict:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT last_sent_at, sent_today_count, last_day, last_type "
+            "FROM user_notification_state WHERE telegram_id = ?", (telegram_id,)
+        ).fetchone()
+    if not row:
+        return {"last_sent_at": None, "sent_today_count": 0, "last_day": "", "last_type": ""}
+    return {"last_sent_at": row["last_sent_at"], "sent_today_count": row["sent_today_count"] or 0,
+            "last_day": row["last_day"] or "", "last_type": row["last_type"] or ""}
+
+
+def bump_notification_state(telegram_id: int, ntype: str):
+    today = datetime.now(timezone.utc).date().isoformat()
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT sent_today_count, last_day FROM user_notification_state WHERE telegram_id = ?",
+            (telegram_id,)).fetchone()
+        if row and row["last_day"] == today:
+            count = (row["sent_today_count"] or 0) + 1
+        else:
+            count = 1
+        conn.execute(
+            """INSERT INTO user_notification_state
+               (telegram_id, last_sent_at, sent_today_count, last_day, last_type)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(telegram_id) DO UPDATE SET
+                   last_sent_at = excluded.last_sent_at,
+                   sent_today_count = excluded.sent_today_count,
+                   last_day = excluded.last_day,
+                   last_type = excluded.last_type""",
+            (telegram_id, _now(), count, today, ntype),
+        )

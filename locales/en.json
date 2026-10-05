@@ -122,7 +122,8 @@
     "CONTEXT": "Context",
     "EVOLUTION": "EVOLUTION",
     "BATTLE_N": "Battle {n}",
-    "BASED_ON": "Based on {n} battles"
+    "BASED_ON": "Based on {n} battles",
+    "WHY": "Why ARENA thinks this"
   },
   "ARSENAL": {
     "TITLE": "🧰 MY ARSENAL",

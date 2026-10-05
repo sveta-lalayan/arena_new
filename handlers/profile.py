@@ -1,13 +1,5 @@
 """
 handlers/profile.py — MY ARENA, MY ARSENAL, достижения.
-
-MY ARENA — живой файл ARENA о человеке:
-  • CURRENT READ, ARENA SIGNALS, UNDER PRESSURE, CURRENT WEAPON,
-    UNSOLVED, WHAT ARENA KNOWS, EVOLUTION.
-
-MY ARSENAL — что человек реально научился делать:
-  • 8 приёмов со статусами DISCOVERED → PRACTISING → ACQUIRED → STRONG → MASTERED;
-  • фразы под коммуникационные цели со статусами и счётчиками.
 """
 import json
 
@@ -33,10 +25,6 @@ def _back_keyboard(il: str, back_cb: str = "back_to_main") -> InlineKeyboardMark
         [InlineKeyboardButton(i18n.t(il, "MENU.BACK"), callback_data=back_cb)],
     ])
 
-
-# ==================================================================
-# MY ARENA
-# ==================================================================
 
 def _signal_label(il: str, pid: str) -> tuple[str, str]:
     name = i18n.t(il, f"SIGNALS.{pid}.NAME")
@@ -141,6 +129,25 @@ def _build_my_arena_text(user_id: int, first_name: str, il: str) -> str:
                 f"  <b>{esc(i18n.t(il, 'MY_ARENA.BATTLE_N', n=battle_no))}</b> — {esc(line[:140])}"
             )
 
+    # --- LATEST DISCOVERY ---
+    try:
+        disc = db.get_last_discovery(user_id)
+    except Exception:
+        disc = None
+    if disc and disc.get("shown"):
+        lines.append(f"\n<b>{esc(disc['headline'])}</b>")
+        lines.append(f"<i>{esc(disc['body'])}</i>")
+        ev = disc.get("evidence") or []
+        if ev:
+            why_label = i18n.t(il, "MY_ARENA.WHY")
+            if why_label == "MY_ARENA.WHY":
+                why_label = "Why ARENA thinks this"
+            lines.append(f"<i>{esc(why_label)}:</i>")
+            for e in ev[:3]:
+                q = e.get("quote", "")
+                if q:
+                    lines.append(f"   · <i>{esc(q)}</i>")
+
     lines.append(
         f"\n<i>{esc(first_name or '')} · {esc(cefr)} · "
         f"{esc(i18n.t(il, 'MY_ARENA.BATTLES'))}: {stats['games_played']} · "
@@ -165,10 +172,6 @@ async def my_arena(update: Update, context: ContextTypes.DEFAULT_TYPE):
 my_language_profile = my_arena
 
 
-# ==================================================================
-# MY ARSENAL — что человек научился делать
-# ==================================================================
-
 def _status_label(il: str, status: str) -> str:
     label = i18n.t(il, f"ARSENAL.STATUS.{status}")
     if label == f"ARSENAL.STATUS.{status}":
@@ -181,7 +184,6 @@ def _build_arsenal_text(user_id: int, il: str) -> str:
     phrases = db.get_grammar_phrases_with_stats(user_id, limit=60)
     total_tools = len(ARSENAL_TOOLS)
 
-    # Сводка по статусам приёмов
     statuses = {s: 0 for s in ARSENAL_STATUS_ORDER}
     for t in stats.values():
         if t.get("uses", 0) > 0:
@@ -208,7 +210,6 @@ def _build_arsenal_text(user_id: int, il: str) -> str:
         lines.append(f"\n📣 <i>{esc(i18n.t(il, 'ARSENAL.CHANNEL_HINT'))}</i>")
         return "\n".join(lines)
 
-    # Приёмы
     for tool in ARSENAL_TOOLS:
         key, emoji = tool["key"], tool["emoji"]
         t = stats.get(key)
@@ -228,7 +229,6 @@ def _build_arsenal_text(user_id: int, il: str) -> str:
             f"   <i>{esc(i18n.t(il, 'ARSENAL.USED_N_TIMES', n=t['uses'], w=t['wins']))}</i>"
         )
 
-    # Фразы под цели
     if phrases:
         by_goal: dict[str, list[dict]] = {}
         for p in phrases:
@@ -261,10 +261,6 @@ async def my_arsenal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ])
     await send_or_edit(update, text, reply_markup=kb, parse_mode="HTML")
 
-
-# ==================================================================
-# ДОСТИЖЕНИЯ
-# ==================================================================
 
 def _build_achievements_text(user_id: int, il: str) -> str:
     stats = db.get_user_stats(user_id)

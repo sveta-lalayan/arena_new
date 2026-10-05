@@ -1,14 +1,5 @@
 """
 handlers/arena.py — бой, дебрифинг, свободный разговор, арсенал.
-
-Принципы:
-  • Бой — детерминированный. Таймер и старт/стоп — в bot.py.
-  • В бою НЕТ обратной связи.
-  • Debrief — расследование одного разговора.
-    Форма (single_insight / focused / full) выбирается LLM.
-    Дополнительно LLM возвращает arena_file_update (Living My Arena) и grammar_used
-    (использование grammar-фразы из арсенала).
-  • Free Talk — отдельный режим.
 """
 import asyncio
 import logging
@@ -276,7 +267,7 @@ def _weapons_status(weapons: str, user_text: str, used_weapons: list):
 
 
 # ==================================================================
-# ЗАВЕРШЕНИЕ БОЯ И ДЕБРИФИНГ
+# ЗАВЕРШЕНИЕ БОЯ
 # ==================================================================
 
 async def finish_arena(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -314,6 +305,7 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
     weapons = ud.get("mission_weapons", "")
     used_weapons = ud.get("used_weapons", [])
 
+    # ---------- FREE TALK ----------
     if ud.get("battle_type") == "free_talk":
         try:
             analysis = await asyncio.to_thread(
@@ -338,6 +330,21 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
         except Exception:
             logger.exception("personalization.record_session(free_talk) упал")
 
+        # Evidence для Discovery Engine
+        try:
+            ev = await asyncio.to_thread(
+                ai.extract_evidence, user_responses, "free_talk", language, [], [],
+                first_name or "",
+            )
+            for item in ev:
+                db.add_evidence(
+                    user_id, "free_talk", item["text_excerpt"],
+                    item.get("detected", ""), item.get("interpretation", ""),
+                    item.get("confidence", 0.5),
+                )
+        except Exception:
+            logger.exception("extract_evidence(free_talk) упал")
+
         skill = PERSONALITY_TO_SKILL.get(personality, "argumentation")
         db.add_skill_progress(user_id, skill, 5, battles=0)
 
@@ -348,6 +355,7 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
         _reset_state(ud)
         return
 
+    # ---------- BATTLE ----------
     mission = ud.get("mission", "")
     dialogue_text = "\n".join(
         f"{'Learner' if d['speaker'] == 'User' else person['short_name']}: {d['text']}"
@@ -425,6 +433,8 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
         db.add_skill_progress(user_id, skill, skill_delta)
     except Exception:
         logger.exception("add_skill_progress упал")
+
+    session_id = None
     try:
         session_id = db.save_game_session(
             user_id, personality, language_iso, level, topic, rounds_completed,
@@ -435,10 +445,12 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
         db.save_session_debrief(session_id, fb)
     except Exception:
         logger.exception("save_game_session упал")
+
     try:
         db.update_criteria(user_id, criteria, weight=0.4)
     except Exception:
         logger.exception("update_criteria упал")
+
     if topic:
         try:
             db.add_interests(user_id, [topic])
@@ -472,19 +484,16 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
     except Exception:
         logger.exception("achievements/nemesis упали")
 
-    # Приём применён в этом бою — увеличиваем счётчик и, если это НОВЫЙ приём, разблокируем.
     newly_unlocked_tool = None
     try:
         tool_key = fb.get("tool_used")
         if tool_key:
-            # unlock_tool вернёт True только если это первое появление приёма
             if db.unlock_tool(user_id, tool_key):
                 newly_unlocked_tool = tool_key
-            db.record_tool_use(user_id, tool_key, won=won, source=f"battle")
+            db.record_tool_use(user_id, tool_key, won=won, source="battle")
     except Exception:
         logger.exception("tool_used / record_tool_use упали")
 
-    # Grammar-фраза использована в бою — увеличиваем счётчик usage.
     try:
         gu = fb.get("grammar_used")
         if gu:
@@ -498,6 +507,25 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
             db.add_grammar_phrases(user_id, gfg["goal"], gfg["phrases"])
     except Exception:
         logger.exception("add_grammar_phrases упал")
+
+    # Evidence для Discovery Engine
+    try:
+        session_label = f"battle:{session_id}" if session_id else "battle"
+        known_signals = []
+        for p in db.get_patterns(user_id, ("confirmed", "improving"))[:10]:
+            known_signals.append(p["pattern_id"])
+        ev = await asyncio.to_thread(
+            ai.extract_evidence, user_responses, "battle", language,
+            known_signals, [], first_name or "",
+        )
+        for item in ev:
+            db.add_evidence(
+                user_id, session_label, item["text_excerpt"],
+                item.get("detected", ""), item.get("interpretation", ""),
+                item.get("confidence", 0.5),
+            )
+    except Exception:
+        logger.exception("extract_evidence(battle) упал")
 
     if is_admin(user_id):
         next_battle_text = i18n.t(il, "DEBRIEF.NEXT_BATTLE_NOW")

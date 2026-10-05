@@ -1,9 +1,6 @@
 """
 bot.py — точка входа ARENA: роутинг, таймер боя, ежедневные пуши,
-ежедневное обновление Language Profile.
-
-Включает фикс: DNS-подмена api.telegram.org → резервный IP
-(обход сетевых сбоев на некоторых хостингах).
+ежедневное обновление Language Profile, Discovery Engine.
 """
 import asyncio
 import logging
@@ -31,18 +28,10 @@ import i18n
 import personalization
 import voice
 from handlers import start, profile, arena, intro, settings
+from discovery import schedule_discovery
 
-
-# ==================================================================
-# ФИКС: Telegram API через резервный IP (обход сетевых сбоев)
-# ==================================================================
-# Заставляет соединение идти на резервный IP, но TLS-сертификат
-# проверяется для оригинального домена api.telegram.org.
-# Это решает проблему, когда api.telegram.org не резолвится или
-# режется по маршруту, но подсеть 149.154.160.0/20 доступна.
 
 _TELEGRAM_FALLBACK_IP = "149.154.167.220"
-
 _original_getaddrinfo = socket.getaddrinfo
 
 
@@ -54,10 +43,6 @@ def _patched_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
 
 socket.getaddrinfo = _patched_getaddrinfo
 
-
-# ==================================================================
-# ЛОГИРОВАНИЕ
-# ==================================================================
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -115,7 +100,6 @@ async def arena_timeout(context):
 
 
 async def on_error(update, context):
-    """Глобальный обработчик исключений: не даём боту молча падать."""
     logger.exception("Ошибка при обработке апдейта", exc_info=context.error)
 
 
@@ -149,8 +133,6 @@ async def send_daily_pushes(context):
 
             level = await asyncio.to_thread(db.get_current_level, p["telegram_id"]) or "B1"
 
-            # Персонализированное напоминание из Personalization Memory.
-            # Если проверенных данных мало (или LLM вернул шаблон) — прежний нейтральный фолбэк.
             selection = await asyncio.to_thread(personalization.select_reminder, p["telegram_id"])
             message = None
             if selection:
@@ -166,7 +148,6 @@ async def send_daily_pushes(context):
                 )
             refs = selection.get("refs") or {}
 
-            # Прошлые напоминания без клика считаем проигнорированными, затем логируем новое
             await asyncio.to_thread(db.mark_previous_unclicked_dismissed, p["telegram_id"])
             nid = await asyncio.to_thread(
                 db.log_notification, p["telegram_id"], selection["type"], message,
@@ -179,7 +160,6 @@ async def send_daily_pushes(context):
             await context.bot.send_message(
                 chat_id=p["telegram_id"], text=message, reply_markup=keyboard,
             )
-            # тема напоминания станет темой следующего боя (db.pop_push_topic в intro.daily_battle)
             await asyncio.to_thread(db.mark_push_sent, p["telegram_id"], selection.get("topic", ""))
         except Exception as e:
             logger.warning("Пуш %s не отправлен: %s", p["telegram_id"], e)
@@ -234,6 +214,16 @@ async def daily_language_profile_update(context):
 
 
 # ==================================================================
+# DISCOVERY: открыть My Arena по кнопке из нотификации
+# ==================================================================
+
+async def open_arena_from_discovery(update, context):
+    query = update.callback_query
+    await query.answer()
+    await profile.my_arena(update, context)
+
+
+# ==================================================================
 # ЗАПУСК
 # ==================================================================
 
@@ -246,6 +236,9 @@ def main():
         daily_language_profile_update,
         time=dt_time(hour=(DAILY_PUSH_HOUR + 1) % 24, minute=0),
     )
+
+    # Discovery Engine — раз в 2 часа
+    schedule_discovery(app, interval_hours=2)
 
     # --- Команды ---
     app.add_handler(CommandHandler("start", start.start))
@@ -283,6 +276,10 @@ def main():
 
     # --- Arsenal ---
     app.add_handler(CallbackQueryHandler(arena.arsenal_add_pending, pattern="^arsenal_add_pending$"))
+
+    # --- Discovery: открыть My Arena из нотификации ---
+    app.add_handler(CallbackQueryHandler(
+        open_arena_from_discovery, pattern=r"^open_arena_from_discovery:"))
 
     # --- Текст / голос ---
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, arena.handle_text))

@@ -122,7 +122,8 @@
     "CONTEXT": "语境",
     "EVOLUTION": "演变",
     "BATTLE_N": "对战 {n}",
-    "BASED_ON": "基于 {n} 场对战"
+    "BASED_ON": "基于 {n} 场对战",
+    "WHY": "ARENA 这样认为的原因"
   },
   "ARSENAL": {
     "TITLE": "🧰 我的武器库",

@@ -122,7 +122,8 @@
     "CONTEXT": "맥락",
     "EVOLUTION": "진화",
     "BATTLE_N": "배틀 {n}",
-    "BASED_ON": "{n}번의 배틀을 바탕으로"
+    "BASED_ON": "{n}번의 배틀을 바탕으로",
+    "WHY": "ARENA가 그렇게 생각하는 이유"
   },
   "ARSENAL": {
     "TITLE": "🧰 나의 무기고",
