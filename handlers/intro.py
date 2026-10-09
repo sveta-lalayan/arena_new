@@ -263,6 +263,20 @@ async def _reveal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _reset_fe_state(context)
 
 
+def _topic_weights(user_id: int, topics: list[str]) -> list[int]:
+    """Вес темы = 1 + сколько раз человек её упоминал (максимум 5)."""
+    counts: dict[str, int] = {}
+    try:
+        with db.get_conn() as conn:
+            rows = conn.execute(
+                "SELECT topic, count FROM user_topics WHERE telegram_id = ?", (user_id,)
+            ).fetchall()
+        counts = {(r["topic"] or "").lower(): r["count"] or 0 for r in rows}
+    except Exception:
+        logger.debug("не удалось получить частоты тем", exc_info=True)
+    return [1 + min(5, counts.get(t.lower(), 0)) for t in topics]
+
+
 def _pick_personality_for_today(user_id: int, analysis: dict) -> str:
     """
     Персонаж следующего боя:
@@ -365,14 +379,25 @@ async def _daily_battle_impl(update: Update, context: ContextTypes.DEFAULT_TYPE)
     personality = _pick_personality_for_today(user_id, analysis)
 
     interests = db.get_interests(user_id) or ([analysis["main_topic"]] if analysis.get("main_topic") else [])
+
+    # Темы, которых человек просил избегать, не предлагаем
+    try:
+        avoids = {a.lower() for a in db.get_avoids(user_id, limit=10)}
+    except Exception:
+        avoids = set()
+    interests = [t for t in interests if t.lower() not in avoids]
+
     pushed = db.pop_push_topic(user_id)
+    if pushed and pushed.lower() in avoids:
+        pushed = None
     if pushed:
         topic = pushed
     else:
         recent = {t.lower() for t in db.get_recent_battle_topics(user_id, n=3)}
         fresh_pool = [t for t in interests if t.lower() not in recent]
         pool = fresh_pool or interests or [FALLBACK_TOPIC]
-        topic = random.choice(pool)
+        # Чаще упоминаемые темы выбираются чаще, но не всегда одни и те же
+        topic = random.choices(pool, weights=_topic_weights(user_id, pool), k=1)[0]
 
     level = db.get_current_level(user_id) or analysis.get("estimated_level") or "B1"
     language_iso = db.get_learning_language(user_id)
@@ -389,17 +414,11 @@ async def _daily_battle_impl(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     person = PERSONALITIES.get(personality, PERSONALITIES["hr_manager"])
 
-    msg = await send_or_edit(update, f"🎭 {esc(i18n.t(il, 'TEMPLE.THINKING'))}")
-    weakest_skill = (db.get_latest_arena_analysis(user_id) or {}).get("weakest_skill", "")
-    pitch = await asyncio.to_thread(
-        ai.generate_character_pitch, personality, topic, language, level,
-        user.first_name or "", weakest_skill,
-    )
-
+    # Один экран: только карточка персонажа. Задача (Mission) показывается
+    # ОДИН раз — в start_battle, после нажатия «Enter battle».
     text = "\n\n".join(p for p in [
         f"🏛 {esc(i18n.t(il, 'TEMPLE.HEARD_ENOUGH'))}",
         f"🎭 <b>{esc(person['full_name'])}</b>\n<i>{esc(person['role'])}</i>",
-        esc(pitch),
         f"<i>«{esc(person['phrase'])}»</i>",
     ] if p)
 
@@ -408,18 +427,4 @@ async def _daily_battle_impl(update: Update, context: ContextTypes.DEFAULT_TYPE)
                               callback_data="fe_start_battle")]
     ])
 
-    edited = False
-    if msg is not None and hasattr(msg, "edit_text"):
-        try:
-            await msg.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
-            edited = True
-        except Exception:
-            logger.debug("edit_text питча не удался, отправляю заново", exc_info=True)
-    if not edited:
-        if msg is not None and hasattr(msg, "delete"):
-            try:
-                await msg.delete()      # убираем висящее «thinking…»
-            except Exception:
-                pass
-        await context.bot.send_message(update.effective_chat.id, text,
-                                       reply_markup=keyboard, parse_mode="HTML")
+    await send_or_edit(update, text, reply_markup=keyboard, parse_mode="HTML")
