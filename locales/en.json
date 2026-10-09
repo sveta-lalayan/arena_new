@@ -10,8 +10,12 @@
     "NO_ACTIVE": "There's no active conversation. Open the menu."
   },
   "START": {
-    "WELCOME_FIRST": "👋 {name}\nWelcome to ARENA.\n\n🏛 ENTER ARENA\nLet ARENA listen and decide who you meet.",
-    "WELCOME_BACK": "👋 {name}\nThe Arena is watching. One battle per day. Free talk — anytime."
+    "WELCOME_FIRST": "<b>WELCOME TO ARENA.</b>\n\nEveryone enters differently.\n\nSo don't take a test.\nDon't choose a level.\nDon't pick an opponent.\n\n<b>Just talk.</b>\n\nARENA will listen to how you think, how you respond, and what happens when the conversation doesn't go exactly as planned.\n\nThen it will make a decision.\n\n<b>Who should you meet next?</b>\n\nYou'll find out soon enough.",
+    "WELCOME_BACK": "👋 <b>WELCOME BACK, {name}.</b>",
+    "FIRST_READ": "🏛 <b>ARENA HAS A FIRST READ.</b>",
+    "NEXT_BATTLE_IN": "⏳ Your next Battle will be available in {cd}.",
+    "NEXT_BATTLE_NOW": "⚔️ Your next Battle is ready now.",
+    "REST_WAITING": "🗂 The rest is already waiting for you."
   },
   "TEMPLE": {
     "SELECT_LEARNING_LANGUAGE": "Which language are you speaking?",
@@ -52,6 +56,7 @@
     "LANGUAGE_UPGRADE": "LANGUAGE UPGRADE",
     "YOU_SAID": "You said",
     "BETTER": "Better",
+    "STEAL_IT": "💎 STEAL IT",
     "STEAL_THIS": "STEAL THIS",
     "ADD_TO_ARSENAL": "🎒 ADD TO MY ARSENAL",
     "OPPONENT_ADVICE": "OPPONENT ADVICE",
@@ -62,6 +67,7 @@
     "NEXT_BATTLE_NOW": "available now",
     "NEXT_BATTLE_TOMORROW": "tomorrow",
     "NEXT_BATTLE_HOURS": "in {h} h",
+    "NEXT_BATTLE_OR_FT": "Want to practise now? Free Talk is open anytime.",
     "NEW_TOOL": "NEW TOOL UNLOCKED!",
     "THE_MOVE": "THE MOVE",
     "WANT_TO_GO_DEEPER": "WANT TO GO DEEPER?",
@@ -77,7 +83,8 @@
     "THE_ARENA_READ": "THE ARENA READ",
     "ALTERNATIVE": "An alternative",
     "OPPONENT_SAID": "The opponent said",
-    "ARENA_NOTICED": "ARENA NOTICED SOMETHING."
+    "ARENA_NOTICED": "ARENA NOTICED SOMETHING.",
+    "SINGLE_INSIGHT_LABEL": "💭 ARENA noticed"
   },
   "FT": {
     "SELECT_LANGUAGE": "💬 Free talk — which language are we practising?",
@@ -275,5 +282,19 @@
     "INTRO": "Before we start — a short note on what ARENA stores about you.\n\n• Your messages in Temple, Battle and Free Talk.\n• Voice messages — converted to text via OpenAI Whisper and NOT kept as audio.\n• Profile: language, level, interests, speech patterns, debriefs.\n• All of this is used only inside ARENA — to make the next conversation sharper.\n\nYou can clear your data at any time with /reset.\n\nBy continuing, you agree to this processing.",
     "ACCEPT": "✅ I accept",
     "READ_MORE": "📄 Full policy"
+  },
+  "DISCOVERY": {
+    "OPENER": "🧠 ARENA noticed something about you.",
+    "OPENER_ARENA_HAS_A_THEORY": "🧠 ARENA has a theory about you.",
+    "OPENER_NEW_DISCOVERY": "🧠 Something new about you.",
+    "OPENER_ARENA_CHANGED_ITS_MIND": "🧠 ARENA changed its mind about you.",
+    "OPENER_NEW_SIGNAL": "🧠 New signal from your recent conversations.",
+    "OPENER_YOUR_FILE_CHANGED": "🧠 Your Arena file just changed.",
+    "OPENER_INTERESTING_PATTERN": "🧠 A pattern just surfaced.",
+    "OPENER_UNSOLVED": "🧠 ARENA still has an open question about you.",
+    "OPENER_NEW_WEAPON": "🧠 A new move showed up in your speech.",
+    "OPENER_ARENA_QUESTION": "🧠 ARENA has a question for you.",
+    "OPENER_CONTRADICTION": "🧠 ARENA noticed a contradiction.",
+    "OPEN_ARENA": "🧠 OPEN MY ARENA FILE"
   }
 }

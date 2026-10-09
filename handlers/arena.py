@@ -40,7 +40,7 @@ STATE_KEYS = [
     "mission_weapons", "mission_tip", "win_condition", "mission",
     "used_weapons", "dialogue", "turn", "awaiting_response", "battle_type",
     "arena_analysis", "conviction", "early_win", "last_input_was_voice",
-    "_freetalk_personality", "awaiting_freetalk_topic",
+    "_freetalk_personality", "awaiting_freetalk_topic", "opening_line",
 ]
 
 
@@ -217,7 +217,7 @@ async def _continue_round(update: Update, context: ContextTypes.DEFAULT_TYPE):
         memory = db.get_memory(user_id)
         reply = await asyncio.to_thread(
             ai.generate_ai_response, personality, history, last_user, level,
-            language, None, user_name, memory,
+            language, None, user_name, memory, ud.get("opening_line", ""),
         )
         if not reply:
             logger.warning("generate_ai_response вернул пусто — показываю fallback")
@@ -305,7 +305,6 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
     weapons = ud.get("mission_weapons", "")
     used_weapons = ud.get("used_weapons", [])
 
-    # ---------- FREE TALK ----------
     if ud.get("battle_type") == "free_talk":
         try:
             analysis = await asyncio.to_thread(
@@ -330,7 +329,6 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
         except Exception:
             logger.exception("personalization.record_session(free_talk) упал")
 
-        # Evidence для Discovery Engine
         try:
             ev = await asyncio.to_thread(
                 ai.extract_evidence, user_responses, "free_talk", language, [], [],
@@ -355,7 +353,6 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
         _reset_state(ud)
         return
 
-    # ---------- BATTLE ----------
     mission = ud.get("mission", "")
     dialogue_text = "\n".join(
         f"{'Learner' if d['speaker'] == 'User' else person['short_name']}: {d['text']}"
@@ -502,14 +499,6 @@ async def _do_finish(bot, user_id: int, chat_id: int, ud: dict, first_name: str)
         logger.exception("record_phrase_use упал")
 
     try:
-        gfg = fb.get("grammar_for_goal")
-        if isinstance(gfg, dict) and gfg.get("phrases") and gfg.get("goal"):
-            db.add_grammar_phrases(user_id, gfg["goal"], gfg["phrases"])
-    except Exception:
-        logger.exception("add_grammar_phrases упал")
-
-    # Evidence для Discovery Engine
-    try:
         session_label = f"battle:{session_id}" if session_id else "battle"
         known_signals = []
         for p in db.get_patterns(user_id, ("confirmed", "improving"))[:10]:
@@ -567,7 +556,11 @@ def _format_debrief(il: str, fb: dict, result: dict, person: dict, mistakes: lis
             name = i18n.t(il, f"TOOLS.{newly_unlocked_tool}.NAME")
             lines.append(f"\n{emoji} <b>{esc(name)}</b>")
         if next_battle_text:
-            lines.append(f"\n⚔️ <b>{esc(i18n.t(il, 'DEBRIEF.NEXT_BATTLE'))}:</b> {esc(next_battle_text)}")
+            line = f"\n⚔️ <b>{esc(i18n.t(il, 'DEBRIEF.NEXT_BATTLE'))}:</b> {esc(next_battle_text)}"
+            ft_hint = i18n.t(il, "DEBRIEF.NEXT_BATTLE_OR_FT")
+            if ft_hint and ft_hint != "DEBRIEF.NEXT_BATTLE_OR_FT":
+                line += f"\n<i>{esc(ft_hint)}</i>"
+            lines.append(line)
         return "\n".join(lines)
 
     lines = [f"🏟 <b>{esc(i18n.t(il, 'DEBRIEF.TITLE'))}</b>"]
@@ -596,15 +589,16 @@ def _format_debrief(il: str, fb: dict, result: dict, person: dict, mistakes: lis
             f"{esc(fb['the_mechanism'])}"
         )
 
-    sh = fb.get("the_shift")
-    if isinstance(sh, dict) and sh.get("alternative"):
-        lines.append(f"\n🔀 <b>{esc(i18n.t(il, 'DEBRIEF.THE_SHIFT'))}</b>")
-        lines.append(
-            f"{esc(i18n.t(il, 'DEBRIEF.ALTERNATIVE'))}:\n"
-            f"<b>«{esc(sh['alternative'])}»</b>"
-        )
-        if sh.get("why_it_would_work"):
-            lines.append(f"<i>{esc(sh['why_it_would_work'])}</i>")
+    si = fb.get("steal_it")
+    if isinstance(si, dict) and si.get("said") and si.get("better"):
+        # эмодзи 💎 приходит из локали DEBRIEF.STEAL_IT — здесь не дублируем
+        lines.append(f"\n<b>{esc(i18n.t(il, 'DEBRIEF.STEAL_IT'))}</b>")
+        lines.append(f"{esc(i18n.t(il, 'DEBRIEF.YOU_SAID'))}: «{esc(si['said'])}»")
+        lines.append(f"{esc(i18n.t(il, 'DEBRIEF.BETTER'))}: <b>«{esc(si['better'])}»</b>")
+        if si.get("why"):
+            lines.append(f"<i>{esc(si['why'])}</i>")
+        if si.get("grammar_note"):
+            lines.append(f"📐 <i>{esc(si['grammar_note'])}</i>")
 
     er = fb.get("escape_route")
     if isinstance(er, dict) and er.get("rule"):
@@ -638,48 +632,6 @@ def _format_debrief(il: str, fb: dict, result: dict, person: dict, mistakes: lis
         if ar.get("test_next"):
             lines.append(f"→ <b>{esc(ar['test_next'])}</b>")
 
-    up = fb.get("language_upgrade")
-    if up:
-        lines.append(
-            f"\n🔧 <b>{esc(i18n.t(il, 'DEBRIEF.LANGUAGE_UPGRADE'))}</b>\n"
-            f"{esc(i18n.t(il, 'DEBRIEF.YOU_SAID'))}: «{esc(up['said'])}»\n"
-            f"{esc(i18n.t(il, 'DEBRIEF.BETTER'))}: <b>«{esc(up['better'])}»</b>\n"
-            f"<i>{esc(up['why'])}</i>"
-        )
-
-    gfg = fb.get("grammar_for_goal")
-    if isinstance(gfg, dict) and gfg.get("grammar_pattern") and gfg.get("phrases"):
-        goal_label = ""
-        if gfg.get("goal"):
-            goal_label = i18n.t(il, f"CRITERIA.{gfg['goal']}")
-        title = i18n.t(il, "DEBRIEF.GRAMMAR_FOR_GOAL")
-        if goal_label:
-            title = f"{title} · {goal_label.upper()}"
-        lines.append(f"\n📐 <b>{esc(title)}</b>")
-        lines.append(f"<b>{esc(gfg['grammar_pattern'])}</b>")
-        if gfg.get("why_it_helps"):
-            lines.append(f"<i>{esc(gfg['why_it_helps'])}</i>")
-        phrases = gfg.get("phrases") or []
-        if phrases:
-            plines = "\n".join(f"  • «{esc(p)}»" for p in phrases[:4])
-            lines.append(plines)
-        if gfg.get("example_from_battle"):
-            lines.append(
-                f"\n{esc(i18n.t(il, 'DEBRIEF.YOU_COULD_SAY'))}: "
-                f"<b>«{esc(gfg['example_from_battle'])}»</b>"
-            )
-    else:
-        gf = fb.get("grammar_focus")
-        if isinstance(gf, dict) and gf.get("pattern"):
-            lines.append(f"\n📐 <b>{esc(i18n.t(il, 'DEBRIEF.GRAMMAR_FOCUS'))}</b>")
-            lines.append(f"<b>{esc(gf['pattern'])}</b>")
-            if gf.get("example_wrong"):
-                lines.append(f"❌ «{esc(gf['example_wrong'])}»")
-            if gf.get("example_right"):
-                lines.append(f"✅ «{esc(gf['example_right'])}»")
-            if gf.get("drill"):
-                lines.append(f"<i>{esc(gf['drill'])}</i>")
-
     deeper = fb.get("deeper_content")
     if isinstance(deeper, dict) and deeper.get("topic") and deeper.get("why"):
         lines.append(
@@ -688,7 +640,11 @@ def _format_debrief(il: str, fb: dict, result: dict, person: dict, mistakes: lis
         )
 
     if next_battle_text:
-        lines.append(f"\n⚔️ <b>{esc(i18n.t(il, 'DEBRIEF.NEXT_BATTLE'))}:</b> {esc(next_battle_text)}")
+        line = f"\n⚔️ <b>{esc(i18n.t(il, 'DEBRIEF.NEXT_BATTLE'))}:</b> {esc(next_battle_text)}"
+        ft_hint = i18n.t(il, "DEBRIEF.NEXT_BATTLE_OR_FT")
+        if ft_hint and ft_hint != "DEBRIEF.NEXT_BATTLE_OR_FT":
+            line += f"\n<i>{esc(ft_hint)}</i>"
+        lines.append(line)
 
     return "\n".join(lines)
 
@@ -792,6 +748,12 @@ async def freetalk_pick(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user.first_name or "",
     )
 
+    if opening and opening.count("?") > 1:
+        idx = opening.find("?")
+        opening = opening[:idx + 1].strip()
+    if opening:
+        opening = " ".join(opening.split())
+
     ud.update({
         "personality": personality,
         "language": language,
@@ -803,6 +765,7 @@ async def freetalk_pick(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "used_weapons": [],
         "battle_type": "free_talk",
         "dialogue": [],
+        "opening_line": opening,
         "awaiting_response": True,
     })
 
@@ -811,7 +774,6 @@ async def freetalk_pick(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"<i>{esc(opening)}</i>",
         parse_mode="HTML",
     )
-    await voice.maybe_reply_voice(update, context, opening, personality)
 
 
 # ==================================================================

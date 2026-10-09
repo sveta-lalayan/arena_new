@@ -9,6 +9,8 @@ discovery.py — фоновый движок ARENA Discovery.
   • evidence-first: discovery рождается из реальных цитат.
   • Cooldown 3 часа, максимум 2 в день.
   • Ротация kind — не повторяем последний отправленный тип.
+  • Не отправляем нотификации, если у пользователя активная сессия
+    (Free Talk / Battle / Temple) — иначе сообщение ломает разговор.
   • Тихая работа — тоже валидный результат.
 """
 import asyncio
@@ -40,6 +42,28 @@ def _hours_since(iso: str | None) -> float | None:
     return (datetime.now(timezone.utc) - dt).total_seconds() / 3600
 
 
+def _opener_for_kind(il: str, kind: str) -> str:
+    """
+    Возвращает opener (первую строку уведомления) для конкретного вида discovery.
+    Приоритет: DISCOVERY.OPENER_<KIND> → DISCOVERY.OPENER → hardcoded fallback.
+    """
+    specific_key = f"DISCOVERY.OPENER_{kind}"
+    specific = i18n.t(il, specific_key)
+    if specific and specific != specific_key:
+        return specific
+    generic = i18n.t(il, "DISCOVERY.OPENER")
+    if generic and generic != "DISCOVERY.OPENER":
+        return generic
+    return "🧠 ARENA noticed something about you."
+
+
+def _open_button_label(il: str) -> str:
+    label = i18n.t(il, "DISCOVERY.OPEN_ARENA")
+    if not label or label == "DISCOVERY.OPEN_ARENA":
+        return "🧠 OPEN MY ARENA FILE"
+    return label
+
+
 async def run_discovery_cycle(context) -> None:
     """Один полный проход по всем пользователям."""
     try:
@@ -57,6 +81,16 @@ async def run_discovery_cycle(context) -> None:
 
 
 async def _process_user(context, user_id: int, profile: dict) -> None:
+    # Не отправляем нотификации посреди активной сессии
+    # (Free Talk / Battle / Temple). Иначе сообщение приходит в момент, когда
+    # пользователь ждёт ответа от персонажа, и ломает ощущение разговора.
+    active_ud = context.application.user_data.get(user_id) or {}
+    if (active_ud.get("dialogue")
+            or active_ud.get("awaiting_response")
+            or active_ud.get("fe_awaiting_response")):
+        logger.debug("discovery: пропускаем %s — активная сессия", user_id)
+        return
+
     state = await asyncio.to_thread(db.get_notification_state, user_id)
     today = datetime.now(timezone.utc).date().isoformat()
 
@@ -106,11 +140,17 @@ async def _process_user(context, user_id: int, profile: dict) -> None:
     )
 
     il = db.get_interface_language(user_id)
-    text = f"<b>{result['headline']}</b>\n\n{result['body']}"
+    opener = _opener_for_kind(il, result["kind"])
+    text = (
+        f"{opener}\n\n"
+        f"<b>{result['headline']}</b>\n\n"
+        f"{result['body']}"
+    )
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton(i18n.t(il, "MENU.MY_ARENA"),
+        [InlineKeyboardButton(_open_button_label(il),
                               callback_data=f"open_arena_from_discovery:{discovery_id}")],
     ])
+
     try:
         await context.bot.send_message(user_id, text, reply_markup=keyboard, parse_mode="HTML")
     except Exception:

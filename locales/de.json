@@ -10,8 +10,12 @@
     "NO_ACTIVE": "Es läuft gerade kein Gespräch. Öffne das Menü."
   },
   "START": {
-    "WELCOME_FIRST": "👋 {name}\nWillkommen in ARENA.\n\n🏛 ARENA BETRETEN\nLass ARENA zuhören und entscheiden, wen du triffst.",
-    "WELCOME_BACK": "👋 {name}\nDie Arena beobachtet. Ein Kampf pro Tag. Freies Gespräch — jederzeit."
+    "WELCOME_FIRST": "<b>WILLKOMMEN IN ARENA.</b>\n\nJeder kommt anders hier an.\n\nAlso: kein Test.\nKein Niveau auswählen.\nKeinen Gegner aussuchen.\n\n<b>Sprich einfach.</b>\n\nARENA hört zu, wie du denkst, wie du antwortest und was passiert, wenn das Gespräch nicht ganz nach Plan läuft.\n\nDann entscheidet sie.\n\n<b>Wen solltest du als Nächstes treffen?</b>\n\nDu wirst es bald erfahren.",
+    "WELCOME_BACK": "👋 <b>WILLKOMMEN ZURÜCK, {name}.</b>",
+    "FIRST_READ": "🏛 <b>ARENA HAT EINE ERSTE LESART.</b>",
+    "NEXT_BATTLE_IN": "⏳ Dein nächster Kampf ist in {cd} verfügbar.",
+    "NEXT_BATTLE_NOW": "⚔️ Dein nächster Kampf ist jetzt verfügbar.",
+    "REST_WAITING": "🗂 Der Rest wartet bereits auf dich."
   },
   "TEMPLE": {
     "SELECT_LEARNING_LANGUAGE": "In welcher Sprache sprichst du?",
@@ -52,6 +56,7 @@
     "LANGUAGE_UPGRADE": "SPRACH-UPDATE",
     "YOU_SAID": "Du sagtest",
     "BETTER": "Besser",
+    "STEAL_IT": "💎 KLAU DAS",
     "STEAL_THIS": "KLAU DAS",
     "ADD_TO_ARSENAL": "🎒 ZU MEINEM ARSENAL",
     "OPPONENT_ADVICE": "RAT DES GEGNERS",
@@ -62,6 +67,7 @@
     "NEXT_BATTLE_NOW": "jetzt verfügbar",
     "NEXT_BATTLE_TOMORROW": "morgen",
     "NEXT_BATTLE_HOURS": "in {h} Std.",
+    "NEXT_BATTLE_OR_FT": "Jetzt üben? Freies Gespräch ist jederzeit offen.",
     "NEW_TOOL": "NEUES WERKZEUG FREIGESCHALTET!",
     "THE_MOVE": "DER ZUG",
     "WANT_TO_GO_DEEPER": "TIEFER EINTAUCHEN?",
@@ -77,7 +83,8 @@
     "THE_ARENA_READ": "WAS DIE ARENA LIEST",
     "ALTERNATIVE": "Eine Alternative",
     "OPPONENT_SAID": "Der Gegner sagte",
-    "ARENA_NOTICED": "ARENA IST ETWAS AUFGEFALLEN."
+    "ARENA_NOTICED": "ARENA IST ETWAS AUFGEFALLEN.",
+    "SINGLE_INSIGHT_LABEL": "💭 ARENA HAT ETWAS BEMERKT"
   },
   "FT": {
     "SELECT_LANGUAGE": "💬 Freies Gespräch — in welcher Sprache üben wir?",
@@ -275,5 +282,19 @@
     "INTRO": "Bevor wir starten — kurz, was ARENA über dich speichert.\n\n• Deine Nachrichten in Tempel, Kampf und freiem Gespräch.\n• Sprachnachrichten — werden über OpenAI Whisper in Text umgewandelt und NICHT als Audio gespeichert.\n• Profil: Sprache, Niveau, Interessen, Sprechmuster, Auswertungen.\n• All das wird nur innerhalb von ARENA verwendet — damit das nächste Gespräch präziser wird.\n\nDu kannst deine Daten jederzeit mit /reset löschen.\n\nWenn du fortfährst, stimmst du dieser Verarbeitung zu.",
     "ACCEPT": "✅ Ich stimme zu",
     "READ_MORE": "📄 Vollständige Richtlinie"
+  },
+  "DISCOVERY": {
+    "OPENER": "🧠 ARENA IST ETWAS AN DIR AUFGEFALLEN.",
+    "OPENER_ARENA_HAS_A_THEORY": "🧠 ARENA HAT EINE THEORIE ÜBER DICH.",
+    "OPENER_NEW_DISCOVERY": "🧠 ETWAS NEUES ÜBER DICH.",
+    "OPENER_ARENA_CHANGED_ITS_MIND": "🧠 ARENA HAT IHRE MEINUNG ÜBER DICH GEÄNDERT.",
+    "OPENER_NEW_SIGNAL": "🧠 EIN NEUES SIGNAL AUS DEINEN GESPRÄCHEN.",
+    "OPENER_YOUR_FILE_CHANGED": "🧠 DEINE ARENA-AKTE HAT SICH GEÄNDERT.",
+    "OPENER_INTERESTING_PATTERN": "🧠 EIN MUSTER IST AUFGETAUCHT.",
+    "OPENER_UNSOLVED": "🧠 ARENA HAT NOCH EINE OFFENE FRAGE AN DICH.",
+    "OPENER_NEW_WEAPON": "🧠 EIN NEUER ZUG ZEIGT SICH IN DEINER SPRACHE.",
+    "OPENER_ARENA_QUESTION": "🧠 ARENA HAT EINE FRAGE AN DICH.",
+    "OPENER_CONTRADICTION": "🧠 ARENA HAT EINEN WIDERSPRUCH BEMERKT.",
+    "OPEN_ARENA": "🧠 MEINE ARENA-AKTE ÖFFNEN"
   }
 }

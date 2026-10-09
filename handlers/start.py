@@ -1,12 +1,5 @@
 """
 handlers/start.py — точка входа и главное меню ARENA.
-
-Правило меню:
-  • Новичок (first_battle_done = 0) — РОВНО ОДНА кнопка: 🏛 ENTER ARENA.
-    Никаких BATTLE / FREE TALK / MY ARENA / MY ARSENAL / SETTINGS — пока
-    человек не прошёл хотя бы один бой, ему нечего в них делать.
-  • Админ — всегда видит полное меню + Храм (для тестов).
-  • После первого боя — полное меню из 5 кнопок.
 """
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
@@ -18,19 +11,15 @@ from config import (
     telegram_lang_to_iso,
     SUPPORTED_LANGUAGES,
     DEFAULT_INTERFACE_LANGUAGE,
+    BATTLE_COOLDOWN_HOURS,
 )
 from handlers.ui import send_or_edit
 
 
 def _ensure_interface_language(user) -> str:
-    """
-    Возвращает interface_language пользователя.
-    При первом заходе (в БД пусто) определяет его по Telegram language_code.
-    """
     current = db.get_interface_language(user.id)
     if current:
         return current
-
     detected = telegram_lang_to_iso(getattr(user, "language_code", None))
     if detected not in SUPPORTED_LANGUAGES:
         detected = DEFAULT_INTERFACE_LANGUAGE
@@ -39,7 +28,6 @@ def _ensure_interface_language(user) -> str:
 
 
 def _full_menu_keyboard(il: str) -> InlineKeyboardMarkup:
-    """Полное меню для тех, кто уже прошёл первый бой."""
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(i18n.t(il, "MENU.BATTLE"), callback_data="menu_play")],
         [InlineKeyboardButton(i18n.t(il, "MENU.FREE_TALK"), callback_data="freetalk")],
@@ -51,9 +39,7 @@ def _full_menu_keyboard(il: str) -> InlineKeyboardMarkup:
 
 def _entry_keyboard(il: str) -> InlineKeyboardMarkup:
     """
-    Экран новичка — ровно ОДНА кнопка.
-    Никаких настроек, никаких языков — язык интерфейса определён автоматически
-    по Telegram, а язык обучения человек выберет уже внутри Храма.
+    Первый экран — ОДНА кнопка, ведёт не в меню, а в Храм.
     """
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(i18n.t(il, "MENU.ENTER_ARENA"),
@@ -62,7 +48,6 @@ def _entry_keyboard(il: str) -> InlineKeyboardMarkup:
 
 
 def _admin_keyboard(il: str) -> InlineKeyboardMarkup:
-    """Админ всегда видит Храм + полное меню, чтобы тестировать флоу."""
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(i18n.t(il, "MENU.ENTER_ARENA"),
                               callback_data="menu_enter_arena")],
@@ -75,12 +60,6 @@ def _admin_keyboard(il: str) -> InlineKeyboardMarkup:
 
 
 def _menu_keyboard(user_id: int, il: str) -> InlineKeyboardMarkup:
-    """
-    Три состояния:
-      1. Админ               → Храм + полное меню.
-      2. Новичок             → только ENTER ARENA.
-      3. Прошёл первый бой   → полное меню.
-    """
     if is_admin(user_id):
         return _admin_keyboard(il)
     if not db.has_completed_first_battle(user_id):
@@ -88,19 +67,60 @@ def _menu_keyboard(user_id: int, il: str) -> InlineKeyboardMarkup:
     return _full_menu_keyboard(il)
 
 
-def _welcome_text(user, il: str, first_time: bool) -> str:
-    key = "START.WELCOME_FIRST" if first_time else "START.WELCOME_BACK"
-    return i18n.t(il, key, name=user.first_name or "")
+def _format_countdown(hours_left: float) -> str:
+    """
+    hours_left — сколько часов осталось до следующего боя.
+    Возвращает "18h 42m" или похожее.
+    """
+    if hours_left <= 0:
+        return ""
+    total_minutes = int(hours_left * 60)
+    h = total_minutes // 60
+    m = total_minutes % 60
+    if h <= 0:
+        return f"{m}m"
+    return f"{h}h {m:02d}m"
 
 
-def _is_first_time(user_id: int) -> bool:
-    return not db.has_completed_first_battle(user_id)
+def _welcome_text(user, il: str) -> str:
+    """
+    Экран для НОВИЧКА (ещё не прошёл первый бой).
+    """
+    return i18n.t(il, "START.WELCOME_FIRST", name=user.first_name or "")
+
+
+def _welcome_back_text(user_id: int, user, il: str) -> str:
+    """
+    Экран после первого боя.
+    Содержит обратный отсчёт до следующего боя, если cooldown активен.
+    """
+    name = user.first_name or ""
+    hours_left = db.cooldown_hours_left(user_id)
+    has_read = bool(db.get_current_read(user_id) or db.get_last_session(user_id))
+
+    if is_admin(user_id) or hours_left <= 0:
+        next_battle_line = i18n.t(il, "START.NEXT_BATTLE_NOW")
+    else:
+        cd = _format_countdown(hours_left)
+        next_battle_line = i18n.t(il, "START.NEXT_BATTLE_IN", cd=cd)
+
+    read_line = ""
+    if has_read:
+        read_line = i18n.t(il, "START.FIRST_READ")
+    rest_line = i18n.t(il, "START.REST_WAITING")
+
+    parts = [
+        i18n.t(il, "START.WELCOME_BACK", name=name),
+        read_line,
+        next_battle_line,
+        rest_line,
+    ]
+    return "\n".join(p for p in parts if p)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
 
-    # Админ при /start сбрасывает свои данные — можно пройти весь флоу заново.
     if is_admin(user.id):
         db.reset_user_data(user.id)
         context.user_data.clear()
@@ -109,24 +129,30 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db.get_or_create_user(user.id, user.username, user.first_name)
     il = _ensure_interface_language(user)
 
-    first_time = _is_first_time(user.id)
+    if not db.has_completed_first_battle(user.id) and not is_admin(user.id):
+        text = _welcome_text(user, il)
+    else:
+        text = _welcome_back_text(user.id, user, il)
 
     await update.message.reply_text(
-        _welcome_text(user, il, first_time),
+        text,
         reply_markup=_menu_keyboard(user.id, il),
         parse_mode="HTML",
     )
 
 
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Callback для кнопки «Назад в меню» и возврата с любых экранов."""
     user = update.effective_user
     il = db.get_interface_language(user.id)
-    first_time = _is_first_time(user.id)
+
+    if not db.has_completed_first_battle(user.id) and not is_admin(user.id):
+        text = _welcome_text(user, il)
+    else:
+        text = _welcome_back_text(user.id, user, il)
 
     await send_or_edit(
         update,
-        _welcome_text(user, il, first_time),
+        text,
         reply_markup=_menu_keyboard(user.id, il),
         parse_mode="HTML",
     )

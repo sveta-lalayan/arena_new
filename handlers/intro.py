@@ -246,7 +246,6 @@ async def _reveal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception:
         logger.exception("personalization.record_session(temple) упал")
 
-    # Evidence для Discovery Engine
     try:
         ev = await asyncio.to_thread(
             ai.extract_evidence, user_responses, "temple", language, [], [],
@@ -265,8 +264,28 @@ async def _reveal(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def _pick_personality_for_today(user_id: int, analysis: dict) -> str:
+    """
+    Персонаж следующего боя:
+      0. Первый бой после Храма — не залипаем на hr_manager.
+      1. Немезида (если настал её черёд и не побеждена).
+      2. Подтверждённый growth-паттерн → SKILL_TO_PERSONALITY.
+      3. Самый слабый communication-критерий → SKILL_TO_PERSONALITY.
+      4. Fallback: recommended_personality из Храма.
+    Антиповтор: не даём того же персонажа два дня подряд (кроме немезиды).
+    """
     last = db.get_last_personality(user_id)
     battles_played = db.count_battles(user_id)
+
+    if battles_played == 0:
+        analysis_pers = analysis.get("recommended_personality", "")
+        weakest = analysis.get("weakest_skill", "")
+        alt = SKILL_TO_PERSONALITY.get(weakest, "") if weakest else ""
+        if analysis_pers and analysis_pers != "hr_manager":
+            return analysis_pers
+        if alt and alt != "hr_manager":
+            return alt
+        if analysis_pers:
+            return analysis_pers
 
     nemesis = db.get_nemesis(user_id)
     if nemesis and not nemesis["defeated"] and battles_played > 0 and battles_played % 4 == 3:

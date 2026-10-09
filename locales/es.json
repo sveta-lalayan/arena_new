@@ -1,279 +1,300 @@
 {
   "MENU": {
-    "BATTLE": "⚔️ BATALLA",
-    "FREE_TALK": "💬 CHARLA LIBRE",
-    "MY_ARENA": "🏛 MI ARENA",
-    "MY_ARSENAL": "🧰 MI ARSENAL",
-    "SETTINGS": "⚙️ AJUSTES",
-    "ENTER_ARENA": "🏛 ENTRAR EN LA ARENA",
-    "BACK": "🔙 Al menú",
-    "NO_ACTIVE": "No hay ninguna conversación activa. Abre el menú."
+    "BATTLE": "⚔️ BATTAGLIA",
+    "FREE_TALK": "💬 CONVERSAZIONE LIBERA",
+    "MY_ARENA": "🏛 LA MIA ARENA",
+    "MY_ARSENAL": "🧰 IL MIO ARSENALE",
+    "SETTINGS": "⚙️ IMPOSTAZIONI",
+    "ENTER_ARENA": "🏛 ENTRA NELL'ARENA",
+    "BACK": "🔙 Torna al menu",
+    "NO_ACTIVE": "Non c'è nessuna conversazione attiva. Apri il menu."
   },
   "START": {
-    "WELCOME_FIRST": "👋 {name}\nBienvenido a ARENA.\n\n🏛 ENTRAR EN LA ARENA\nDeja que ARENA escuche y decida con quién te enfrentas.",
-    "WELCOME_BACK": "👋 {name}\nLa Arena observa. Una batalla al día. Charla libre — cuando quieras."
+    "WELCOME_FIRST": "<b>BENVENUTO NELL'ARENA.</b>\n\nOgnuno arriva qui in modo diverso.\n\nQuindi: nessun test.\nNessun livello da scegliere.\nNessun avversario da scegliere.\n\n<b>Parla e basta.</b>\n\nARENA ascolta come pensi, come rispondi e cosa succede quando la conversazione non va esattamente come previsto.\n\nPoi decide.\n\n<b>Chi dovresti incontrare adesso?</b>\n\nLo scoprirai presto.",
+    "WELCOME_BACK": "👋 <b>BENTORNATO, {name}.</b>",
+    "FIRST_READ": "🏛 <b>ARENA HA UNA PRIMA LETTURA.</b>",
+    "NEXT_BATTLE_IN": "⏳ La tua prossima battaglia sarà disponibile tra {cd}.",
+    "NEXT_BATTLE_NOW": "⚔️ La tua prossima battaglia è pronta ora.",
+    "REST_WAITING": "🗂 Il resto ti sta già aspettando."
   },
   "TEMPLE": {
-    "SELECT_LEARNING_LANGUAGE": "¿En qué idioma hablas?",
-    "LISTENING": "ARENA ESCUCHA.",
-    "YOUR_MOVE": "Tu turno.",
-    "HINT": "lo que hago · lo que amo · lo que pienso · cualquier cosa",
-    "THINKING": "ARENA está pensando …",
-    "HEARD_ENOUGH": "HE OÍDO SUFICIENTE.",
-    "ENTER_BATTLE": "⚔️ EMPEZAR BATALLA →",
-    "INTRO": "Háblame.\n\nDecidiré quién eres por lo que elijas decir.",
-    "NOTICED": "He notado algo.",
-    "LETS_FIND_OUT": "Vamos a comprobarlo.",
-    "ALREADY_DONE": "Ya pasaste por el Templo. La Arena se acuerda de ti."
+    "SELECT_LEARNING_LANGUAGE": "In quale lingua parli?",
+    "LISTENING": "ARENA STA ASCOLTANDO.",
+    "YOUR_MOVE": "Tocca a te.",
+    "HINT": "cosa faccio · cosa amo · cosa penso · qualsiasi cosa",
+    "THINKING": "ARENA sta pensando …",
+    "HEARD_ENOUGH": "HO SENTITO ABBASTANZA.",
+    "ENTER_BATTLE": "⚔️ ENTRA IN BATTAGLIA →",
+    "INTRO": "Parlami.\n\nDecido chi sei da ciò che scegli di dire.",
+    "NOTICED": "Ho notato qualcosa.",
+    "LETS_FIND_OUT": "Scopriamolo.",
+    "ALREADY_DONE": "Sei già passato dal Tempio. L'Arena si ricorda di te."
   },
   "BATTLE": {
-    "BEGINS": "¡COMIENZA LA BATALLA!",
-    "MISSION": "Misión",
-    "ARSENAL": "Arsenal",
-    "TIP": "Consejo",
-    "HOW_TO_WIN": "Cómo ganar",
-    "TIME_LIMIT": "Tienes {n} min.",
-    "PERSUADED": "Convencido",
-    "TIME_UP": "Se acabó el tiempo.",
-    "EARLY_WIN": "Lo quebraste pronto. ¡Victoria!",
-    "COOLDOWN": "Próxima batalla en unas {hours} h."
+    "BEGINS": "LA BATTAGLIA COMINCIA!",
+    "MISSION": "Missione",
+    "ARSENAL": "Arsenale",
+    "TIP": "Consiglio",
+    "HOW_TO_WIN": "Come vincere",
+    "TIME_LIMIT": "Hai {n} min.",
+    "PERSUADED": "Convinto",
+    "TIME_UP": "Il tempo è scaduto.",
+    "EARLY_WIN": "L'hai decifrato presto. Vittoria!",
+    "COOLDOWN": "Prossima battaglia tra circa {hours} h."
   },
   "DEBRIEF": {
-    "TITLE": "ANÁLISIS DE LA BATALLA",
-    "RESULT": "Resultado",
-    "VICTORY": "VICTORIA",
-    "ALMOST": "CASI",
-    "DEFEATED": "DERROTA",
-    "OUTPLAYED": "SUPERADO",
-    "WHAT_WORKED": "LO QUE FUNCIONÓ",
-    "WHAT_COST_YOU": "LO QUE TE COSTÓ",
-    "GROWTH": "PROGRESO",
-    "LANGUAGE_CHECK": "REVISIÓN DE IDIOMA",
-    "LANGUAGE_UPGRADE": "MEJORA DE IDIOMA",
-    "YOU_SAID": "Dijiste",
-    "BETTER": "Mejor",
-    "STEAL_THIS": "RÓBATE ESTO",
-    "ADD_TO_ARSENAL": "🎒 A MI ARSENAL",
-    "OPPONENT_ADVICE": "CONSEJO DEL OPONENTE",
-    "NEXT_TARGET": "SIGUIENTE OBJETIVO",
-    "WIN_COST": "LO QUE COSTÓ LA VICTORIA",
+    "TITLE": "ANALISI DELLA BATTAGLIA",
+    "RESULT": "Risultato",
+    "VICTORY": "VITTORIA",
+    "ALMOST": "QUASI",
+    "DEFEATED": "SCONFITTA",
+    "OUTPLAYED": "SOVRASTIMATO",
+    "WHAT_WORKED": "COSA HA FUNZIONATO",
+    "WHAT_COST_YOU": "COSA TI È COSTATO",
+    "GROWTH": "PROGRESSO",
+    "LANGUAGE_CHECK": "CONTROLLO LINGUISTICO",
+    "LANGUAGE_UPGRADE": "AGGIORNAMENTO LINGUISTICO",
+    "YOU_SAID": "Hai detto",
+    "BETTER": "Meglio",
+    "STEAL_IT": "💎 RUBALO",
+    "STEAL_THIS": "RUBA QUESTO",
+    "ADD_TO_ARSENAL": "🎒 AGGIUNGI AL MIO ARSENALE",
+    "OPPONENT_ADVICE": "CONSIGLIO DELL'AVVERSARIO",
+    "NEXT_TARGET": "PROSSIMO OBIETTIVO",
+    "WIN_COST": "COSA È COSTATO VINCERE",
     "ARENA_NOTE": "ARENA",
-    "NEXT_BATTLE": "Próxima batalla",
-    "NEXT_BATTLE_NOW": "ya disponible",
-    "NEXT_BATTLE_TOMORROW": "mañana",
-    "NEXT_BATTLE_HOURS": "en {h} h",
-    "NEW_TOOL": "¡NUEVA HERRAMIENTA DESBLOQUEADA!",
-    "THE_MOVE": "EL MOVIMIENTO",
-    "WANT_TO_GO_DEEPER": "¿QUIERES PROFUNDIZAR?",
-    "READ_THE_BREAKDOWN": "📖 Leer el análisis",
-    "TURNING_POINT": "EL PUNTO DE INFLEXIÓN",
-    "GRAMMAR_FOCUS": "FOCO GRAMATICAL",
-    "GRAMMAR_FOR_GOAL": "GRAMÁTICA PARA",
-    "YOU_COULD_SAY": "Podrías haber dicho",
-    "THE_MOMENT": "EL MOMENTO DECISIVO",
-    "THE_MECHANISM": "EL MECANISMO",
-    "THE_SHIFT": "EL GIRO",
-    "ESCAPE_ROUTE": "RUTA DE ESCAPE",
-    "THE_ARENA_READ": "LO QUE LEE LA ARENA",
-    "ALTERNATIVE": "Una alternativa",
-    "OPPONENT_SAID": "El oponente dijo",
-    "ARENA_NOTICED": "ARENA NOTÓ ALGO."
+    "NEXT_BATTLE": "Prossima battaglia",
+    "NEXT_BATTLE_NOW": "disponibile ora",
+    "NEXT_BATTLE_TOMORROW": "domani",
+    "NEXT_BATTLE_HOURS": "tra {h} h",
+    "NEXT_BATTLE_OR_FT": "Vuoi esercitarti ora? La Conversazione Libera è sempre aperta.",
+    "NEW_TOOL": "NUOVO STRUMENTO SBLOCCATO!",
+    "THE_MOVE": "LA MOSSA",
+    "WANT_TO_GO_DEEPER": "VUOI ANDARE PIÙ A FONDO?",
+    "READ_THE_BREAKDOWN": "📖 Leggi l'analisi",
+    "TURNING_POINT": "IL PUNTO DI SVOLTA",
+    "GRAMMAR_FOCUS": "FOCUS GRAMMATICALE",
+    "GRAMMAR_FOR_GOAL": "GRAMMATICA PER",
+    "YOU_COULD_SAY": "Avresti potuto dire",
+    "THE_MOMENT": "IL MOMENTO DECISIVO",
+    "THE_MECHANISM": "IL MECCANISMO",
+    "THE_SHIFT": "IL CAMBIAMENTO",
+    "ESCAPE_ROUTE": "VIA DI FUGA",
+    "THE_ARENA_READ": "LA LETTURA DELL'ARENA",
+    "ALTERNATIVE": "Un'alternativa",
+    "OPPONENT_SAID": "L'avversario ha detto",
+    "ARENA_NOTICED": "ARENA HA NOTATO QUALCOSA.",
+    "SINGLE_INSIGHT_LABEL": "💭 ARENA ha notato"
   },
   "FT": {
-    "SELECT_LANGUAGE": "💬 Charla libre — ¿en qué idioma practicamos?",
-    "SELECT_CHARACTER": "¿Con quién quieres hablar?",
-    "START": "Charla libre con {name}. Sin reloj, sin notas. Solo escribe.",
-    "DONE": "Conversación terminada, {name}. ARENA recuerda.",
-    "BUSY": "Ya estás en una conversación. Termínala primero."
+    "SELECT_LANGUAGE": "💬 Conversazione libera — in quale lingua ci esercitiamo?",
+    "SELECT_CHARACTER": "Con chi vuoi parlare?",
+    "START": "Conversazione libera con {name}. Nessun timer, nessun voto. Scrivi e basta.",
+    "DONE": "Conversazione terminata, {name}. ARENA se lo ricorda.",
+    "BUSY": "Sei già in una conversazione. Terminala prima."
   },
   "SETTINGS": {
-    "TITLE": "⚙️ AJUSTES",
-    "INTERFACE_LANGUAGE": "Idioma de la interfaz",
-    "LEARNING_LANGUAGE": "Idioma de aprendizaje",
-    "CHANGE_INTERFACE": "Cambiar idioma de la interfaz",
-    "CHANGE_LEARNING": "Cambiar idioma de aprendizaje",
-    "SAVED": "Guardado."
+    "TITLE": "⚙️ IMPOSTAZIONI",
+    "INTERFACE_LANGUAGE": "Lingua dell'interfaccia",
+    "LEARNING_LANGUAGE": "Lingua di studio",
+    "CHANGE_INTERFACE": "Cambia lingua dell'interfaccia",
+    "CHANGE_LEARNING": "Cambia lingua di studio",
+    "SAVED": "Salvato."
   },
   "MY_ARENA": {
-    "TITLE": "MI ARENA",
-    "PROFILE": "PERFIL",
-    "NAME": "Nombre",
-    "INTERFACE_LANGUAGE": "Interfaz",
-    "LEARNING_LANGUAGE": "Practico",
-    "LEVEL": "Nivel",
-    "BATTLES": "Batallas",
-    "VICTORIES": "Victorias",
-    "CHARACTERS": "Personajes conocidos",
-    "WHAT_ARENA_KNOWS": "LO QUE ARENA SABE DE TI",
-    "WHAT_IVE_SEEN": "LO QUE VEO",
-    "TESTING_NOW": "LO QUE ESTOY PROBANDO AHORA",
-    "CURRENT_WEAPON": "ARMA ACTUAL",
-    "CURRENT_CHALLENGE": "RETO ACTUAL",
-    "HOW_WE_TRAIN": "CÓMO LO ENTRENA ARENA",
-    "YOUR_STRENGTH": "TU FUERZA",
-    "ARSENAL_SHORTCUT": "🧰 Mi arsenal",
-    "BATTLE_HISTORY": "HISTORIAL DE BATALLAS",
-    "COMMUNICATION": "COMUNICACIÓN",
-    "LANGUAGE": "IDIOMA",
-    "CURRENT_READ": "LECTURA ACTUAL",
-    "SIGNALS": "SEÑALES DE LA ARENA",
-    "UNDER_PRESSURE": "BAJO PRESIÓN",
-    "UNSOLVED": "SIN RESOLVER",
-    "CONTEXT": "Contexto",
-    "EVOLUTION": "EVOLUCIÓN",
-    "BATTLE_N": "Batalla {n}",
-    "BASED_ON": "Basado en {n} batallas",
-    "WHY": "Por qué ARENA piensa esto"
+    "TITLE": "LA MIA ARENA",
+    "PROFILE": "PROFILO",
+    "NAME": "Nome",
+    "INTERFACE_LANGUAGE": "Interfaccia",
+    "LEARNING_LANGUAGE": "Studi",
+    "LEVEL": "Livello",
+    "BATTLES": "Battaglie",
+    "VICTORIES": "Vittorie",
+    "CHARACTERS": "Personaggi incontrati",
+    "WHAT_ARENA_KNOWS": "COSA ARENA SA DI TE",
+    "WHAT_IVE_SEEN": "COSA HO VISTO",
+    "TESTING_NOW": "COSA STO VERIFICANDO ORA",
+    "CURRENT_WEAPON": "ARMA ATTUALE",
+    "CURRENT_CHALLENGE": "SFIDA ATTUALE",
+    "HOW_WE_TRAIN": "COME ARENA LO ALLENA",
+    "YOUR_STRENGTH": "LA TUA FORZA",
+    "ARSENAL_SHORTCUT": "🧰 Il mio Arsenale",
+    "BATTLE_HISTORY": "STORICO BATTAGLIE",
+    "COMMUNICATION": "COMUNICAZIONE",
+    "LANGUAGE": "LINGUA",
+    "CURRENT_READ": "LETTURA ATTUALE",
+    "SIGNALS": "SEGNALI DELL'ARENA",
+    "UNDER_PRESSURE": "SOTTO PRESSIONE",
+    "UNSOLVED": "IRRISOLTO",
+    "CONTEXT": "Contesto",
+    "EVOLUTION": "EVOLUZIONE",
+    "BATTLE_N": "Battaglia {n}",
+    "BASED_ON": "Sulla base di {n} battaglie",
+    "WHY": "Perché ARENA lo pensa"
   },
   "ARSENAL": {
-    "TITLE": "🧰 MI ARSENAL",
-    "EMPTY": "Tu arsenal está vacío. Gana una batalla para conseguir tu primer movimiento.",
-    "WORD": "Palabra",
+    "TITLE": "🧰 IL MIO ARSENALE",
+    "EMPTY": "Il tuo arsenale è vuoto. Vinci una battaglia per guadagnare la tua prima mossa.",
+    "WORD": "Parola",
     "PHRASE": "Frase",
-    "MOVE": "Movimiento comunicativo",
-    "STRATEGY": "Estrategia",
-    "WHAT_IT_DOES": "Qué hace",
-    "HOW_TO_USE": "Cómo usarlo",
-    "EXAMPLE": "Ejemplo",
-    "WHEN_TO_USE": "Cuándo usarlo",
-    "PROGRESS": "{n} de {total} desbloqueados",
-    "LOCKED": "todavía no desbloqueado",
-    "MORE_TO_EARN": "Otros {n} movimientos esperan a que los muestres.",
-    "PHRASES_SECTION": "FRASES PARA TUS OBJETIVOS",
-    "CHANNEL_HINT": "Cómo suenan estos movimientos en habla real — en el canal de ARENA.",
-    "CHANNEL_BUTTON": "📣 Canal ARENA",
+    "MOVE": "Mossa comunicativa",
+    "STRATEGY": "Strategia",
+    "WHAT_IT_DOES": "Cosa fa",
+    "HOW_TO_USE": "Come usarla",
+    "EXAMPLE": "Esempio",
+    "WHEN_TO_USE": "Quando usarla",
+    "PROGRESS": "{n} di {total} sbloccati",
+    "LOCKED": "non ancora sbloccato",
+    "MORE_TO_EARN": "Altri {n} movimenti aspettano che tu li riveli.",
+    "PHRASES_SECTION": "FRASI PER I TUOI OBIETTIVI",
+    "CHANNEL_HINT": "Guarda come suonano queste mosse nel linguaggio reale — sul canale ARENA.",
+    "CHANNEL_BUTTON": "📣 Canale ARENA",
     "STATUS": {
-      "discovered": "descubierto",
-      "practising": "practicando",
-      "acquired": "adquirido",
-      "strong": "fuerte",
-      "mastered": "dominado"
+      "discovered": "scoperto",
+      "practising": "in pratica",
+      "acquired": "acquisito",
+      "strong": "forte",
+      "mastered": "padroneggiato"
     },
-    "USED_N_TIMES": "Usado {n} veces · {w} victorias"
+    "USED_N_TIMES": "Usato {n} volte · {w} vittorie"
   },
   "PATTERNS": {
-    "repeats_claim": "Cuando te interrumpen, repites el mismo punto en lugar de buscar un ángulo nuevo.",
-    "develops_argument": "Cuando te interrumpen, añades un argumento nuevo en lugar de repetir.",
-    "claims_without_evidence": "Afirmas con fuerza, pero sin ejemplo ni cifra.",
-    "backs_claims_with_evidence": "Respaldas tus afirmaciones con un ejemplo concreto.",
-    "agrees_too_quickly": "Cedes o aceptas demasiado rápido cuando te presionan.",
-    "holds_position": "Mantienes tu posición — o la rediriges con maña — bajo presión.",
-    "imprecise_vocabulary": "Echas mano de palabras generales donde una precisa llevaría mejor la idea.",
-    "uses_precise_vocabulary": "Eliges palabras precisas que encajan con la idea.",
-    "states_position_clearly": "Dices tu posición con claridad y de forma directa.",
-    "tells_vivid_stories": "Cuentas historias vívidas y concretas.",
-    "adapts_argument": "Cambias el ángulo o el tono de tu argumento para encajar con la otra persona.",
-    "has_professional_context": "Vuelves una y otra vez a un contexto profesional claro.",
-    "states_goals": "Dices abiertamente en qué quieres mejorar.",
-    "avoids_topic": "Te alejas o desvías un tema que claramente no quieres tratar."
+    "repeats_claim": "Quando ti interrompono, ripeti lo stesso punto invece di trovare un angolo nuovo.",
+    "develops_argument": "Quando ti interrompono, aggiungi un argomento nuovo invece di ripetere.",
+    "claims_without_evidence": "Fai affermazioni forti senza un esempio o un numero.",
+    "backs_claims_with_evidence": "Sostieni le tue affermazioni con un esempio concreto.",
+    "agrees_too_quickly": "Cedi o sei d'accordo troppo in fretta quando vieni messo sotto pressione.",
+    "holds_position": "Mantieni la tua posizione, o la reindirizzi abilmente, sotto pressione.",
+    "imprecise_vocabulary": "Usi parole generiche dove una precisa reggerebbe meglio l'idea.",
+    "uses_precise_vocabulary": "Scegli parole precise che si adattano all'idea.",
+    "states_position_clearly": "Dici la tua posizione in modo chiaro e diretto.",
+    "tells_vivid_stories": "Racconti storie vivide e concrete.",
+    "adapts_argument": "Cambi l'angolo o il tono del tuo argomento per adattarti all'altra persona.",
+    "has_professional_context": "Torni continuamente a un chiaro contesto professionale.",
+    "states_goals": "Dici apertamente in cosa vuoi migliorare.",
+    "avoids_topic": "Ti allontani da un tema o lo devii quando chiaramente non vuoi parlarne."
   },
   "SIGNALS": {
     "explainer": {
-      "NAME": "EL EXPLICADOR",
-      "BRIEF": "Rara vez dejas una idea sin explicar."
+      "NAME": "LO SPIEGATORE",
+      "BRIEF": "Raramente lasci un'idea senza spiegazione."
     },
     "reframer": {
-      "NAME": "EL REENCUADRADOR",
-      "BRIEF": "Cuando te desafían, cambias el ángulo en lugar de abandonar la posición."
+      "NAME": "IL REINTERPRETE",
+      "BRIEF": "Quando vieni sfidato, cambi angolo invece di abbandonare la posizione."
     },
     "pushback_response": {
-      "NAME": "RESPUESTA A LA RÉPLICA",
-      "BRIEF": "Cuando alguien te contradice, primero explicas — y luego cambias de estrategia."
+      "NAME": "REAZIONE ALLA REPLICA",
+      "BRIEF": "Quando qualcuno non è d'accordo, spieghi prima di cambiare strategia."
     },
     "closer": {
-      "NAME": "EL QUE CIERRA",
-      "BRIEF": "Cuando sabes hacia dónde vas, sabes cómo terminar el punto."
+      "NAME": "IL CHIUDITORE",
+      "BRIEF": "Quando sai dove stai andando, sai anche come chiudere il punto."
     },
     "precision_under_pressure": {
-      "NAME": "PRECISIÓN BAJO PRESIÓN",
-      "BRIEF": "Cuando sube la apuesta, te vuelves más preciso."
+      "NAME": "PRECISIONE SOTTO PRESSIONE",
+      "BRIEF": "Diventi più preciso quando la posta in gioco sale."
     },
     "retreats_from_frames": {
-      "NAME": "PIERDE EL MARCO",
-      "BRIEF": "Pierdes el impulso cuando la otra persona rechaza tu marco inicial."
+      "NAME": "PERDE IL FRAME",
+      "BRIEF": "Perdi slancio quando l'altra persona rifiuta il tuo frame iniziale."
     },
     "evidence_first": {
-      "NAME": "PRIMERO EL DATO",
-      "BRIEF": "Antes del argumento, echas mano de un dato concreto."
+      "NAME": "PRIMA L'EVIDENZA",
+      "BRIEF": "Prima di argomentare, prendi un fatto concreto."
     },
     "story_driven": {
-      "NAME": "A TRAVÉS DE LA HISTORIA",
-      "BRIEF": "Haces avanzar el argumento con ejemplos e historias."
+      "NAME": "GUIDATO DALLA STORIA",
+      "BRIEF": "Porti avanti l'argomento con esempi e storie."
     },
     "hedges_too_early": {
-      "NAME": "SUAVIZA DEMASIADO PRONTO",
-      "BRIEF": "Suavizas la afirmación antes de que tenga ocasión de aterrizar."
+      "NAME": "AMMORBIDISCE TROPPO PRESTO",
+      "BRIEF": "Attenui l'affermazione prima di darle la possibilità di atterrare."
     },
     "controls_direction": {
-      "NAME": "DIRIGE LA CONVERSACIÓN",
-      "BRIEF": "Llevas la conversación hacia el punto que quieres defender."
+      "NAME": "CONTROLLA LA DIREZIONE",
+      "BRIEF": "Porti la conversazione verso il punto che vuoi esprimere."
     }
   },
   "CRITERIA": {
-    "grammar": "Gramática",
-    "vocabulary": "Vocabulario",
-    "fluency": "Fluidez",
-    "naturalness": "Naturalidad",
-    "clarity": "Claridad",
-    "argumentation": "Argumentación",
-    "adaptability": "Adaptabilidad",
-    "persuasion": "Persuasión",
-    "evidence": "Evidencia",
-    "control": "Control de la conversación"
+    "grammar": "Grammatica",
+    "vocabulary": "Lessico",
+    "fluency": "Fluidità",
+    "naturalness": "Naturalezza",
+    "clarity": "Chiarezza",
+    "argumentation": "Argomentazione",
+    "adaptability": "Adattabilità",
+    "persuasion": "Persuasione",
+    "evidence": "Prove",
+    "control": "Controllo della conversazione"
   },
   "TOOLS": {
     "premise_flip": {
-      "NAME": "Giro de premisa",
-      "DESC": "No discutes la afirmación — cuestionas en qué se apoya.",
-      "EXAMPLE": "«¿Por qué tiene que funcionar así en absoluto?»"
+      "NAME": "Ribaltamento della premessa",
+      "DESC": "Non discuti l'affermazione — metti in dubbio su cosa si basa.",
+      "EXAMPLE": "\"Perché dovrebbe funzionare così, in ogni caso?\""
     },
     "clarifying_question": {
-      "NAME": "Pregunta aclaratoria",
-      "DESC": "Una pregunta precisa que detiene en seco las afirmaciones vagas.",
-      "EXAMPLE": "«¿Qué quieres decir exactamente con eficiente?»"
+      "NAME": "Domanda chiarificatrice",
+      "DESC": "Una domanda precisa che ferma di colpo le affermazioni vaghe.",
+      "EXAMPLE": "\"Cosa intendi esattamente con efficiente?\""
     },
     "emotional_anchor": {
-      "NAME": "Ancla emocional",
-      "DESC": "Te mantienes calmado y nombras la emoción en vez de dejarte arrastrar.",
-      "EXAMPLE": "«Entiendo por qué eso frustra. Aquí están los hechos.»"
+      "NAME": "Ancora emotiva",
+      "DESC": "Resti calmo e nomini l'emozione invece di lasciarti travolgere.",
+      "EXAMPLE": "\"Capisco perché è frustrante. Ecco i fatti.\""
     },
     "fact_check": {
-      "NAME": "Verificación de datos",
-      "DESC": "No aceptas una afirmación sin más — la compruebas en voz alta.",
-      "EXAMPLE": "«¿De dónde sale esa cifra? ¿Tienes una fuente?»"
+      "NAME": "Verifica dei fatti",
+      "DESC": "Non prendi un'affermazione per buona — la verifichi ad alta voce.",
+      "EXAMPLE": "\"Da dove viene quel numero? Hai una fonte?\""
     },
     "counterexample": {
-      "NAME": "Contraejemplo",
-      "DESC": "Un ejemplo afilado que rompe su generalización.",
-      "EXAMPLE": "«¿Y aquella vez que fue al revés?»"
+      "NAME": "Controesempio",
+      "DESC": "Un esempio tagliente che spezza la loro generalizzazione.",
+      "EXAMPLE": "\"E quella volta che è andata al contrario?\""
     },
     "steelman": {
       "NAME": "Steelman",
-      "DESC": "Formulas la posición del contrario mejor que él — y rebates exactamente esa.",
-      "EXAMPLE": "«Si te entiendo bien, dices que… Y aun así…»"
+      "DESC": "Formuli la posizione del tuo avversario meglio di come l'ha formulata lui — e confuti esattamente quella.",
+      "EXAMPLE": "\"Se ti capisco bene, stai dicendo che… Eppure…\""
     },
     "short_thesis": {
-      "NAME": "Tesis corta",
-      "DESC": "Una línea corta y decidida en lugar de tres minutos de explicación.",
-      "EXAMPLE": "«Sí — y por esto.»"
+      "NAME": "Tesi breve",
+      "DESC": "Una riga breve e decisa invece di una spiegazione di tre minuti.",
+      "EXAMPLE": "\"Sì — ed ecco perché.\""
     },
     "reframe": {
-      "NAME": "Reencuadre",
-      "DESC": "Cambias los criterios con los que se juzga el debate.",
-      "EXAMPLE": "«No se trata de quién tiene razón. Se trata de qué funciona de verdad.»"
+      "NAME": "Reinterpretazione",
+      "DESC": "Cambi i criteri con cui viene giudicato il dibattito.",
+      "EXAMPLE": "\"Non si tratta di chi ha ragione. Si tratta di cosa funziona davvero.\""
     }
   },
   "ERROR": {
-    "AI_UNAVAILABLE": "Se perdió la conexión con la IA. Inténtalo de nuevo en un minuto."
+    "AI_UNAVAILABLE": "Connessione con l'IA persa. Riprova tra un minuto."
   },
   "RESET": {
-    "WARNING": "Esto borrará todos tus datos en ARENA: batallas, análisis, memoria, arsenal, temas.\n\n¿Continuar?",
-    "CONFIRM": "🗑 Sí, borrar todo",
-    "DONE": "Listo. Puedes empezar de nuevo — /start."
+    "WARNING": "Questo cancellerà tutti i tuoi dati in ARENA: battaglie, analisi, memoria, arsenale, temi.\n\nContinuare?",
+    "CONFIRM": "🗑 Sì, cancella tutto",
+    "DONE": "Fatto. Puoi ricominciare — /start."
   },
   "POLICY": {
-    "INTRO": "Antes de empezar — breve nota sobre lo que ARENA guarda de ti.\n\n• Tus mensajes en el Templo, la Batalla y la Charla libre.\n• Los audios — se convierten a texto con OpenAI Whisper y NO se guardan como audio.\n• Perfil: idioma, nivel, intereses, patrones de habla, análisis.\n• Todo se usa solo dentro de ARENA — para que la próxima conversación sea más precisa.\n\nPuedes borrar tus datos en cualquier momento con /reset.\n\nSi continúas, aceptas este tratamiento.",
-    "ACCEPT": "✅ Acepto",
-    "READ_MORE": "📄 Política completa"
+    "INTRO": "Prima di iniziare — una breve nota su cosa ARENA conserva di te.\n\n• I tuoi messaggi nel Tempio, nella Battaglia e nella Conversazione Libera.\n• Messaggi vocali — convertiti in testo tramite OpenAI Whisper e NON conservati come audio.\n• Profilo: lingua, livello, interessi, schemi di linguaggio, analisi.\n• Tutto questo viene usato solo dentro ARENA — per rendere più precisa la prossima conversazione.\n\nPuoi cancellare i tuoi dati in qualsiasi momento con /reset.\n\nSe continui, accetti questo trattamento.",
+    "ACCEPT": "✅ Accetto",
+    "READ_MORE": "📄 Policy completa"
+  },
+  "DISCOVERY": {
+    "OPENER": "🧠 ARENA ha notato qualcosa su di te.",
+    "OPENER_ARENA_HAS_A_THEORY": "🧠 ARENA ha una teoria su di te.",
+    "OPENER_NEW_DISCOVERY": "🧠 Qualcosa di nuovo su di te.",
+    "OPENER_ARENA_CHANGED_ITS_MIND": "🧠 ARENA ha cambiato idea su di te.",
+    "OPENER_NEW_SIGNAL": "🧠 Nuovo segnale dalle tue conversazioni recenti.",
+    "OPENER_YOUR_FILE_CHANGED": "🧠 Il tuo file Arena è appena cambiato.",
+    "OPENER_INTERESTING_PATTERN": "🧠 È appena emerso un pattern.",
+    "OPENER_UNSOLVED": "🧠 ARENA ha ancora una domanda aperta su di te.",
+    "OPENER_NEW_WEAPON": "🧠 Una nuova mossa è comparsa nel tuo modo di parlare.",
+    "OPENER_ARENA_QUESTION": "🧠 ARENA ha una domanda per te.",
+    "OPENER_CONTRADICTION": "🧠 ARENA ha notato una contraddizione.",
+    "OPEN_ARENA": "🧠 APRI IL MIO FILE ARENA"
   }
 }

@@ -1,22 +1,5 @@
 """
 personalization.py — единый слой Personalization Memory + выбор ежедневного напоминания.
-
-Поток данных:
-    Temple / Free Talk / Battle ──► record_session() ──► user_interest_clusters + user_patterns
-                                                       + professional_context + goals + avoids
-    Battle ──► Debrief ──► game_sessions.debrief_json
-    всё вместе ──► select_reminder() ──► ai.generate_personalized_reminder() ──► notification_log
-
-Каталоги паттернов:
-    PATTERN_CATALOG  — поведенческие паттерны (repeats_claim, develops_argument, ...)
-    ARENA_SIGNALS    — человекочитаемые коммуникационные сигналы для My Arena
-                       (explainer, reframer, pushback_response, ...)
-    ALL_PATTERNS     — объединение, передаётся в ai.extract_signals.
-
-Фокус (что тренируем сейчас):
-    1. Подтверждённый growth-паттерн (status in confirmed/improving).
-    2. next_target последнего дебрифа (≤14 дней).
-    3. Самый слабый communication-критерий.
 """
 import logging
 import random
@@ -91,18 +74,12 @@ PATTERN_CATALOG = {
         "brief": "Steps away from or redirects a topic they clearly don't want to discuss."},
 }
 
-# Объединённый каталог — передаётся в extract_signals. ID сигналов не пересекаются
-# с ID поведенческих паттернов, поэтому объединение безопасно.
 ALL_PATTERNS = {**PATTERN_CATALOG, **ARENA_SIGNALS}
 
 MIN_LINES_FOR_PATTERNS = 3
 
 
 def record_session(user_id: int, source: str, user_lines: list[str], language: str) -> dict:
-    """
-    Единая точка входа для Temple / Free Talk / Battle. Блокирующая (LLM) — вызывать через to_thread.
-    Ничего не показывает пользователю.
-    """
     lines = [l.strip() for l in (user_lines or []) if isinstance(l, str) and len(l.strip()) >= 3]
     if not lines:
         return {"topics": 0, "patterns": 0, "goals": 0}
@@ -138,10 +115,6 @@ def record_session(user_id: int, source: str, user_lines: list[str], language: s
     return {"topics": len(topics), "patterns": applied,
             "goals": len(signals.get("goals") or [])}
 
-
-# ------------------------------------------------------------------
-# Ежедневное напоминание
-# ------------------------------------------------------------------
 
 REMINDER_TYPES = (
     "interest_hook", "challenge_hook", "arsenal_hook", "debrief_hook",
@@ -223,7 +196,6 @@ def select_reminder(user_id: int, rng: random.Random | None = None) -> dict | No
     last = ctx["last_battle"]
     cand: dict[str, dict] = {}
 
-    # --- interest_hook / provocative_question ---
     fresh_clusters = [c for c in ctx["clusters"] if c["cluster"].lower() not in used_interest and c["examples"]]
     if fresh_clusters:
         c = fresh_clusters[0]
@@ -239,7 +211,6 @@ def select_reminder(user_id: int, rng: random.Random | None = None) -> dict | No
             "facts": [f"Interest area: {c2['cluster']}.", f"What they talked about: \"{ex2}\"."],
             "interest": c2["cluster"], "topic": ex2}
 
-    # --- continuation ---
     ft = ctx["last_freetalk"]
     options = []
     if ft and (_days_ago(ft["created_at"]) or 99) <= 3:
@@ -254,7 +225,6 @@ def select_reminder(user_id: int, rng: random.Random | None = None) -> dict | No
                 "facts": [f"Recent {kind} topic: \"{topic}\"{_when(_days_ago(created))}."],
                 "topic": topic, "battle": battle_id, "interest": topic}
 
-    # --- debrief_hook ---
     if last and last["id"] not in used_battle and (_days_ago(last["created_at"]) or 99) <= 7:
         dj = last["debrief"]
         if dj.get("cost"):
@@ -265,7 +235,6 @@ def select_reminder(user_id: int, rng: random.Random | None = None) -> dict | No
                 facts.append(f"Their next target skill: {dj['next_target']}.")
             cand["debrief_hook"] = {"facts": facts, "battle": last["id"], "topic": last["topic"]}
 
-    # --- arsenal_hook ---
     for key in ctx["tools"]:
         if key not in used_tool and key in ARSENAL_TOOL_DEFS:
             cand["arsenal_hook"] = {
@@ -274,7 +243,6 @@ def select_reminder(user_id: int, rng: random.Random | None = None) -> dict | No
                 "arsenal": key}
             break
 
-    # --- challenge_hook ---
     if ctx["focus"]:
         facts = [f"Their current training focus: {ctx['focus']}."]
         ref = None
@@ -286,9 +254,8 @@ def select_reminder(user_id: int, rng: random.Random | None = None) -> dict | No
                 break
         cand["challenge_hook"] = {"facts": facts, "pattern": ref}
 
-    # --- language_hook ---
     if last and last["id"] not in used_battle and (_days_ago(last["created_at"]) or 99) <= 10:
-        up = last["debrief"].get("language_upgrade")
+        up = last["debrief"].get("language_upgrade") or last["debrief"].get("steal_it")
         if isinstance(up, dict) and up.get("said") and up.get("better"):
             cand["language_hook"] = {
                 "facts": [f"In their last battle they said: \"{up['said']}\".",
@@ -303,7 +270,6 @@ def select_reminder(user_id: int, rng: random.Random | None = None) -> dict | No
                     "pattern": p["pattern_id"]}
                 break
 
-    # --- battle_invitation ---
     if ctx["focus"] in SKILL_TO_PERSONALITY and (ctx["clusters"] or (last and last["topic"])):
         pk = SKILL_TO_PERSONALITY[ctx["focus"]]
         topic = (fresh_clusters[0]["examples"][-1] if fresh_clusters
@@ -315,7 +281,6 @@ def select_reminder(user_id: int, rng: random.Random | None = None) -> dict | No
                           f"A topic they care about: \"{topic}\"."],
                 "topic": topic, "interest": topic}
 
-    # --- goal_hook ---
     if ctx["goals"]:
         goal = ctx["goals"][0]
         cand["goal_hook"] = {
@@ -323,7 +288,6 @@ def select_reminder(user_id: int, rng: random.Random | None = None) -> dict | No
             "topic": "",
         }
 
-    # --- context_hook ---
     if ctx["professional_context"] and ctx["clusters"]:
         c = ctx["clusters"][0]
         ex = c["examples"][-1] if c["examples"] else c["cluster"]
