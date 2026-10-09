@@ -318,6 +318,27 @@ def _pick_personality_for_today(user_id: int, analysis: dict) -> str:
 
 
 async def daily_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Обёртка с защитой от двойного нажатия: пока первый запуск ещё готовит
+    питч (несколько секунд ждёт AI), повторные нажатия игнорируются.
+    Иначе приходили два сообщения с темой (часто с разными темами).
+    """
+    ud = context.user_data
+    if ud.get("_daily_battle_busy"):
+        if update.callback_query:
+            try:
+                await update.callback_query.answer()
+            except Exception:
+                pass
+        return
+    ud["_daily_battle_busy"] = True
+    try:
+        await _daily_battle_impl(update, context)
+    finally:
+        ud.pop("_daily_battle_busy", None)
+
+
+async def _daily_battle_impl(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = user.id
     il = db.get_interface_language(user_id)
@@ -387,8 +408,18 @@ async def daily_battle(update: Update, context: ContextTypes.DEFAULT_TYPE):
                               callback_data="fe_start_battle")]
     ])
 
-    try:
-        await msg.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
-    except Exception:
+    edited = False
+    if msg is not None and hasattr(msg, "edit_text"):
+        try:
+            await msg.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+            edited = True
+        except Exception:
+            logger.debug("edit_text питча не удался, отправляю заново", exc_info=True)
+    if not edited:
+        if msg is not None and hasattr(msg, "delete"):
+            try:
+                await msg.delete()      # убираем висящее «thinking…»
+            except Exception:
+                pass
         await context.bot.send_message(update.effective_chat.id, text,
                                        reply_markup=keyboard, parse_mode="HTML")
