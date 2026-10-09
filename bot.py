@@ -27,7 +27,7 @@ import database as db
 import i18n
 import personalization
 import voice
-from handlers import start, profile, arena, intro, settings
+from handlers import start, profile, arena, intro, settings, consent
 from discovery import schedule_discovery
 
 
@@ -229,8 +229,8 @@ async def open_arena_from_discovery(update, context):
 
 def main():
     db.init_db()
-    app = Application.builder().token(BOT_TOKEN).build()
-
+    app = Application.builder().token(BOT_TOKEN).post_init(consent.set_commands).build()
+    consent.register(app)
     app.job_queue.run_daily(send_daily_pushes, time=dt_time(hour=DAILY_PUSH_HOUR, minute=0))
     app.job_queue.run_daily(
         daily_language_profile_update,

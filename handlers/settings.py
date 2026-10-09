@@ -34,6 +34,7 @@ def _settings_keyboard(il: str) -> InlineKeyboardMarkup:
         [InlineKeyboardButton(i18n.t(il, "SETTINGS.CHANGE_INTERFACE"), callback_data="set_pick_iface")],
         [InlineKeyboardButton(i18n.t(il, "SETTINGS.CHANGE_LEARNING"), callback_data="set_pick_learn")],
         [InlineKeyboardButton(i18n.t(il, "MENU.BACK"), callback_data="back_to_main")],
+        [InlineKeyboardButton("🔒 Privacy & data", callback_data="menu_privacy")],
     ])
 
 
