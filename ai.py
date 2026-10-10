@@ -1079,7 +1079,61 @@ No stage directions, no emojis, no line breaks inside the reply.
     text = " ".join(text.split())
     return text
 
+def generate_ai_response(personality: str, history: str, last_user: str, level: str,
+                         language: str, _placeholder, user_name: str,
+                         memory: dict | None = None, opening_line: str = "") -> str:
+    """
+    Свободный разговор: персонаж отвечает в своём стиле, без миссии и conviction.
+    Тема и вопрос строятся из memory — того, что ARENA уже знает о пользователе.
+    """
+    prompt = f"""
+You are {_persona(personality)}
 
+You are having a relaxed free conversation with a language learner{f' named {user_name}' if user_name else ''}.
+There is no grading, no mission, no opponent to defeat — just a real conversation in your voice.
+
+{_memory_block(memory)}
+
+{_lv_hard(level, language)}
+
+=== THE CONVERSATION SO FAR ===
+{history}
+
+The learner just said: "{last_user}"
+
+=== HOW TO REPLY ===
+Reply in character, in {_lang(language)}, 1-3 short sentences.
+
+1. If they asked you a DIRECT QUESTION — answer it FIRST, in character. Only after
+   answering may you add a follow-up or a light pushback.
+2. If they did NOT ask a question — react naturally: share your view, push back
+   lightly, or ask ONE follow-up question.
+3. Your follow-up question MUST come from what you already know about THIS person
+   (their interests, things they keep returning to, what they said before).
+   Do NOT ask a generic question like "how are you", "what do you do",
+   "tell me more", "why do you think that".
+4. If you know their favorite topics — prefer bringing one of them up naturally
+   when it fits the moment. Not every turn, but when there is an opening.
+5. Stay fully in your character's voice and speech habits. Do NOT become a neutral
+   friendly chatbot.
+
+=== HARD BANS ===
+- Do NOT grade their language, do NOT correct grammar, do NOT mention the mission.
+- Do NOT write more than 3 short sentences.
+- Do NOT ask two questions in one message. Exactly ONE question max.
+- Do NOT use: 'interesting', 'great', 'cool', 'fascinating'.
+- No emojis, no lists, no stage directions.
+
+Output is ONLY your reply as plain text, no JSON, no quotes.
+"""
+    system = _system(language)
+    text = _chat(system, prompt, temperature=0.9, max_tokens=220)
+    if text and _lang(language) != "Russian" and _CYRILLIC.search(text):
+        text = _chat(system + f" Answer strictly in {_lang(language)}.",
+                     prompt, temperature=0.9, max_tokens=220)
+        if text and _CYRILLIC.search(text):
+            return None
+    return _clean(text)
 # ==================================================================
 # ПУШИ
 # ==================================================================
